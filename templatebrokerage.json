@@ -1,0 +1,41 @@
+{
+    "description": "description of brokerage",
+    "platforms-features": [
+        {
+            "Platforms": ["Cloud Platform", "Local Platform", "LEAN CLI"],
+			"Download Data": [0,0,0],
+			"Backtesting": [0,0,0],
+			"Optimization": [0,0,0],
+			"Live Trading":	[0,0,0]
+        }
+    ],
+    "order-types": ["Market", "Limit", "..."],
+	"assets": ["Equity", "Future Options", "..."], 
+	"brokerage-url": "",
+  	"documentation": "link on QuantConnect dock",
+	"module-specification": {
+		"download": {
+			"data-types": [
+				"Trade",
+				"Quote",
+                "OpenInterest"
+			],
+			"resolutions": [
+                "Tick",
+				"Second",
+				"Minute",
+				"Hour",
+				"Daily"
+			],
+			"security-types": [
+				"Equity",
+				"FutureOption",
+                "..."
+			],
+			"markets": [
+				"USA",
+                "..."
+			]
+		}
+	}
+}
