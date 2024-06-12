@@ -6,7 +6,7 @@
         <TargetFramework>net6.0</TargetFramework>
 
         <IsPackable>false</IsPackable>
-        <Copyright>Copyright ©  2021</Copyright>
+        <Copyright>Copyright © 2024</Copyright>
         <TestProjectType>UnitTest</TestProjectType>
         <OutputPath>bin\$(Configuration)\</OutputPath>
         <Product>QuantConnect.Brokerages.Alpaca.Tests</Product>
@@ -27,8 +27,8 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\Lean\Tests\QuantConnect.Tests.csproj" />
-      <ProjectReference Include="..\QuantConnect.AlpacaBrokerage\QuantConnect.AlpacaBrokerage.csproj" />
+        <ProjectReference Include="..\..\Lean\Tests\QuantConnect.Tests.csproj" />
+        <ProjectReference Include="..\QuantConnect.AlpacaBrokerage\QuantConnect.AlpacaBrokerage.csproj" />
     </ItemGroup>
 
     <ItemGroup>

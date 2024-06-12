@@ -62,7 +62,9 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             {
                 ProcessFeed(brokerage.Subscribe(config, (s, e) => { }),
                     cancelationToken,
-                    (baseData) => { if (baseData != null) { Log.Trace($"{baseData}"); }
+                    (baseData) =>
+                    {
+                        if (baseData != null) { Log.Trace($"{baseData}"); }
                     });
             }
 
