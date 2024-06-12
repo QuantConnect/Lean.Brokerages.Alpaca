@@ -60,7 +60,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         {
             TestDelegate test = () =>
             {
-                var brokerage = new AlpacaBrokerage(null);
+                var brokerage = new AlpacaBrokerage(null, null, false);
 
                 var historyProvider = new BrokerageHistoryProvider();
                 historyProvider.SetBrokerage(brokerage);

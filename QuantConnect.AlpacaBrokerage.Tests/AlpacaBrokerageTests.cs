@@ -17,11 +17,12 @@ using NUnit.Framework;
 using QuantConnect.Tests;
 using QuantConnect.Interfaces;
 using QuantConnect.Securities;
+using QuantConnect.Configuration;
 using QuantConnect.Tests.Brokerages;
 
 namespace QuantConnect.Brokerages.Alpaca.Tests
 {
-    [TestFixture, Ignore("Not implemented")]
+    [TestFixture]
     public partial class AlpacaBrokerageTests : BrokerageTests
     {
         protected override Symbol Symbol { get; }
@@ -29,7 +30,11 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
 
         protected override IBrokerage CreateBrokerage(IOrderProvider orderProvider, ISecurityProvider securityProvider)
         {
-            throw new System.NotImplementedException();
+            var apiKey = Config.Get("alpaca-api-key-id");
+            var apiSecret = Config.Get("alpaca-api-secret-key");
+            var isPaperTrading = Config.GetBool("alpaca-use-paper-trading");
+
+            return new AlpacaBrokerage(apiKey, apiSecret, isPaperTrading);
         }
         protected override bool IsAsync()
         {

@@ -14,6 +14,7 @@
 */
 
 using System;
+using Alpaca.Markets;
 using QuantConnect.Data;
 using QuantConnect.Util;
 using QuantConnect.Orders;
@@ -35,21 +36,49 @@ namespace QuantConnect.Brokerages.Alpaca
         /// </summary>
         public override bool IsConnected { get; }
 
+        /// <inheritdoc cref="IAlpacaTradingClient"/>
+        public IAlpacaTradingClient AlpacaTradingClient { get; }
+
         /// <summary>
-        /// Parameterless constructor for brokerage
+        /// Initializes a new instance of the <see cref="AlpacaBrokerage"/> class.
         /// </summary>
-        /// <remarks>This parameterless constructor is required for brokerages implementing <see cref="IDataQueueHandler"/></remarks>
-        public AlpacaBrokerage()
-            : this(Composer.Instance.GetPart<IDataAggregator>())
+        /// <param name="apiKey">The API key for authentication with Alpaca.</param>
+        /// <param name="apiKeySecret">The secret key for authentication with Alpaca.</param>
+        /// <param name="isPaperTrading">Indicates whether the brokerage should use the paper trading environment.</param>
+        /// <remarks>
+        /// This constructor initializes a new instance of the <see cref="AlpacaBrokerage"/> class with the specified API key,
+        /// API secret key, and a flag indicating whether to use paper trading. It also retrieves an instance of <see cref="IDataAggregator"/>
+        /// from the <see cref="Composer"/>. This constructor is required for brokerages implementing <see cref="IDataQueueHandler"/>.
+        /// </remarks>
+        public AlpacaBrokerage(string apiKey, string apiKeySecret, bool isPaperTrading)
+            : this(apiKey, apiKeySecret, isPaperTrading, Composer.Instance.GetPart<IDataAggregator>())
         {
         }
 
         /// <summary>
-        /// Creates a new instance
+        /// Initializes a new instance of the <see cref="AlpacaBrokerage"/> class.
         /// </summary>
-        /// <param name="aggregator">consolidate ticks</param>
-        public AlpacaBrokerage(IDataAggregator aggregator) : base("TemplateBrokerage")
+        /// <param name="apiKey">The API key for authentication with Alpaca.</param>
+        /// <param name="apiKeySecret">The secret key for authentication with Alpaca.</param>
+        /// <param name="isPaperTrading">Indicates whether the brokerage should use the paper trading environment.</param>
+        /// <param name="aggregator">The data aggregator used for handling data streams.</param>
+        /// <remarks>
+        /// This constructor initializes a new instance of the <see cref="AlpacaBrokerage"/> class with the specified API key,
+        /// API secret key, a flag indicating whether to use paper trading, and an instance of <see cref="IDataAggregator"/>.
+        /// </remarks>
+        public AlpacaBrokerage(string apiKey, string apiKeySecret, bool isPaperTrading, IDataAggregator aggregator) : base("AlpacaBrokerage")
         {
+            var secretKey = new SecretKey(apiKey, apiKeySecret);
+
+            if (isPaperTrading)
+            {
+                AlpacaTradingClient = Environments.Paper.GetAlpacaTradingClient(secretKey);
+            }
+            else
+        {
+                AlpacaTradingClient = Environments.Live.GetAlpacaTradingClient(secretKey);
+            }            
+
             _aggregator = aggregator;
             _subscriptionManager = new EventBasedDataQueueHandlerSubscriptionManager();
             _subscriptionManager.SubscribeImpl += (s, t) => Subscribe(s);
@@ -134,7 +163,8 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <returns>The current cash balance for each currency available for trading</returns>
         public override List<CashAmount> GetCashBalance()
         {
-            throw new NotImplementedException();
+            var accounts = AlpacaTradingClient.GetAccountAsync().SynchronouslyAwaitTaskResult();
+            return new List<CashAmount>() { new CashAmount(accounts.TradableCash, accounts.Currency) };
         }
 
         /// <summary>
