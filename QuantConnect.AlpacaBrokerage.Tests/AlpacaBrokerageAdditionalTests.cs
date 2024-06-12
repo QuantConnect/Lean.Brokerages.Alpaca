@@ -14,22 +14,19 @@
 */
 
 using NUnit.Framework;
+using QuantConnect.Util;
+using QuantConnect.Interfaces;
 
-namespace QuantConnect.Brokerages.Template.Tests
+namespace QuantConnect.Brokerages.Alpaca.Tests
 {
-    [TestFixture, Ignore("Not implemented")]
-    public class TemplateBrokerageSymbolMapperTests
+    [TestFixture]
+    public class AlpacaBrokerageAdditionalTests
     {
         [Test]
-        public void ReturnsCorrectLeanSymbol()
+        public void ParameterlessConstructorComposerUsage()
         {
-
-        }
-
-        [Test]
-        public void ReturnsCorrectBrokerageSymbol()
-        {
-
+            var brokerage = Composer.Instance.GetExportedValueByTypeName<IDataQueueHandler>("AlpacaBrokerage");
+            Assert.IsNotNull(brokerage);
         }
     }
 }

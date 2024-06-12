@@ -1,5 +1,5 @@
 {
-    "description": "description of brokerage",
+    "description": "Alpaca offers simple, modern solutions to enable anyone, either individuals or businesses, to connect applications and build algorithms to buy and sell stocks or crypto.",
     "platforms-features": [
         {
             "Platforms": ["Cloud Platform", "Local Platform", "LEAN CLI"],

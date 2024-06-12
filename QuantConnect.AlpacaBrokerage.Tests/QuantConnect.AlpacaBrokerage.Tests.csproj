@@ -9,10 +9,10 @@
         <Copyright>Copyright ©  2021</Copyright>
         <TestProjectType>UnitTest</TestProjectType>
         <OutputPath>bin\$(Configuration)\</OutputPath>
-        <Product>QuantConnect.Brokerages.Template.Tests</Product>
-        <AssemblyName>QuantConnect.Brokerages.Template.Tests</AssemblyName>
-        <RootNamespace>QuantConnect.Brokerages.Template.Tests</RootNamespace>
-        <AssemblyTitle>QuantConnect.Brokerages.Template.Tests</AssemblyTitle>
+        <Product>QuantConnect.Brokerages.Alpaca.Tests</Product>
+        <AssemblyName>QuantConnect.Brokerages.Alpaca.Tests</AssemblyName>
+        <RootNamespace>QuantConnect.Brokerages.Alpaca.Tests</RootNamespace>
+        <AssemblyTitle>QuantConnect.Brokerages.Alpaca.Tests</AssemblyTitle>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     </PropertyGroup>
 
@@ -27,8 +27,9 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\QuantConnect.TemplateBrokerage.ToolBox\QuantConnect.TemplateBrokerage.ToolBox.csproj" />
-      <ProjectReference Include="..\QuantConnect.TemplateBrokerage\QuantConnect.TemplateBrokerage.csproj" />
+      <ProjectReference Include="..\..\Lean\Tests\QuantConnect.Tests.csproj" />
+      <ProjectReference Include="..\QuantConnect.AlpacaBrokerage.ToolBox\QuantConnect.AlpacaBrokerage.ToolBox.csproj" />
+      <ProjectReference Include="..\QuantConnect.AlpacaBrokerage\QuantConnect.AlpacaBrokerage.csproj" />
     </ItemGroup>
 
     <ItemGroup>

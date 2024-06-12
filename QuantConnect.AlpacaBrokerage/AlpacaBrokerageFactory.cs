@@ -20,12 +20,12 @@ using QuantConnect.Interfaces;
 using QuantConnect.Securities;
 using System.Collections.Generic;
 
-namespace QuantConnect.Brokerages.Template
+namespace QuantConnect.Brokerages.Alpaca
 {
     /// <summary>
     /// Provides a template implementation of BrokerageFactory
     /// </summary>
-    public class TemplateBrokerageFactory : BrokerageFactory
+    public class AlpacaBrokerageFactory : BrokerageFactory
     {
         /// <summary>
         /// Gets the brokerage data required to run the brokerage from configuration/disk
@@ -37,9 +37,9 @@ namespace QuantConnect.Brokerages.Template
         public override Dictionary<string, string> BrokerageData { get; }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="TemplateBrokerageFactory"/> class
+        /// Initializes a new instance of the <see cref="AlpacaBrokerageFactory"/> class
         /// </summary>
-        public TemplateBrokerageFactory() : base(typeof(TemplateBrokerage))
+        public AlpacaBrokerageFactory() : base(typeof(AlpacaBrokerage))
         {
         }
 

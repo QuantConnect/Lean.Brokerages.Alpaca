@@ -7,14 +7,14 @@
         <TargetFramework>net6.0</TargetFramework>
         <Copyright>Copyright ©  2021</Copyright>
         <OutputPath>bin\$(Configuration)\</OutputPath>
-        <Product>QuantConnect.Brokerages.Template.ToolBox</Product>
-        <AssemblyName>QuantConnect.Brokerages.Template.ToolBox</AssemblyName>
-        <RootNamespace>QuantConnect.Brokerages.Template.ToolBox</RootNamespace>
-        <AssemblyTitle>QuantConnect.Brokerages.Template.ToolBox</AssemblyTitle>
+        <Product>QuantConnect.Brokerages.Alpaca.ToolBox</Product>
+        <AssemblyName>QuantConnect.Brokerages.Alpaca.ToolBox</AssemblyName>
+        <RootNamespace>QuantConnect.Brokerages.Alpaca.ToolBox</RootNamespace>
+        <AssemblyTitle>QuantConnect.Brokerages.Alpaca.ToolBox</AssemblyTitle>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
         <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-        <Description>QuantConnect LEAN Template Brokerage: Brokerage Template toolbox plugin for Lean</Description>
+        <Description>QuantConnect LEAN Alpaca Brokerage: Brokerage toolbox plugin for Lean</Description>
     </PropertyGroup>
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
         <DebugType>full</DebugType>
