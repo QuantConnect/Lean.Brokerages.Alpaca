@@ -159,7 +159,24 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <returns>The current holdings from the account</returns>
         public override List<Holding> GetAccountHoldings()
         {
-            throw new NotImplementedException();
+            var positions = AlpacaTradingClient.ListPositionsAsync().SynchronouslyAwaitTaskResult();
+
+            var holdings = new List<Holding>();
+            foreach(var position in positions)
+            {
+                holdings.Add(new Holding()
+                {
+                    AveragePrice = position.AverageEntryPrice,
+                    CurrencySymbol = Currencies.USD,
+                    MarketValue = position.MarketValue ?? 0m,
+                    MarketPrice = position.AssetCurrentPrice ?? 0m,
+                    Quantity = position.Quantity,
+                    Symbol = _symbolMapper.GetLeanSymbol(position.AssetClass, position.Symbol),
+                    UnrealizedPnL = position.UnrealizedProfitLoss ?? 0m,
+                    UnrealizedPnLPercent = position.UnrealizedProfitLossPercent ?? 0m,
+                });
+            }
+            return holdings;
         }
 
         /// <summary>
