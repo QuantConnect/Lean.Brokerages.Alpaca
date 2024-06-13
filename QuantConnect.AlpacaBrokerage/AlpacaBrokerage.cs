@@ -22,6 +22,8 @@ using QuantConnect.Packets;
 using QuantConnect.Interfaces;
 using QuantConnect.Securities;
 using System.Collections.Generic;
+using AlpacaMarket = Alpaca.Markets;
+using LeanOrderType = QuantConnect.Orders;
 
 namespace QuantConnect.Brokerages.Alpaca
 {
@@ -150,7 +152,49 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <returns>The open orders returned from IB</returns>
         public override List<Order> GetOpenOrders()
         {
-            throw new NotImplementedException();
+            var orders = AlpacaTradingClient.ListOrdersAsync(new ListOrdersRequest() { OrderStatusFilter = OrderStatusFilter.Open }).SynchronouslyAwaitTaskResult();
+
+            var leanOrders = new List<Order>(); 
+            foreach (var brokerageOrder in orders)
+            {
+                var leanSymbol = _symbolMapper.GetLeanSymbol(brokerageOrder.AssetClass, brokerageOrder.Symbol);
+                var quantity = (brokerageOrder.OrderSide == OrderSide.Buy ? brokerageOrder.Quantity : decimal.Negate(brokerageOrder.Quantity.Value)).Value;
+                var leanOrder = default(Order);
+                switch (brokerageOrder.OrderType)
+                {
+                    case AlpacaMarket.OrderType.Market:
+                        leanOrder = new LeanOrderType.MarketOrder(leanSymbol, quantity, brokerageOrder.SubmittedAtUtc.Value);
+                        break;
+                    case AlpacaMarket.OrderType.Limit:
+                        leanOrder = new LeanOrderType.LimitOrder(leanSymbol, quantity, brokerageOrder.LimitPrice.Value, brokerageOrder.SubmittedAtUtc.Value);
+                        break;
+                    case AlpacaMarket.OrderType.Stop:
+                        leanOrder = new StopMarketOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, brokerageOrder.SubmittedAtUtc.Value);
+                        break;
+                    case AlpacaMarket.OrderType.StopLimit:
+                        leanOrder = new LeanOrderType.StopLimitOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, brokerageOrder.LimitPrice.Value, brokerageOrder.SubmittedAtUtc.Value);
+                        break;
+                    case AlpacaMarket.OrderType.TrailingStop:
+                        var trailingAsPercent = brokerageOrder.TrailOffsetInPercent.HasValue ? true : false;
+                        var trailingAmount = brokerageOrder.TrailOffsetInPercent.HasValue ? brokerageOrder.TrailOffsetInPercent.Value / 100m : brokerageOrder.TrailOffsetInDollars.Value;
+                        leanOrder = new LeanOrderType.TrailingStopOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, trailingAmount, trailingAsPercent, brokerageOrder.SubmittedAtUtc.Value);
+                        break;
+                    default:
+                        throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetOpenOrders)}: Order type '{brokerageOrder.OrderType}' is not supported.");
+                }
+
+                leanOrder.Status = LeanOrderType.OrderStatus.Submitted;
+
+                if (brokerageOrder.FilledQuantity > 0 && brokerageOrder.FilledQuantity != brokerageOrder.Quantity)
+                {
+                    leanOrder.Status = LeanOrderType.OrderStatus.PartiallyFilled;
+                }
+
+                leanOrder.BrokerId.Add(brokerageOrder.OrderId.ToString());
+                leanOrders.Add(leanOrder);
+            }
+
+            return leanOrders;
         }
 
         /// <summary>
