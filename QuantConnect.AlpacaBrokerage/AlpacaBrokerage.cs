@@ -36,6 +36,9 @@ namespace QuantConnect.Brokerages.Alpaca
         /// </summary>
         public override bool IsConnected { get; }
 
+        /// <inheritdoc cref="AlpacaBrokerageSymbolMapper"/>
+        private AlpacaBrokerageSymbolMapper _symbolMapper;
+
         /// <inheritdoc cref="IAlpacaTradingClient"/>
         public IAlpacaTradingClient AlpacaTradingClient { get; }
 
@@ -78,6 +81,8 @@ namespace QuantConnect.Brokerages.Alpaca
         {
                 AlpacaTradingClient = Environments.Live.GetAlpacaTradingClient(secretKey);
             }            
+
+            _symbolMapper = new AlpacaBrokerageSymbolMapper();
 
             _aggregator = aggregator;
             _subscriptionManager = new EventBasedDataQueueHandlerSubscriptionManager();

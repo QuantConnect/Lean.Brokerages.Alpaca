@@ -13,17 +13,30 @@
  * limitations under the License.
 */
 
+using System;
+using Alpaca.Markets;
 using NUnit.Framework;
 
 namespace QuantConnect.Brokerages.Alpaca.Tests
 {
-    [TestFixture, Ignore("Not implemented")]
+    [TestFixture]
     public class AlpacaBrokerageSymbolMapperTests
     {
-        [Test]
-        public void ReturnsCorrectLeanSymbol()
-        {
+        private AlpacaBrokerageSymbolMapper _symbolMapper = new();
 
+        [TestCase(AssetClass.UsOption, "AAPL240614C00100000", "AAPL", "2024/06/14", OptionRight.Call, 100)]
+        [TestCase(AssetClass.UsOption, "AAPL240614P00100000", "AAPL", "2024/06/14", OptionRight.Put, 100)]
+        [TestCase(AssetClass.UsOption, "AAPL240614C00235000", "AAPL", "2024/06/14", OptionRight.Call, 235)]
+        [TestCase(AssetClass.UsOption, "QQQ240613C00484000", "QQQ", "2024/06/13", OptionRight.Call, 484)]
+        public void ReturnsCorrectLeanSymbol(AssetClass brokerageAssetClass, string brokerageTicker, string expectedSymbol, DateTime expectedDateTime, OptionRight optionRight, decimal expectedStrike)
+        {
+            var leanSymbol = _symbolMapper.GetLeanSymbol(brokerageAssetClass, brokerageTicker);
+
+            Assert.IsNotNull(leanSymbol);
+            Assert.That(leanSymbol.ID.Date, Is.EqualTo(expectedDateTime));
+            Assert.That(leanSymbol.ID.OptionRight, Is.EqualTo(optionRight));
+            Assert.That(leanSymbol.ID.StrikePrice, Is.EqualTo(expectedStrike));
+            Assert.That(leanSymbol.ID.Symbol, Is.EqualTo(expectedSymbol));
         }
 
         [Test]
