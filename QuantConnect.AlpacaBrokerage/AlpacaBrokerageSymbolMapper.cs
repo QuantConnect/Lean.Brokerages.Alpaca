@@ -13,8 +13,8 @@
  * limitations under the License.
 */
 
-using Alpaca.Markets;
 using System;
+using Alpaca.Markets;
 using System.Text.RegularExpressions;
 
 namespace QuantConnect.Brokerages.Alpaca;
@@ -49,10 +49,14 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
         );
 
 
-    public string GetBrokerageSymbol(Symbol symbol)
+    /// <inheritdoc cref="ISymbolMapper.GetBrokerageSymbol(Symbol)"/>
+    public string GetBrokerageSymbol(Symbol symbol) => symbol.SecurityType switch
     {
-        throw new NotImplementedException();
-    }
+        SecurityType.Equity => symbol.Value,
+        SecurityType.Option => GenerateBrokerageOptionSymbol(symbol),
+        // TODO: SecurityType.Crypto => 
+        _ => throw new NotSupportedException($"{nameof(AlpacaBrokerageSymbolMapper)}.{nameof(GetBrokerageSymbol)}: The security type '{symbol.SecurityType}' is not supported.")
+    };
 
     /// <summary>
     /// Converts a brokerage asset class and symbol to a Lean <see cref="Symbol"/>.
@@ -76,6 +80,7 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
         }
     }
 
+    /// <inheritdoc cref="ISymbolMapper.GetLeanSymbol(string, SecurityType, string, DateTime, decimal, OptionRight)"/>
     public Symbol GetLeanSymbol(string brokerageSymbol, SecurityType securityType, string market, DateTime expirationDate = default, decimal strike = 0, OptionRight optionRight = OptionRight.Call)
     {
         throw new NotImplementedException();
@@ -118,5 +123,23 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
         int monthInt = int.Parse(month);
         int dayInt = int.Parse(day);
         return new DateTime(fullYear, monthInt, dayInt);
+    }
+
+    /// <summary>
+    /// Generates a brokerage option symbol based on the given symbol.
+    /// </summary>
+    /// <param name="symbol">The option symbol containing the necessary details.</param>
+    /// <returns>A string representing the brokerage option symbol.</returns>
+    /// <exception cref="ArgumentException">Thrown when the provided symbol is not of type Option.</exception>
+    private string GenerateBrokerageOptionSymbol(Symbol symbol)
+    {
+        if (symbol.SecurityType != SecurityType.Option)
+        {
+            throw new ArgumentException($"{nameof(AlpacaBrokerageSymbolMapper)}.{nameof(GenerateBrokerageOptionSymbol)}: The provided symbol must be of type Option.", nameof(symbol));
+        }
+
+        var strikePriceString = (Convert.ToInt32(symbol.ID.StrikePrice * 1000)).ToStringInvariant("D8");
+
+        return $"{symbol.Underlying.Value}{symbol.ID.Date:yyMMdd}{symbol.ID.OptionRight.ToString()[0]}{strikePriceString}";
     }
 }

@@ -28,6 +28,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         [TestCase(AssetClass.UsOption, "AAPL240614P00100000", "AAPL", "2024/06/14", OptionRight.Put, 100)]
         [TestCase(AssetClass.UsOption, "AAPL240614C00235000", "AAPL", "2024/06/14", OptionRight.Call, 235)]
         [TestCase(AssetClass.UsOption, "QQQ240613C00484000", "QQQ", "2024/06/13", OptionRight.Call, 484)]
+        [TestCase(AssetClass.UsOption, "QQQ240613C00484000", "QQQ", "2024/06/13", OptionRight.Call, 484)]
         public void ReturnsCorrectLeanSymbol(AssetClass brokerageAssetClass, string brokerageTicker, string expectedSymbol, DateTime expectedDateTime, OptionRight optionRight, decimal expectedStrike)
         {
             var leanSymbol = _symbolMapper.GetLeanSymbol(brokerageAssetClass, brokerageTicker);
@@ -39,10 +40,31 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             Assert.That(leanSymbol.ID.Symbol, Is.EqualTo(expectedSymbol));
         }
 
-        [Test]
-        public void ReturnsCorrectBrokerageSymbol()
+        [TestCase("AAPL", SecurityType.Equity, null, null, null, "AAPL")]
+        [TestCase("INTL", SecurityType.Equity, null, null, null, "INTL")]
+        [TestCase("AAPL", SecurityType.Option, OptionRight.Call, 100, "2024/06/14", "AAPL240614C00100000")]
+        [TestCase("AAPL", SecurityType.Option, OptionRight.Call, 105, "2024/06/14", "AAPL240614C00105000")]
+        [TestCase("AAPL", SecurityType.Option, OptionRight.Put, 265, "2024/06/14", "AAPL240614P00265000")]
+        public void ReturnsCorrectBrokerageSymbol(string symbol, SecurityType securityType, OptionRight? optionRight, decimal? strike, DateTime? expiryDate, string expectedBrokerageSymbol)
         {
+            var leanSymbol = GenerateLeanSymbol(symbol, securityType, optionRight, strike, expiryDate);
+            var brokerageSymbol = _symbolMapper.GetBrokerageSymbol(leanSymbol);
+            Assert.That(brokerageSymbol, Is.EqualTo(expectedBrokerageSymbol));
+        }
 
+        private Symbol GenerateLeanSymbol(string symbol, SecurityType securityType, OptionRight? optionRight = OptionRight.Call, decimal? strike = 0m, DateTime? expiryDate = default, OptionStyle? optionStyle = OptionStyle.American)
+        {
+            switch (securityType)
+            {
+                case SecurityType.Equity:
+                    return Symbol.Create(symbol, SecurityType.Equity, Market.USA);
+                case SecurityType.Option:
+                    var underlying = Symbol.Create(symbol, SecurityType.Equity, Market.USA);
+                    return Symbol.CreateOption(underlying, Market.USA, optionStyle.Value, optionRight.Value, strike.Value, expiryDate.Value);
+                // TODO: case SecurityType.Crypto
+                default:
+                    throw new NotSupportedException();
+            }
         }
     }
 }
