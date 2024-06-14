@@ -15,6 +15,7 @@
 
 using System;
 using Alpaca.Markets;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
 namespace QuantConnect.Brokerages.Alpaca;
@@ -48,6 +49,13 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
         RegexOptions.Compiled
         );
 
+    /// <summary>
+    /// Represents a set of supported security types.
+    /// </summary>
+    /// <remarks>
+    /// This HashSet contains the supported security types that are allowed within the system.
+    /// </remarks>
+    public readonly HashSet<SecurityType> SupportedSecurityType = new() { SecurityType.Equity, SecurityType.Option, /* TODO: SecurityType.Crypto */ };
 
     /// <inheritdoc cref="ISymbolMapper.GetBrokerageSymbol(Symbol)"/>
     public string GetBrokerageSymbol(Symbol symbol) => symbol.SecurityType switch

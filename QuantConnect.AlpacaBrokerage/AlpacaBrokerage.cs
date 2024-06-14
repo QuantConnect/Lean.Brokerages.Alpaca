@@ -242,6 +242,12 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <returns>True if the request for a new order has been placed, false otherwise</returns>
         public override bool PlaceOrder(Order order)
         {
+            if (!CanSubscribe(order.Symbol))
+            {
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, $"Symbol is not supported {order.Symbol}"));
+                return false;
+            }
+
             var brokerageSymbol = _symbolMapper.GetBrokerageSymbol(order.Symbol);
 
             var orderRequest = default(OrderBase);
@@ -348,7 +354,7 @@ namespace QuantConnect.Brokerages.Alpaca
                 return false;
             }
 
-            throw new NotImplementedException();
+            return _symbolMapper.SupportedSecurityType.Contains(symbol.SecurityType);
         }
 
         /// <summary>
