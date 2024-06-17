@@ -16,6 +16,7 @@
 using System;
 using Alpaca.Markets;
 using QuantConnect.Orders;
+using QuantConnect.Logging;
 using AlpacaMarket = Alpaca.Markets;
 using LeanOrders = QuantConnect.Orders;
 using QuantConnect.Orders.TimeInForces;
@@ -86,10 +87,19 @@ public static class AlpacaBrokerageExtensions
     /// <param name="timeInForce">The Lean TimeInForce object to be converted.</param>
     /// <returns>Returns the corresponding AlpacaMarket.TimeInForce value.</returns>
     /// <exception cref="NotSupportedException">Thrown when the provided TimeInForce type is not supported.</exception>
-    public static AlpacaMarket.TimeInForce ConvertLeanTimeInForceToBrokerage(this LeanOrders.TimeInForce timeInForce) => timeInForce switch
+    public static AlpacaMarket.TimeInForce ConvertLeanTimeInForceToBrokerage(this LeanOrders.TimeInForce timeInForce, SecurityType securityType)
     {
-        DayTimeInForce => AlpacaMarket.TimeInForce.Day,
-        GoodTilCanceledTimeInForce => AlpacaMarket.TimeInForce.Gtc,
-        _ => throw new NotSupportedException($"{nameof(AlpacaBrokerageExtensions)}.{nameof(ConvertLeanTimeInForceToBrokerage)}:The provided TimeInForce type '{timeInForce.GetType().Name}' is not supported.")
-    };
+        if (securityType == SecurityType.Option && timeInForce is not DayTimeInForce)
+        {
+            Log.Error($"{nameof(AlpacaBrokerageExtensions)}.{nameof(ConvertLeanTimeInForceToBrokerage)}: Invalid TimeInForce '{timeInForce.GetType().Name}' for Option security type. Only 'DayTimeInForce' is supported for options.");
+            return AlpacaMarket.TimeInForce.Day;
+        }
+
+        return timeInForce switch
+        {
+            DayTimeInForce => AlpacaMarket.TimeInForce.Day,
+            GoodTilCanceledTimeInForce => AlpacaMarket.TimeInForce.Gtc,
+            _ => throw new NotSupportedException($"{nameof(AlpacaBrokerageExtensions)}.{nameof(ConvertLeanTimeInForceToBrokerage)}:The provided TimeInForce type '{timeInForce.GetType().Name}' is not supported.")
+        };
+    }
 }

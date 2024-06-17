@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -16,15 +16,18 @@
 using System;
 using System.Linq;
 using Alpaca.Markets;
+using System.Threading;
 using QuantConnect.Data;
 using QuantConnect.Util;
 using QuantConnect.Orders;
 using QuantConnect.Packets;
+using QuantConnect.Logging;
 using QuantConnect.Interfaces;
 using QuantConnect.Securities;
 using QuantConnect.Orders.Fees;
 using System.Collections.Generic;
 using AlpacaMarket = Alpaca.Markets;
+using System.Collections.Concurrent;
 using LeanOrders = QuantConnect.Orders;
 
 namespace QuantConnect.Brokerages.Alpaca
@@ -32,19 +35,36 @@ namespace QuantConnect.Brokerages.Alpaca
     [BrokerageFactory(typeof(AlpacaBrokerageFactory))]
     public class AlpacaBrokerage : Brokerage, IDataQueueHandler, IDataQueueUniverseProvider
     {
+        /// <inheritdoc cref="IDataAggregator"/>
         private readonly IDataAggregator _aggregator;
-        private readonly EventBasedDataQueueHandlerSubscriptionManager _subscriptionManager;
 
-        /// <summary>
-        /// Returns true if we're currently connected to the broker
-        /// </summary>
-        public override bool IsConnected { get; }
+        /// <inheritdoc cref="IOrderProvider"/>
+        private IOrderProvider _orderProvider;
+
+        private readonly EventBasedDataQueueHandlerSubscriptionManager _subscriptionManager;
 
         /// <inheritdoc cref="AlpacaBrokerageSymbolMapper"/>
         private AlpacaBrokerageSymbolMapper _symbolMapper;
 
         /// <inheritdoc cref="IAlpacaTradingClient"/>
-        public IAlpacaTradingClient AlpacaTradingClient { get; }
+        private IAlpacaTradingClient AlpacaTradingClient { get; }
+
+        /// <inheritdoc cref="IAlpacaStreamingClient"/>
+        private IAlpacaStreamingClient AlpacaStreamingClient { get; }
+
+        private object _lockObject = new();
+
+        private readonly ConcurrentDictionary<string, AutoResetEvent> _resetEventByBrokerageOrderID = new();
+
+        /// <summary>
+        /// Indicates whether the application is subscribed to stream order updates.
+        /// </summary>
+        private bool _isAuthorizedOnStreamOrderUpdate;
+
+        /// <summary>
+        /// Returns true if we're currently connected to the broker
+        /// </summary>
+        public override bool IsConnected { get => _isAuthorizedOnStreamOrderUpdate; }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AlpacaBrokerage"/> class.
@@ -57,10 +77,9 @@ namespace QuantConnect.Brokerages.Alpaca
         /// API secret key, and a flag indicating whether to use paper trading. It also retrieves an instance of <see cref="IDataAggregator"/>
         /// from the <see cref="Composer"/>. This constructor is required for brokerages implementing <see cref="IDataQueueHandler"/>.
         /// </remarks>
-        public AlpacaBrokerage(string apiKey, string apiKeySecret, bool isPaperTrading)
-            : this(apiKey, apiKeySecret, isPaperTrading, Composer.Instance.GetPart<IDataAggregator>())
-        {
-        }
+        public AlpacaBrokerage(string apiKey, string apiKeySecret, bool isPaperTrading, IAlgorithm algorithm)
+            : this(apiKey, apiKeySecret, isPaperTrading, algorithm?.Portfolio?.Transactions, Composer.Instance.GetPart<IDataAggregator>())
+        { }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AlpacaBrokerage"/> class.
@@ -73,20 +92,25 @@ namespace QuantConnect.Brokerages.Alpaca
         /// This constructor initializes a new instance of the <see cref="AlpacaBrokerage"/> class with the specified API key,
         /// API secret key, a flag indicating whether to use paper trading, and an instance of <see cref="IDataAggregator"/>.
         /// </remarks>
-        public AlpacaBrokerage(string apiKey, string apiKeySecret, bool isPaperTrading, IDataAggregator aggregator) : base("AlpacaBrokerage")
+        public AlpacaBrokerage(string apiKey, string apiKeySecret, bool isPaperTrading, IOrderProvider orderProvider, IDataAggregator aggregator) : base("AlpacaBrokerage")
         {
             var secretKey = new SecretKey(apiKey, apiKeySecret);
 
             if (isPaperTrading)
             {
                 AlpacaTradingClient = Environments.Paper.GetAlpacaTradingClient(secretKey);
+                AlpacaStreamingClient = Environments.Paper.GetAlpacaStreamingClient(secretKey);
             }
             else
-        {
+            {
                 AlpacaTradingClient = Environments.Live.GetAlpacaTradingClient(secretKey);
-            }            
+                AlpacaStreamingClient = Environments.Live.GetAlpacaStreamingClient(secretKey);
+            }
+
+            AlpacaStreamingClient.OnTradeUpdate += HandleTradeUpdate;
 
             _symbolMapper = new AlpacaBrokerageSymbolMapper();
+            _orderProvider = orderProvider;
 
             _aggregator = aggregator;
             _subscriptionManager = new EventBasedDataQueueHandlerSubscriptionManager();
@@ -156,7 +180,7 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             var orders = AlpacaTradingClient.ListOrdersAsync(new ListOrdersRequest() { OrderStatusFilter = OrderStatusFilter.Open }).SynchronouslyAwaitTaskResult();
 
-            var leanOrders = new List<Order>(); 
+            var leanOrders = new List<Order>();
             foreach (var brokerageOrder in orders)
             {
                 var leanSymbol = _symbolMapper.GetLeanSymbol(brokerageOrder.AssetClass, brokerageOrder.Symbol);
@@ -208,7 +232,7 @@ namespace QuantConnect.Brokerages.Alpaca
             var positions = AlpacaTradingClient.ListPositionsAsync().SynchronouslyAwaitTaskResult();
 
             var holdings = new List<Holding>();
-            foreach(var position in positions)
+            foreach (var position in positions)
             {
                 holdings.Add(new Holding()
                 {
@@ -260,18 +284,28 @@ namespace QuantConnect.Brokerages.Alpaca
                 orderRequest = order.CreateAlpacaSellOrder(brokerageSymbol);
             }
 
-            orderRequest.WithDuration(order.TimeInForce.ConvertLeanTimeInForceToBrokerage());
+            orderRequest.WithDuration(order.TimeInForce.ConvertLeanTimeInForceToBrokerage(order.SecurityType));
 
+            var placeOrderResetEvent = new AutoResetEvent(false);
             try
             {
-                var response = AlpacaTradingClient.PostOrderAsync(orderRequest).SynchronouslyAwaitTaskResult();
+                lock (_lockObject)
+                {
+                    var response = AlpacaTradingClient.PostOrderAsync(orderRequest).SynchronouslyAwaitTaskResult();
+                    order.BrokerId.Add(response.OrderId.ToString());
+                    _resetEventByBrokerageOrderID[response.OrderId.ToString()] = placeOrderResetEvent;
+                }
 
-                order.BrokerId.Add(response.OrderId.ToString());
+                if (placeOrderResetEvent.WaitOne(TimeSpan.FromSeconds(10)))
+                {
+                    OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event")
+                    {
+                        Status = LeanOrders.OrderStatus.Submitted
+                    });
+                    return true;
+                }
 
-                OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)}.{nameof(PlaceOrder)} Order Event")
-                { Status = LeanOrders.OrderStatus.Submitted });
-
-                return true;
+                return false;
             }
             catch (Exception ex)
             {
@@ -279,6 +313,66 @@ namespace QuantConnect.Brokerages.Alpaca
                 { Status = LeanOrders.OrderStatus.Invalid, Message = ex.Message });
                 return false;
             }
+        }
+
+        private void HandleTradeUpdate(ITradeUpdate obj)
+        {
+            Log.Debug($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}: {obj}");
+
+            var leanOrderStatus = default(LeanOrders.OrderStatus);
+            switch (obj.Event)
+            {
+                case TradeEvent.PendingNew:
+                    return;
+                case TradeEvent.New:
+                    if (_resetEventByBrokerageOrderID.TryRemove(obj.Order.OrderId.ToString(), out var resetEvent))
+                    {
+                        resetEvent.Set();
+                    }
+                    return;
+                case TradeEvent.Rejected:
+                    if (_resetEventByBrokerageOrderID.TryRemove(obj.Order.OrderId.ToString(), out resetEvent))
+                    {
+                        resetEvent.Set();
+                    }
+                    break;
+                case TradeEvent.Canceled:
+                    if (_resetEventByBrokerageOrderID.TryRemove(obj.Order.OrderId.ToString(), out resetEvent))
+                    {
+                        resetEvent.Set();
+                    }
+                    return;
+                case TradeEvent.Fill:
+                    leanOrderStatus = LeanOrders.OrderStatus.Filled;
+                    break;
+                case TradeEvent.PartialFill:
+                    leanOrderStatus = LeanOrders.OrderStatus.PartiallyFilled;
+                    break;
+                default:
+                    return;
+            }
+
+            var leanOrder = _orderProvider.GetOrdersByBrokerageId(obj.Order.OrderId.ToString())?.SingleOrDefault();
+
+            if (leanOrder == null)
+            {
+                Log.Error($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}. order id not found: {obj.Order.OrderId}");
+                return;
+            }
+
+            var leanSymbol = _symbolMapper.GetLeanSymbol(obj.Order.AssetClass, obj.Order.Symbol);
+
+            var orderEvent = new OrderEvent(leanOrder.Id,
+                leanSymbol,
+                obj.TimestampUtc.HasValue ? obj.TimestampUtc.Value : obj.Order.SubmittedAtUtc.Value,
+                leanOrder.Status,
+                obj.Order.OrderSide == OrderSide.Buy ? OrderDirection.Buy : OrderDirection.Sell,
+                obj.Price ?? 0m,
+                obj.Order.OrderSide == OrderSide.Buy ? obj.Order.FilledQuantity : Decimal.Negate(obj.Order.FilledQuantity),
+                new OrderFee(new CashAmount(1, Currencies.USD)))
+            { Status = leanOrderStatus };
+
+            OnOrderEvent(orderEvent);
         }
 
         /// <summary>
@@ -298,8 +392,35 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <returns>True if the request was made for the order to be canceled, false otherwise</returns>
         public override bool CancelOrder(Order order)
         {
-            var brokerageOrderId = order.BrokerId.Last();
-            return AlpacaTradingClient.CancelOrderAsync(new Guid(brokerageOrderId)).SynchronouslyAwaitTaskResult();
+            try
+            {
+                var brokerageOrderId = order.BrokerId.Last();
+
+                var cancelOrderResetEvent = new AutoResetEvent(false);
+                lock (_lockObject)
+                {
+                    var response = AlpacaTradingClient.CancelOrderAsync(new Guid(brokerageOrderId)).SynchronouslyAwaitTaskResult();
+                    _resetEventByBrokerageOrderID[brokerageOrderId] = cancelOrderResetEvent;
+                }
+
+                if (cancelOrderResetEvent.WaitOne(TimeSpan.FromSeconds(10)))
+                {
+                    OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event")
+                    {
+                        Status = LeanOrders.OrderStatus.Canceled
+                    });
+                    return true;
+                }
+
+                return false;
+
+            }
+            catch (Exception ex)
+            {
+                OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)}.{nameof(CancelOrder)} Order Event")
+                { Status = LeanOrders.OrderStatus.Invalid, Message = ex.Message });
+                return false;
+            }
         }
 
         /// <summary>
@@ -307,7 +428,8 @@ namespace QuantConnect.Brokerages.Alpaca
         /// </summary>
         public override void Connect()
         {
-            throw new NotImplementedException();
+            var authorizedStatus = AlpacaStreamingClient.ConnectAndAuthenticateAsync().SynchronouslyAwaitTaskResult();
+            _isAuthorizedOnStreamOrderUpdate = authorizedStatus == AuthStatus.Authorized;
         }
 
         /// <summary>
@@ -315,7 +437,13 @@ namespace QuantConnect.Brokerages.Alpaca
         /// </summary>
         public override void Disconnect()
         {
-            throw new NotImplementedException();
+            AlpacaStreamingClient.DisconnectAsync().SynchronouslyAwaitTask();
+        }
+
+        public override void Dispose()
+        {
+            AlpacaStreamingClient.DisposeSafely();
+            AlpacaTradingClient.DisposeSafely();
         }
 
         #endregion

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -13,19 +13,23 @@
  * limitations under the License.
 */
 
+using System;
 using NUnit.Framework;
 using QuantConnect.Tests;
+using QuantConnect.Orders;
 using QuantConnect.Interfaces;
 using QuantConnect.Securities;
+using System.Collections.Generic;
 using QuantConnect.Configuration;
 using QuantConnect.Tests.Brokerages;
+using QuantConnect.Lean.Engine.DataFeeds;
 
 namespace QuantConnect.Brokerages.Alpaca.Tests
 {
     [TestFixture]
     public partial class AlpacaBrokerageTests : BrokerageTests
     {
-        protected override Symbol Symbol { get; }
+        protected override Symbol Symbol { get; } = Symbols.AAPL;
         protected override SecurityType SecurityType { get; }
 
         protected override IBrokerage CreateBrokerage(IOrderProvider orderProvider, ISecurityProvider securityProvider)
@@ -34,13 +38,9 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             var apiSecret = Config.Get("alpaca-api-secret-key");
             var isPaperTrading = Config.GetBool("alpaca-use-paper-trading");
 
-            return new AlpacaBrokerage(apiKey, apiSecret, isPaperTrading);
+            return new AlpacaBrokerage(apiKey, apiSecret, isPaperTrading, orderProvider, new AggregationManager());
         }
-        protected override bool IsAsync()
-        {
-            throw new System.NotImplementedException();
-        }
-
+        protected override bool IsAsync() => false;
         protected override decimal GetAskPrice(Symbol symbol)
         {
             throw new System.NotImplementedException();
@@ -50,16 +50,16 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         /// <summary>
         /// Provides the data required to test each order type in various cases
         /// </summary>
-        private static TestCaseData[] OrderParameters()
+        private static IEnumerable<TestCaseData> OrderParameters
         {
-            return new[]
+            get
             {
-                new TestCaseData(new MarketOrderTestParameters(Symbols.BTCUSD)).SetName("MarketOrder"),
-                new TestCaseData(new LimitOrderTestParameters(Symbols.BTCUSD, 10000m, 0.01m)).SetName("LimitOrder"),
-                new TestCaseData(new StopMarketOrderTestParameters(Symbols.BTCUSD, 10000m, 0.01m)).SetName("StopMarketOrder"),
-                new TestCaseData(new StopLimitOrderTestParameters(Symbols.BTCUSD, 10000m, 0.01m)).SetName("StopLimitOrder"),
-                new TestCaseData(new LimitIfTouchedOrderTestParameters(Symbols.BTCUSD, 10000m, 0.01m)).SetName("LimitIfTouchedOrder")
-            };
+                var EPU = Symbol.Create("EPU", SecurityType.Equity, Market.USA);
+                yield return new TestCaseData(new MarketOrderTestParameters(EPU));
+                yield return new TestCaseData(new LimitOrderTestParameters(EPU, 40m, 30m));
+                yield return new TestCaseData(new StopMarketOrderTestParameters(EPU, 40m, 30m));
+                yield return new TestCaseData(new StopLimitOrderTestParameters(EPU, 40m, 30m));
+            }
         }
 
         [Test, TestCaseSource(nameof(OrderParameters))]
@@ -93,15 +93,24 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         }
 
         [Test, TestCaseSource(nameof(OrderParameters))]
+        [Explicit("Not supported: Different side position if we have bought 1 quantity we can not sell more then 1")]
         public override void ShortFromLong(OrderTestParameters parameters)
         {
             base.ShortFromLong(parameters);
         }
 
         [Test, TestCaseSource(nameof(OrderParameters))]
+        [Explicit("Not supported: Different side position if we have sold -1 quantity we can not bought more then 1")]
         public override void LongFromShort(OrderTestParameters parameters)
         {
             base.LongFromShort(parameters);
+        }
+
+        [Test]
+        public void UpdateNotExistOrder()
+        {
+            var limitOrder = new LimitOrder(Symbol, 1, 2000m, DateTime.UtcNow);
+            Assert.IsFalse(Brokerage.UpdateOrder(limitOrder));
         }
     }
 }
