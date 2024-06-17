@@ -33,7 +33,7 @@ using LeanOrders = QuantConnect.Orders;
 namespace QuantConnect.Brokerages.Alpaca
 {
     [BrokerageFactory(typeof(AlpacaBrokerageFactory))]
-    public class AlpacaBrokerage : Brokerage, IDataQueueHandler, IDataQueueUniverseProvider
+    public partial class AlpacaBrokerage : Brokerage, IDataQueueHandler
     {
         /// <inheritdoc cref="IDataAggregator"/>
         private readonly IDataAggregator _aggregator;
@@ -444,33 +444,6 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             AlpacaStreamingClient.DisposeSafely();
             AlpacaTradingClient.DisposeSafely();
-        }
-
-        #endregion
-
-        #region IDataQueueUniverseProvider
-
-        /// <summary>
-        /// Method returns a collection of Symbols that are available at the data source.
-        /// </summary>
-        /// <param name="symbol">Symbol to lookup</param>
-        /// <param name="includeExpired">Include expired contracts</param>
-        /// <param name="securityCurrency">Expected security currency(if any)</param>
-        /// <returns>Enumerable of Symbols, that are associated with the provided Symbol</returns>
-        public IEnumerable<Symbol> LookupSymbols(Symbol symbol, bool includeExpired, string securityCurrency = null)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// Returns whether selection can take place or not.
-        /// </summary>
-        /// <remarks>This is useful to avoid a selection taking place during invalid times, for example IB reset times or when not connected,
-        /// because if allowed selection would fail since IB isn't running and would kill the algorithm</remarks>
-        /// <returns>True if selection can take place</returns>
-        public bool CanPerformSelection()
-        {
-            throw new NotImplementedException();
         }
 
         #endregion

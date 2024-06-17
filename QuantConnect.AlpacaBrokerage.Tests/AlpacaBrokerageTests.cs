@@ -14,6 +14,7 @@
 */
 
 using System;
+using System.Linq;
 using NUnit.Framework;
 using QuantConnect.Tests;
 using QuantConnect.Orders;
@@ -111,6 +112,18 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         {
             var limitOrder = new LimitOrder(Symbol, 1, 2000m, DateTime.UtcNow);
             Assert.IsFalse(Brokerage.UpdateOrder(limitOrder));
+        }
+
+        [Test]
+        public void LookupSymbols()
+        {
+            var option = Symbol.CreateCanonicalOption(Symbols.AAPL);
+
+            var options = (Brokerage as IDataQueueUniverseProvider).LookupSymbols(option, false).ToList();
+            Assert.IsNotNull(options);
+            Assert.True(options.Any());
+            Assert.Greater(options.Count, 0);
+            Assert.That(options.Distinct().ToList().Count, Is.EqualTo(options.Count));
         }
     }
 }

@@ -91,7 +91,15 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
     /// <inheritdoc cref="ISymbolMapper.GetLeanSymbol(string, SecurityType, string, DateTime, decimal, OptionRight)"/>
     public Symbol GetLeanSymbol(string brokerageSymbol, SecurityType securityType, string market, DateTime expirationDate = default, decimal strike = 0, OptionRight optionRight = OptionRight.Call)
     {
-        throw new NotImplementedException();
+        switch (securityType)
+        {
+            case SecurityType.Option:
+                var underlying = Symbol.Create(brokerageSymbol, SecurityType.Equity, market);
+                return Symbol.CreateOption(underlying, market, SecurityType.Option.DefaultOptionStyle(), optionRight, strike, expirationDate);
+            default:
+                throw new NotImplementedException($"{nameof(AlpacaBrokerageSymbolMapper)}.{nameof(GetLeanSymbol)}: " +
+                    $"The security type '{securityType}' with brokerage symbol '{brokerageSymbol}' is not supported.");
+        }
     }
 
     /// <summary>
