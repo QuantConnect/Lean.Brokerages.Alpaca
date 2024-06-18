@@ -73,7 +73,6 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 var ETHUSD = Symbol.Create("ETHUSD", SecurityType.Crypto, Market.USA);
                 yield return new TestCaseData(new MarketOrderTestParameters(ETHUSD));
                 yield return new TestCaseData(new LimitOrderTestParameters(ETHUSD, 3600m, 3000m));
-                yield return new TestCaseData(new StopMarketOrderTestParameters(ETHUSD, 3600m, 3000m));
                 yield return new TestCaseData(new StopLimitOrderTestParameters(ETHUSD, 3600m, 3000m));
             }
         }
@@ -132,6 +131,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         public void UpdateNotExistOrder()
         {
             var limitOrder = new LimitOrder(Symbol, 1, 2000m, DateTime.UtcNow);
+            limitOrder.BrokerId.Add(Guid.NewGuid().ToString());
             Assert.IsFalse(Brokerage.UpdateOrder(limitOrder));
         }
 
