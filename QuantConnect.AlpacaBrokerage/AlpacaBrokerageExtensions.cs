@@ -34,7 +34,7 @@ public static class AlpacaBrokerageExtensions
     /// <exception cref="NotSupportedException">Thrown when the order type is not supported.</exception>
     public static OrderBase CreateAlpacaSellOrder(this Order order, string brokerageSymbol)
     {
-        var quantity = Convert.ToInt64(order.AbsoluteQuantity);
+        var quantity = OrderQuantity.Fractional(order.AbsoluteQuantity);
         switch (order)
         {
             case LeanOrders.MarketOrder:
@@ -62,7 +62,7 @@ public static class AlpacaBrokerageExtensions
     /// <exception cref="NotSupportedException">Thrown when the order type is not supported.</exception>
     public static OrderBase CreateAlpacaBuyOrder(this Order order, string brokerageSymbol)
     {
-        var quantity = Convert.ToInt64(order.AbsoluteQuantity);
+        var quantity = OrderQuantity.Fractional(order.AbsoluteQuantity);
         switch (order)
         {
             case LeanOrders.MarketOrder:
