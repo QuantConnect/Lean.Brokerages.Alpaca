@@ -14,6 +14,7 @@
 */
 
 using System;
+using System.Linq;
 using Alpaca.Markets;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
@@ -50,19 +51,47 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
         );
 
     /// <summary>
+    /// Lazy-loaded dictionary that maps Lean symbols to brokerage symbols for crypto assets.
+    /// </summary>
+    /// <remarks>
+    /// The dictionary is initialized in the constructor by retrieving asset information from the Alpaca trading client.
+    /// The keys in the dictionary are Lean symbols with slashes removed, and the values are the original brokerage symbols.
+    /// </remarks>
+    private Lazy<Dictionary<string, string>> _brokerageSymbolByLeanSymbol;
+
+    /// <summary>
     /// Represents a set of supported security types.
     /// </summary>
     /// <remarks>
     /// This HashSet contains the supported security types that are allowed within the system.
     /// </remarks>
-    public readonly HashSet<SecurityType> SupportedSecurityType = new() { SecurityType.Equity, SecurityType.Option, /* TODO: SecurityType.Crypto */ };
+    public readonly HashSet<SecurityType> SupportedSecurityType = new() { SecurityType.Equity, SecurityType.Option, SecurityType.Crypto };
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AlpacaBrokerageSymbolMapper"/> class.
+    /// </summary>
+    /// <param name="alpacaTradingClient">The Alpaca trading client used to retrieve asset information.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="alpacaTradingClient"/> is null.</exception>
+    /// <remarks>
+    /// The constructor initializes a lazy-loaded dictionary that maps Lean symbols to brokerage symbols for crypto assets.
+    /// </remarks>
+    public AlpacaBrokerageSymbolMapper(IAlpacaTradingClient alpacaTradingClient)
+    {
+        _brokerageSymbolByLeanSymbol = new Lazy<Dictionary<string, string>>(() =>
+        {
+            var res = alpacaTradingClient.ListAssetsAsync(new AssetsRequest() { AssetClass = AssetClass.Crypto }).SynchronouslyAwaitTaskResult();
+            return res.ToDictionary(x => x.Symbol.Replace("/", string.Empty), x => x.Symbol);
+        });
+    }
 
     /// <inheritdoc cref="ISymbolMapper.GetBrokerageSymbol(Symbol)"/>
     public string GetBrokerageSymbol(Symbol symbol) => symbol.SecurityType switch
     {
         SecurityType.Equity => symbol.Value,
         SecurityType.Option => GenerateBrokerageOptionSymbol(symbol),
-        // TODO: SecurityType.Crypto => 
+        SecurityType.Crypto => _brokerageSymbolByLeanSymbol.Value.TryGetValue(symbol.Value, out var cryptoSymbol) 
+        ? cryptoSymbol 
+        : throw new ArgumentException($"The symbol '{symbol.Value}' is not found in the brokerage symbol mappings for crypto."),
         _ => throw new NotSupportedException($"{nameof(AlpacaBrokerageSymbolMapper)}.{nameof(GetBrokerageSymbol)}: The security type '{symbol.SecurityType}' is not supported.")
     };
 
@@ -81,8 +110,8 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
                 return Symbol.Create(brokerageSymbol, SecurityType.Equity, Market.USA);
             case AssetClass.UsOption:
                 return ParseOptionTicker(brokerageSymbol);
-            //case AssetClass.Crypto:
-            //    break;
+            case AssetClass.Crypto:
+                return Symbol.Create(brokerageSymbol, SecurityType.Crypto, Market.USA);
             default:
                 throw new NotSupportedException($"Conversion for the asset class '{brokerageAssetClass}' is not supported.");
         }

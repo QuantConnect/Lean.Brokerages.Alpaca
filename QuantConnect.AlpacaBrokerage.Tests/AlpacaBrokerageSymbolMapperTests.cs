@@ -16,13 +16,31 @@
 using System;
 using Alpaca.Markets;
 using NUnit.Framework;
+using QuantConnect.Configuration;
 
 namespace QuantConnect.Brokerages.Alpaca.Tests
 {
     [TestFixture]
     public class AlpacaBrokerageSymbolMapperTests
     {
-        private AlpacaBrokerageSymbolMapper _symbolMapper = new();
+        /// <inheritdoc cref="AlpacaBrokerageSymbolMapper"/>
+        private AlpacaBrokerageSymbolMapper _symbolMapper;
+
+        [OneTimeSetUp]
+        public void OneTimeSetUp()
+        {
+            var apiKey = Config.Get("alpaca-api-key-id");
+            var apiKeySecret = Config.Get("alpaca-api-secret-key");
+
+            if (string.IsNullOrEmpty(apiKey) || string.IsNullOrEmpty(apiKeySecret))
+            {
+                throw new ArgumentNullException("API Key or Secret Key cannot be null or empty. Please check your configuration.");
+            }
+
+            var secretKey = new SecretKey(apiKey, apiKeySecret);
+            var alpacaTradingClient = Environments.Paper.GetAlpacaTradingClient(secretKey);
+            _symbolMapper = new(alpacaTradingClient);
+        }
 
         [TestCase(AssetClass.UsOption, "AAPL240614C00100000", "AAPL", "2024/06/14", OptionRight.Call, 100)]
         [TestCase(AssetClass.UsOption, "AAPL240614P00100000", "AAPL", "2024/06/14", OptionRight.Put, 100)]
@@ -45,11 +63,21 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         [TestCase("AAPL", SecurityType.Option, OptionRight.Call, 100, "2024/06/14", "AAPL240614C00100000")]
         [TestCase("AAPL", SecurityType.Option, OptionRight.Call, 105, "2024/06/14", "AAPL240614C00105000")]
         [TestCase("AAPL", SecurityType.Option, OptionRight.Put, 265, "2024/06/14", "AAPL240614P00265000")]
+        [TestCase("BTCUSDT", SecurityType.Crypto, null, null, null, "BTC/USDT")]
+        [TestCase("ETHUSD", SecurityType.Crypto, null, null, null, "ETH/USD")]
         public void ReturnsCorrectBrokerageSymbol(string symbol, SecurityType securityType, OptionRight? optionRight, decimal? strike, DateTime? expiryDate, string expectedBrokerageSymbol)
         {
             var leanSymbol = GenerateLeanSymbol(symbol, securityType, optionRight, strike, expiryDate);
             var brokerageSymbol = _symbolMapper.GetBrokerageSymbol(leanSymbol);
             Assert.That(brokerageSymbol, Is.EqualTo(expectedBrokerageSymbol));
+        }
+
+        [TestCase("BTCUSDTT")]
+        [TestCase("ETH/USDT")]
+        public void ThrowExceptionWrongLeanCryptoSymbol(string symbol)
+        {
+            var leanSymbol = GenerateLeanSymbol(symbol, SecurityType.Crypto);
+            Assert.Throws<ArgumentException>(() => _symbolMapper.GetBrokerageSymbol(leanSymbol), $"The symbol '{symbol}' is not found in the brokerage symbol mappings for crypto.");
         }
 
         private Symbol GenerateLeanSymbol(string symbol, SecurityType securityType, OptionRight? optionRight = OptionRight.Call, decimal? strike = 0m, DateTime? expiryDate = default, OptionStyle? optionStyle = OptionStyle.American)
@@ -61,7 +89,8 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 case SecurityType.Option:
                     var underlying = Symbol.Create(symbol, SecurityType.Equity, Market.USA);
                     return Symbol.CreateOption(underlying, Market.USA, optionStyle.Value, optionRight.Value, strike.Value, expiryDate.Value);
-                // TODO: case SecurityType.Crypto
+                case SecurityType.Crypto:
+                    return Symbol.Create(symbol, securityType, Market.USA);
                 default:
                     throw new NotSupportedException();
             }

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -51,7 +51,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         /// <summary>
         /// Provides the data required to test each order type in various cases
         /// </summary>
-        private static IEnumerable<TestCaseData> OrderParameters
+        private static IEnumerable<TestCaseData> EquityOrderParameters
         {
             get
             {
@@ -63,44 +63,65 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             }
         }
 
-        [Test, TestCaseSource(nameof(OrderParameters))]
+        /// <summary>
+        /// Provides the data required to test each order type in various cases
+        /// </summary>
+        private static IEnumerable<TestCaseData> CryptoOrderParameters
+        {
+            get
+            {
+                var ETHUSD = Symbol.Create("ETHUSD", SecurityType.Crypto, Market.USA);
+                yield return new TestCaseData(new MarketOrderTestParameters(ETHUSD));
+                yield return new TestCaseData(new LimitOrderTestParameters(ETHUSD, 3600m, 3000m));
+                yield return new TestCaseData(new StopMarketOrderTestParameters(ETHUSD, 3600m, 3000m));
+                yield return new TestCaseData(new StopLimitOrderTestParameters(ETHUSD, 3600m, 3000m));
+            }
+        }
+
+        [Test, TestCaseSource(nameof(EquityOrderParameters))]
         public override void CancelOrders(OrderTestParameters parameters)
         {
             base.CancelOrders(parameters);
         }
 
-        [Test, TestCaseSource(nameof(OrderParameters))]
+        [Test, TestCaseSource(nameof(CryptoOrderParameters))]
+        public void CancelOrdersCrypto(OrderTestParameters parameters)
+        {
+            base.CancelOrders(parameters);
+        }
+
+        [Test, TestCaseSource(nameof(EquityOrderParameters))]
         public override void LongFromZero(OrderTestParameters parameters)
         {
             base.LongFromZero(parameters);
         }
 
-        [Test, TestCaseSource(nameof(OrderParameters))]
+        [Test, TestCaseSource(nameof(EquityOrderParameters))]
         public override void CloseFromLong(OrderTestParameters parameters)
         {
             base.CloseFromLong(parameters);
         }
 
-        [Test, TestCaseSource(nameof(OrderParameters))]
+        [Test, TestCaseSource(nameof(EquityOrderParameters))]
         public override void ShortFromZero(OrderTestParameters parameters)
         {
             base.ShortFromZero(parameters);
         }
 
-        [Test, TestCaseSource(nameof(OrderParameters))]
+        [Test, TestCaseSource(nameof(EquityOrderParameters))]
         public override void CloseFromShort(OrderTestParameters parameters)
         {
             base.CloseFromShort(parameters);
         }
 
-        [Test, TestCaseSource(nameof(OrderParameters))]
+        [Test, TestCaseSource(nameof(EquityOrderParameters))]
         [Explicit("Not supported: Different side position if we have bought 1 quantity we can not sell more then 1")]
         public override void ShortFromLong(OrderTestParameters parameters)
         {
             base.ShortFromLong(parameters);
         }
 
-        [Test, TestCaseSource(nameof(OrderParameters))]
+        [Test, TestCaseSource(nameof(EquityOrderParameters))]
         [Explicit("Not supported: Different side position if we have sold -1 quantity we can not bought more then 1")]
         public override void LongFromShort(OrderTestParameters parameters)
         {

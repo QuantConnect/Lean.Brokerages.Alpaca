@@ -109,7 +109,7 @@ namespace QuantConnect.Brokerages.Alpaca
 
             AlpacaStreamingClient.OnTradeUpdate += HandleTradeUpdate;
 
-            _symbolMapper = new AlpacaBrokerageSymbolMapper();
+            _symbolMapper = new AlpacaBrokerageSymbolMapper(AlpacaTradingClient);
             _orderProvider = orderProvider;
 
             _aggregator = aggregator;
