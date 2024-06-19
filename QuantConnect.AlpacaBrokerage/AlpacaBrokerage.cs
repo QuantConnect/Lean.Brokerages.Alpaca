@@ -69,7 +69,7 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <summary>
         /// A concurrent dictionary that maps brokerage order IDs to their respective <see cref="AutoResetEvent"/> instances.
         /// </summary>
-        private readonly ConcurrentDictionary<string, AutoResetEvent> _resetEventByBrokerageOrderID = new();
+        private readonly ConcurrentDictionary<string, ManualResetEvent> _resetEventByBrokerageOrderID = new();
 
         /// <summary>
         /// Indicates whether the application is subscribed to stream order updates.
@@ -307,7 +307,7 @@ namespace QuantConnect.Brokerages.Alpaca
 
             orderRequest.WithDuration(order.TimeInForce.ConvertLeanTimeInForceToBrokerage(order.SecurityType));
 
-            var placeOrderResetEvent = new AutoResetEvent(false);
+            var placeOrderResetEvent = new ManualResetEvent(false);
             try
             {
                 lock (_lockObject)
@@ -319,6 +319,7 @@ namespace QuantConnect.Brokerages.Alpaca
 
                 if (placeOrderResetEvent.WaitOne(TimeSpan.FromSeconds(10)))
                 {
+                    placeOrderResetEvent.Reset();
                     OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event")
                     {
                         Status = LeanOrders.OrderStatus.Submitted
@@ -425,9 +426,9 @@ namespace QuantConnect.Brokerages.Alpaca
                 return false;
             }
 
-                var brokerageOrderId = order.BrokerId.Last();
+            var brokerageOrderId = order.BrokerId.Last();
 
-                var cancelOrderResetEvent = new AutoResetEvent(false);
+            var cancelOrderResetEvent = new ManualResetEvent(false);
             try
             {
                 lock (_lockObject)
@@ -438,6 +439,7 @@ namespace QuantConnect.Brokerages.Alpaca
 
                 if (cancelOrderResetEvent.WaitOne(TimeSpan.FromSeconds(10)))
                 {
+                    cancelOrderResetEvent.Reset();
                     OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event")
                     {
                         Status = LeanOrders.OrderStatus.Canceled
