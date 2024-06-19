@@ -1,4 +1,4 @@
-/*
+﻿/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -364,6 +364,12 @@ namespace QuantConnect.Brokerages.Alpaca
                         canceledResetEvent.Set();
                     }
                     return;
+                case TradeEvent.Replaced:
+                    if (_resetEventByBrokerageOrderID.TryRemove(obj.Order.ReplacedByOrderId.Value, out var updateResetEvent))
+                    {
+                        updateResetEvent.Set();
+                    }
+                    return;
                 case TradeEvent.Fill:
                     leanOrderStatus = LeanOrders.OrderStatus.Filled;
                     break;
@@ -404,7 +410,51 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <returns>True if the request was made for the order to be updated, false otherwise</returns>
         public override bool UpdateOrder(Order order)
         {
-            throw new NotImplementedException();
+            var brokerageOrderId = order.BrokerId.Last();
+
+            var pathOrderRequest = new ChangeOrderRequest(new Guid(brokerageOrderId)) { Quantity = Convert.ToInt64(order.AbsoluteQuantity) };
+
+            switch (order)
+            {
+                case LeanOrders.LimitOrder lo:
+                    pathOrderRequest.LimitPrice = lo.LimitPrice;
+                    break;
+                case StopMarketOrder smo:
+                    pathOrderRequest.StopPrice = smo.StopPrice;
+                    break;
+                case LeanOrders.StopLimitOrder slo:
+                    pathOrderRequest.LimitPrice = slo.LimitPrice;
+                    pathOrderRequest.StopPrice = slo.StopPrice;
+                    break;
+            }
+
+            var updateOrderResetEvent = new ManualResetEvent(false);
+            try
+            {
+                lock (_lockObject)
+                {
+                    var response = AlpacaTradingClient.PatchOrderAsync(pathOrderRequest).SynchronouslyAwaitTaskResult();
+                    order.BrokerId.Add(response.OrderId.ToString());
+                    _resetEventByBrokerageOrderID[response.OrderId] = updateOrderResetEvent;
+                }
+            }
+            catch (Exception ex)
+            {
+                OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)}.{nameof(UpdateOrder)} Order Event")
+                { Status = LeanOrders.OrderStatus.Invalid, Message = ex.Message });
+            }
+
+            if (updateOrderResetEvent.WaitOne(TimeSpan.FromSeconds(10)))
+            {
+                updateOrderResetEvent.Reset();
+                OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event")
+                {
+                    Status = LeanOrders.OrderStatus.UpdateSubmitted
+                });
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>

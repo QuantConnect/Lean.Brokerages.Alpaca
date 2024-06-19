@@ -1,4 +1,4 @@
-/*
+﻿/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -18,6 +18,7 @@ using System.Linq;
 using NUnit.Framework;
 using QuantConnect.Tests;
 using QuantConnect.Orders;
+using QuantConnect.Logging;
 using QuantConnect.Interfaces;
 using QuantConnect.Securities;
 using System.Collections.Generic;
@@ -131,12 +132,6 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             base.CloseFromShort(parameters);
         }
 
-        [Test, TestCaseSource(nameof(CryptoOrderParameters))]
-        public void CloseFromShortCrypto(OrderTestParameters parameters)
-        {
-            base.CloseFromShort(parameters);
-        }
-
         [Test, TestCaseSource(nameof(EquityOrderParameters))]
         [Explicit("Not supported: Different side position if we have bought 1 quantity we can not sell more then 1")]
         public override void ShortFromLong(OrderTestParameters parameters)
@@ -169,6 +164,21 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             Assert.True(options.Any());
             Assert.Greater(options.Count, 0);
             Assert.That(options.Distinct().ToList().Count, Is.EqualTo(options.Count));
+        }
+
+        [Test, TestCaseSource(nameof(CryptoOrderParameters))]
+        public void LongUpdateOrderCrypto(OrderTestParameters parameters)
+        {
+            Log.Trace("");
+            Log.Trace("LONG UPDATE ORDER CRYPTO");
+            Log.Trace("");
+
+            var order = PlaceOrderWaitForStatus(parameters.CreateLongOrder(GetDefaultQuantity()), parameters.ExpectedStatus);
+
+            if (parameters.ModifyUntilFilled)
+            {
+                ModifyOrderUntilFilled(order, parameters);
+            }
         }
     }
 }
