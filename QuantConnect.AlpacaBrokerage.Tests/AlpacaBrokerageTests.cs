@@ -73,7 +73,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 var ETHUSD = Symbol.Create("ETHUSD", SecurityType.Crypto, Market.USA);
                 yield return new TestCaseData(new MarketOrderTestParameters(ETHUSD));
                 yield return new TestCaseData(new LimitOrderTestParameters(ETHUSD, 3600m, 3000m));
-                yield return new TestCaseData(new StopLimitOrderTestParameters(ETHUSD, 3600m, 3000m));
+                yield return new TestCaseData(new StopLimitOrderTestParameters(ETHUSD, 3600m, 3000m)).Explicit("The WebSocket does not return an update order event, which is necessary for this test case to pass.");
             }
         }
 
@@ -95,8 +95,20 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             base.LongFromZero(parameters);
         }
 
+        [Test, TestCaseSource(nameof(CryptoOrderParameters))]
+        public void LongFromZeroCrypto(OrderTestParameters parameters)
+        {
+            base.LongFromZero(parameters);
+        }
+
         [Test, TestCaseSource(nameof(EquityOrderParameters))]
         public override void CloseFromLong(OrderTestParameters parameters)
+        {
+            base.CloseFromLong(parameters);
+        }
+
+        [Test, TestCaseSource(nameof(CryptoOrderParameters))]
+        public void CloseFromLongCrypto(OrderTestParameters parameters)
         {
             base.CloseFromLong(parameters);
         }
@@ -107,8 +119,20 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             base.ShortFromZero(parameters);
         }
 
+        [Test, TestCaseSource(nameof(CryptoOrderParameters))]
+        public void ShortFromZeroCrypto(OrderTestParameters parameters)
+        {
+            base.ShortFromZero(parameters);
+        }
+
         [Test, TestCaseSource(nameof(EquityOrderParameters))]
         public override void CloseFromShort(OrderTestParameters parameters)
+        {
+            base.CloseFromShort(parameters);
+        }
+
+        [Test, TestCaseSource(nameof(CryptoOrderParameters))]
+        public void CloseFromShortCrypto(OrderTestParameters parameters)
         {
             base.CloseFromShort(parameters);
         }

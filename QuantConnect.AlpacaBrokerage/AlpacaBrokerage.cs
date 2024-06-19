@@ -52,8 +52,14 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <inheritdoc cref="IAlpacaStreamingClient"/>
         private IAlpacaStreamingClient AlpacaStreamingClient { get; }
 
+        /// <summary>
+        /// Represents an object used for locking to ensure thread safety.
+        /// </summary>
         private object _lockObject = new();
 
+        /// <summary>
+        /// A concurrent dictionary that maps brokerage order IDs to their respective <see cref="AutoResetEvent"/> instances.
+        /// </summary>
         private readonly ConcurrentDictionary<string, AutoResetEvent> _resetEventByBrokerageOrderID = new();
 
         /// <summary>
@@ -392,11 +398,23 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <returns>True if the request was made for the order to be canceled, false otherwise</returns>
         public override bool CancelOrder(Order order)
         {
-            try
+            if (order.Status == LeanOrders.OrderStatus.Filled)
             {
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, "Order already filled"));
+                return false;
+            }
+
+            if (order.Status is LeanOrders.OrderStatus.Canceled)
+            {
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, "Order already canceled"));
+                return false;
+            }
+
                 var brokerageOrderId = order.BrokerId.Last();
 
                 var cancelOrderResetEvent = new AutoResetEvent(false);
+            try
+            {
                 lock (_lockObject)
                 {
                     var response = AlpacaTradingClient.CancelOrderAsync(new Guid(brokerageOrderId)).SynchronouslyAwaitTaskResult();
