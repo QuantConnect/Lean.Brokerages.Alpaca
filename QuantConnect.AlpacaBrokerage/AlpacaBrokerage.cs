@@ -69,7 +69,7 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <summary>
         /// A concurrent dictionary that maps brokerage order IDs to their respective <see cref="AutoResetEvent"/> instances.
         /// </summary>
-        private readonly ConcurrentDictionary<string, ManualResetEvent> _resetEventByBrokerageOrderID = new();
+        private readonly ConcurrentDictionary<Guid, ManualResetEvent> _resetEventByBrokerageOrderID = new();
 
         /// <summary>
         /// Indicates whether the application is subscribed to stream order updates.
@@ -314,7 +314,7 @@ namespace QuantConnect.Brokerages.Alpaca
                 {
                     var response = AlpacaTradingClient.PostOrderAsync(orderRequest).SynchronouslyAwaitTaskResult();
                     order.BrokerId.Add(response.OrderId.ToString());
-                    _resetEventByBrokerageOrderID[response.OrderId.ToString()] = placeOrderResetEvent;
+                    _resetEventByBrokerageOrderID[response.OrderId] = placeOrderResetEvent;
                 }
 
                 if (placeOrderResetEvent.WaitOne(TimeSpan.FromSeconds(10)))
@@ -347,21 +347,21 @@ namespace QuantConnect.Brokerages.Alpaca
                 case TradeEvent.PendingNew:
                     return;
                 case TradeEvent.New:
-                    if (_resetEventByBrokerageOrderID.TryRemove(obj.Order.OrderId.ToString(), out var resetEvent))
+                    if (_resetEventByBrokerageOrderID.TryRemove(obj.Order.OrderId, out var submittedResetEvent))
                     {
-                        resetEvent.Set();
+                        submittedResetEvent.Set();
                     }
                     return;
                 case TradeEvent.Rejected:
-                    if (_resetEventByBrokerageOrderID.TryRemove(obj.Order.OrderId.ToString(), out resetEvent))
+                    if (_resetEventByBrokerageOrderID.TryRemove(obj.Order.OrderId, out var rejectedResetEvent))
                     {
-                        resetEvent.Set();
+                        rejectedResetEvent.Set();
                     }
                     break;
                 case TradeEvent.Canceled:
-                    if (_resetEventByBrokerageOrderID.TryRemove(obj.Order.OrderId.ToString(), out resetEvent))
+                    if (_resetEventByBrokerageOrderID.TryRemove(obj.Order.OrderId, out var canceledResetEvent))
                     {
-                        resetEvent.Set();
+                        canceledResetEvent.Set();
                     }
                     return;
                 case TradeEvent.Fill:
@@ -426,14 +426,13 @@ namespace QuantConnect.Brokerages.Alpaca
                 return false;
             }
 
-            var brokerageOrderId = order.BrokerId.Last();
-
+            var brokerageOrderId = new Guid(order.BrokerId.Last());
             var cancelOrderResetEvent = new ManualResetEvent(false);
             try
             {
                 lock (_lockObject)
                 {
-                    var response = AlpacaTradingClient.CancelOrderAsync(new Guid(brokerageOrderId)).SynchronouslyAwaitTaskResult();
+                    var response = AlpacaTradingClient.CancelOrderAsync(brokerageOrderId).SynchronouslyAwaitTaskResult();
                     _resetEventByBrokerageOrderID[brokerageOrderId] = cancelOrderResetEvent;
                 }
 
