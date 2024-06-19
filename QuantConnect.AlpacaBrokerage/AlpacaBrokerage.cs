@@ -52,6 +52,15 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <inheritdoc cref="IAlpacaStreamingClient"/>
         private IAlpacaStreamingClient AlpacaStreamingClient { get; }
 
+        /// <inheritdoc cref="IAlpacaDataClient"/>
+        private IAlpacaDataClient AlpacaDataClient { get; }
+
+        /// <inheritdoc cref="IAlpacaCryptoDataClient"/>
+        private IAlpacaCryptoDataClient AlpacaCryptoDataClient { get; }
+
+        /// <inheritdoc cref="IAlpacaOptionsDataClient"/>
+        private IAlpacaOptionsDataClient AlpacaOptionsDataClient { get; }
+
         /// <summary>
         /// Represents an object used for locking to ensure thread safety.
         /// </summary>
@@ -106,11 +115,17 @@ namespace QuantConnect.Brokerages.Alpaca
             {
                 AlpacaTradingClient = Environments.Paper.GetAlpacaTradingClient(secretKey);
                 AlpacaStreamingClient = Environments.Paper.GetAlpacaStreamingClient(secretKey);
+                AlpacaDataClient = Environments.Paper.GetAlpacaDataClient(secretKey);
+                AlpacaCryptoDataClient = Environments.Paper.GetAlpacaCryptoDataClient(secretKey);
+                AlpacaOptionsDataClient = Environments.Paper.GetAlpacaOptionsDataClient(secretKey);
             }
             else
             {
                 AlpacaTradingClient = Environments.Live.GetAlpacaTradingClient(secretKey);
                 AlpacaStreamingClient = Environments.Live.GetAlpacaStreamingClient(secretKey);
+                AlpacaDataClient = Environments.Live.GetAlpacaDataClient(secretKey);
+                AlpacaCryptoDataClient = Environments.Live.GetAlpacaCryptoDataClient(secretKey);
+                AlpacaOptionsDataClient = Environments.Live.GetAlpacaOptionsDataClient(secretKey);
             }
 
             AlpacaStreamingClient.OnTradeUpdate += HandleTradeUpdate;
@@ -462,6 +477,29 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             AlpacaStreamingClient.DisposeSafely();
             AlpacaTradingClient.DisposeSafely();
+        }
+
+        /// <summary>
+        /// Gets the latest market quote for the specified symbol.
+        /// </summary>
+        /// <param name="symbol">The symbol for which to get the latest quote.</param>
+        /// <returns>The latest quote for the specified symbol.</returns>
+        /// <exception cref="NotSupportedException">Thrown when the symbol's security type is not supported.</exception>
+        /// <exception cref="Exception">Thrown when an error occurs while fetching the quote.</exception>
+        public IQuote GetLatestQuote(Symbol symbol)
+        {
+            var brokerageSymbol = _symbolMapper.GetBrokerageSymbol(symbol);
+            switch (symbol.SecurityType)
+            {
+                case SecurityType.Equity:
+                    return AlpacaDataClient.GetLatestQuoteAsync(new LatestMarketDataRequest(brokerageSymbol) { Feed = MarketDataFeed.Iex }).SynchronouslyAwaitTaskResult();
+                case SecurityType.Option:
+                    return AlpacaOptionsDataClient.ListLatestQuotesAsync(new LatestOptionsDataRequest(new string[] { brokerageSymbol })).SynchronouslyAwaitTaskResult()[brokerageSymbol];
+                case SecurityType.Crypto:
+                    return AlpacaCryptoDataClient.ListLatestQuotesAsync(new LatestDataListRequest(new string[] { brokerageSymbol })).SynchronouslyAwaitTaskResult()[brokerageSymbol];
+                default:
+                    throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetLatestQuote)}: Security type {symbol.SecurityType} is not supported.");
+            }
         }
 
         #endregion
