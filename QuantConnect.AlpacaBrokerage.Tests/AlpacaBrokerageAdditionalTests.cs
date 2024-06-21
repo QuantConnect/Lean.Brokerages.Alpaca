@@ -67,5 +67,23 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             Assert.Greater(quote.BidSize, 0);
             Assert.Greater(quote.BidPrice, 0);
         }
+
+        [TestCase("iex")]
+        [TestCase("IEX")]
+        [TestCase("Iex")]
+        [TestCase("sip")]
+        [TestCase("SIP")]
+        [TestCase("Sip")]
+        [TestCase("otc")]
+        public void CreateAlpacaBrokerageWithDifferentDataProviders(string configDataProvider)
+        {
+            var (apiKey, apiKeySecret, dataFeedProvider, isPaperTrading) = AlpacaBrokerageTestHelpers.GetConfigParameters(false);
+
+            dataFeedProvider = configDataProvider;
+
+            var alpacaBrokerage = new AlpacaBrokerage(apiKey, apiKeySecret, dataFeedProvider, isPaperTrading, new Mock<IAlgorithm>().Object);
+
+            Assert.IsNotNull(alpacaBrokerage);
+        }
     }
 }

@@ -3,5 +3,6 @@
 
   "alpaca-api-key-id": "",
   "alpaca-api-secret-key": "",
+  "alpaca-data-feed-provider": "iex",
   "alpaca-use-paper-trading": true
 }

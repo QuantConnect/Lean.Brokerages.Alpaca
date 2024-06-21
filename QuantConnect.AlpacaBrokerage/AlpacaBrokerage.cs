@@ -41,6 +41,9 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <inheritdoc cref="IOrderProvider"/>
         private IOrderProvider _orderProvider;
 
+        /// <inheritdoc cref="MarketDataFeed"/>
+        private readonly MarketDataFeed _marketDataFeed;
+
         private readonly EventBasedDataQueueHandlerSubscriptionManager _subscriptionManager;
 
         /// <inheritdoc cref="AlpacaBrokerageSymbolMapper"/>
@@ -86,14 +89,15 @@ namespace QuantConnect.Brokerages.Alpaca
         /// </summary>
         /// <param name="apiKey">The API key for authentication with Alpaca.</param>
         /// <param name="apiKeySecret">The secret key for authentication with Alpaca.</param>
+        /// <param name="dataFeedProvider">The data feed provider for authentication with Alpaca.</param>
         /// <param name="isPaperTrading">Indicates whether the brokerage should use the paper trading environment.</param>
         /// <remarks>
         /// This constructor initializes a new instance of the <see cref="AlpacaBrokerage"/> class with the specified API key,
         /// API secret key, and a flag indicating whether to use paper trading. It also retrieves an instance of <see cref="IDataAggregator"/>
         /// from the <see cref="Composer"/>. This constructor is required for brokerages implementing <see cref="IDataQueueHandler"/>.
         /// </remarks>
-        public AlpacaBrokerage(string apiKey, string apiKeySecret, bool isPaperTrading, IAlgorithm algorithm)
-            : this(apiKey, apiKeySecret, isPaperTrading, algorithm?.Portfolio?.Transactions, Composer.Instance.GetPart<IDataAggregator>())
+        public AlpacaBrokerage(string apiKey, string apiKeySecret, string dataFeedProvider, bool isPaperTrading, IAlgorithm algorithm)
+            : this(apiKey, apiKeySecret, dataFeedProvider, isPaperTrading, algorithm?.Portfolio?.Transactions, Composer.Instance.GetPart<IDataAggregator>())
         { }
 
         /// <summary>
@@ -101,15 +105,21 @@ namespace QuantConnect.Brokerages.Alpaca
         /// </summary>
         /// <param name="apiKey">The API key for authentication with Alpaca.</param>
         /// <param name="apiKeySecret">The secret key for authentication with Alpaca.</param>
+        /// <param name="dataFeedProvider">The data feed provider for authentication with Alpaca.</param>
         /// <param name="isPaperTrading">Indicates whether the brokerage should use the paper trading environment.</param>
         /// <param name="aggregator">The data aggregator used for handling data streams.</param>
         /// <remarks>
         /// This constructor initializes a new instance of the <see cref="AlpacaBrokerage"/> class with the specified API key,
         /// API secret key, a flag indicating whether to use paper trading, and an instance of <see cref="IDataAggregator"/>.
         /// </remarks>
-        public AlpacaBrokerage(string apiKey, string apiKeySecret, bool isPaperTrading, IOrderProvider orderProvider, IDataAggregator aggregator) : base("AlpacaBrokerage")
+        public AlpacaBrokerage(string apiKey, string apiKeySecret, string dataFeedProvider, bool isPaperTrading, IOrderProvider orderProvider, IDataAggregator aggregator) : base("AlpacaBrokerage")
         {
             var secretKey = new SecretKey(apiKey, apiKeySecret);
+
+            if (!Enum.TryParse<MarketDataFeed>(dataFeedProvider.ToLower(), true, out _marketDataFeed) || !Enum.IsDefined(typeof(MarketDataFeed), _marketDataFeed))
+            {
+                throw new ArgumentException($"An error occurred while parsing the price plan '{dataFeedProvider}'. Please ensure that the provided Data Feed Provider is valid and supported by the system.");
+            }
 
             if (isPaperTrading)
             {
@@ -543,7 +553,7 @@ namespace QuantConnect.Brokerages.Alpaca
             switch (symbol.SecurityType)
             {
                 case SecurityType.Equity:
-                    return AlpacaDataClient.GetLatestQuoteAsync(new LatestMarketDataRequest(brokerageSymbol) { Feed = MarketDataFeed.Iex }).SynchronouslyAwaitTaskResult();
+                    return AlpacaDataClient.GetLatestQuoteAsync(new LatestMarketDataRequest(brokerageSymbol) { Feed = _marketDataFeed }).SynchronouslyAwaitTaskResult();
                 case SecurityType.Option:
                     return AlpacaOptionsDataClient.ListLatestQuotesAsync(new LatestOptionsDataRequest(new string[] { brokerageSymbol })).SynchronouslyAwaitTaskResult()[brokerageSymbol];
                 case SecurityType.Crypto:
