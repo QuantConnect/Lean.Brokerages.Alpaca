@@ -36,11 +36,9 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
 
         protected override IBrokerage CreateBrokerage(IOrderProvider orderProvider, ISecurityProvider securityProvider)
         {
-            var apiKey = Config.Get("alpaca-api-key-id");
-            var apiSecret = Config.Get("alpaca-api-secret-key");
-            var isPaperTrading = Config.GetBool("alpaca-use-paper-trading");
+            var (apiKey, apiKeySecret, dataFeedProvider, isPaperTrading) = AlpacaBrokerageTestHelpers.GetConfigParameters();
 
-            return new AlpacaBrokerage(apiKey, apiSecret, isPaperTrading, orderProvider, new AggregationManager());
+            return new AlpacaBrokerage(apiKey, apiKeySecret, dataFeedProvider, isPaperTrading, orderProvider, new AggregationManager());
         }
         protected override bool IsAsync() => false;
         protected override decimal GetAskPrice(Symbol symbol)

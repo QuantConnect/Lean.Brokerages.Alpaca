@@ -15,13 +15,11 @@
 
 using Moq;
 using System;
-using Alpaca.Markets;
 using NUnit.Framework;
 using QuantConnect.Util;
 using QuantConnect.Tests;
 using QuantConnect.Interfaces;
 using System.Collections.Generic;
-using QuantConnect.Configuration;
 
 namespace QuantConnect.Brokerages.Alpaca.Tests
 {
@@ -34,18 +32,10 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         [OneTimeSetUp]
         public void OneTimeSetUp()
         {
-            var apiKey = Config.Get("alpaca-api-key-id");
-            var apiKeySecret = Config.Get("alpaca-api-secret-key");
-            var isPaperTrading = Config.GetBool("alpaca-use-paper-trading");
-
-            if (string.IsNullOrEmpty(apiKey) || string.IsNullOrEmpty(apiKeySecret))
-            {
-                throw new ArgumentNullException("API Key or Secret Key cannot be null or empty. Please check your configuration.");
-            }
+            var (apiKey, apiKeySecret, dataFeedProvider, isPaperTrading) = AlpacaBrokerageTestHelpers.GetConfigParameters();
 
             var algorithmMock = new Mock<IAlgorithm>();
-            var secretKey = new SecretKey(apiKey, apiKeySecret);
-            _alpacaBrokerage = new AlpacaBrokerage(apiKey, apiKeySecret, isPaperTrading, algorithmMock.Object);
+            _alpacaBrokerage = new AlpacaBrokerage(apiKey, apiKeySecret, dataFeedProvider, isPaperTrading, algorithmMock.Object);
         }
 
         [Test]

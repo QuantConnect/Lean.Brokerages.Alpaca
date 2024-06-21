@@ -29,13 +29,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         [OneTimeSetUp]
         public void OneTimeSetUp()
         {
-            var apiKey = Config.Get("alpaca-api-key-id");
-            var apiKeySecret = Config.Get("alpaca-api-secret-key");
-
-            if (string.IsNullOrEmpty(apiKey) || string.IsNullOrEmpty(apiKeySecret))
-            {
-                throw new ArgumentNullException("API Key or Secret Key cannot be null or empty. Please check your configuration.");
-            }
+            var (apiKey, apiKeySecret, _, _) = AlpacaBrokerageTestHelpers.GetConfigParameters();
 
             var secretKey = new SecretKey(apiKey, apiKeySecret);
             var alpacaTradingClient = Environments.Paper.GetAlpacaTradingClient(secretKey);
