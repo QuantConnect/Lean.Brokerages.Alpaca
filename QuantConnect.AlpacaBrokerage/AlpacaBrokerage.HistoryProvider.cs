@@ -27,16 +27,27 @@ namespace QuantConnect.Brokerages.Alpaca;
 public partial class AlpacaBrokerage
 {
     /// <summary>
-    /// Flag to ensure the warning message for unsupported <see cref="TickType.Trade"/>
+    /// Flag to ensure the warning message of <see cref="SecurityType.Equity"/> symbol for unsupported <see cref="TickType.Trade"/>
     /// <seealso cref="Resolution.Tick"/> and <seealso cref="Resolution.Second"/> is only logged once.
     /// </summary>
-    private bool _unsupportedTradeTickAndSecondResolution;
+    private bool _unsupportedEquityTradeTickAndSecondResolution;
+
+    /// <summary>
+    /// Flag to ensure the warning message of  <see cref="SecurityType.Option"/> symbol for unsupported <seealso cref="TickType.Trade"/>
+    /// <seealso cref="Resolution.Tick"/> and <seealso cref="Resolution.Second"/> is only logged once.
+    /// </summary>
+    private bool _unsupportedOptionTradeTickAndSecondResolution;
 
     /// <summary>
     /// Flag to ensure the warning message for unsupported <see cref="TickType.OpenInterest"/> resolutions
     /// other than <seealso cref="Resolution.Tick"/> is only logged once.
     /// </summary>
     private bool _unsupportedOpenInterestNonTickResolution;
+
+    /// <summary>
+    /// Flag to ensure the warning message for unsupported <see cref="SecurityType.Option"/> <seealso cref="TickType"/> is only logged once.
+    /// </summary>
+    private bool _unsupportedOptionTickType;
 
     /// <summary>
     /// Gets the history for the requested symbols
@@ -51,11 +62,74 @@ public partial class AlpacaBrokerage
             return null;
         }
 
+        var brokerageSymbol = _symbolMapper.GetBrokerageSymbol(request.Symbol);
+
+        switch (request.Symbol.SecurityType)
+        {
+            case SecurityType.Equity:
+                return GetEquityHistory(request, brokerageSymbol);
+            case SecurityType.Option:
+                return GetOptionHistory(request, brokerageSymbol);
+            default:
+                throw new NotSupportedException();
+        }
+    }
+
+    /// <summary>
+    /// Retrieves historical data for <see cref="SecurityType.Option"/> based on the specified history request and brokerage symbol.
+    /// </summary>
+    /// <param name="request">The history request containing the parameters for the data retrieval.</param>
+    /// <param name="brokerageSymbol">The brokerage-specific symbol representation for options.</param>
+    /// <returns>An enumerable collection of <see cref="BaseData"/> objects representing the historical data for options.</returns>
+    /// <exception cref="NotSupportedException">Thrown when an unsupported <see cref="TickType"/> or resolution is encountered.</exception>
+    private IEnumerable<BaseData> GetOptionHistory(HistoryRequest request, string brokerageSymbol)
+    {
+        if (request.TickType != TickType.Trade)
+        {
+            if (!_unsupportedOptionTickType)
+            {
+                _unsupportedOptionTickType = true;
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "InvalidTickType",
+                    $"The requested TickType '{request.TickType}' is not supported for option data. Only ${TickType.Trade} type is supported."));
+            }
+            return null;
+        }
+
         if (request.TickType == TickType.Trade && request.Resolution is Resolution.Second or Resolution.Tick)
         {
-            if (!_unsupportedTradeTickAndSecondResolution)
+            if (!_unsupportedOptionTradeTickAndSecondResolution)
             {
-                _unsupportedTradeTickAndSecondResolution = true;
+                _unsupportedOptionTradeTickAndSecondResolution = true;
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "InvalidResolution",
+                    $"The requested resolution '{request.Resolution}' is not supported for trade tick data. No historical data will be returned."));
+            }
+            return null;
+        }
+
+        switch (request.TickType)
+        {
+            case TickType.Trade:
+                return GetOptionHistoricalTradeBar(request.Symbol, brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc,
+                    request.Resolution.ConvertLeanResolutionToAlpacaBarTimeFrame(), request.Resolution.ToTimeSpan());
+            default:
+                throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetOptionHistory)}: The TickType '{request.TickType}' is not supported for option data.");
+        }
+    }
+
+    /// <summary>
+    /// Retrieves historical data for an equity symbol based on the specified history request and brokerage symbol.
+    /// </summary>
+    /// <param name="request">The history request containing the parameters for the data retrieval.</param>
+    /// <param name="brokerageSymbol">The brokerage-specific symbol representation.</param>
+    /// <returns>An enumerable collection of <see cref="BaseData"/> objects representing the historical data.</returns>
+    /// <exception cref="NotSupportedException">Thrown when an unsupported <see cref="TickType"/> is encountered.</exception>
+    private IEnumerable<BaseData> GetEquityHistory(HistoryRequest request, string brokerageSymbol)
+    {
+        if (request.TickType == TickType.Trade && request.Resolution is Resolution.Second or Resolution.Tick)
+        {
+            if (!_unsupportedEquityTradeTickAndSecondResolution)
+            {
+                _unsupportedEquityTradeTickAndSecondResolution = true;
                 OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "InvalidResolution",
                     $"The requested resolution '{request.Resolution}' is not supported for trade tick data. No historical data will be returned."));
             }
@@ -72,8 +146,6 @@ public partial class AlpacaBrokerage
             }
             return null;
         }
-
-        var brokerageSymbol = _symbolMapper.GetBrokerageSymbol(request.Symbol);
 
         switch (request.TickType)
         {
@@ -92,7 +164,7 @@ public partial class AlpacaBrokerage
             case TickType.OpenInterest:
                 return GetEquityHistoricalAuction(request.Symbol, brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc);
             default:
-                return null;
+                throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetEquityHistory)}: The TickType '{request.TickType}' is not supported. Please provide a valid TickType.");
         }
     }
 
@@ -170,6 +242,30 @@ public partial class AlpacaBrokerage
     }
 
     /// <summary>
+    /// Retrieves historical trade bars for <see cref="SecurityType.Option"/> based on the specified parameters.
+    /// </summary>
+    /// <param name="leanSymbol">The internal Lean symbol representation.</param>
+    /// <param name="brokerageSymbol">The brokerage-specific symbol representation for options.</param>
+    /// <param name="startDate">The start date for the historical data request.</param>
+    /// <param name="endDate">The end date for the historical data request.</param>
+    /// <param name="barTimeFrame">The timeframe for each bar (e.g., minute, hour, day).</param>
+    /// <param name="period">The time span representing the duration of each trade bar.</param>
+    /// <returns>An enumerable collection of <see cref="TradeBar"/> objects representing the historical trade bar data for options.</returns>
+    private IEnumerable<TradeBar> GetOptionHistoricalTradeBar(Symbol leanSymbol, string brokerageSymbol, DateTime startDate, DateTime endDate,
+    BarTimeFrame barTimeFrame, TimeSpan period)
+    {
+        var historyOptionRequest = new HistoricalOptionBarsRequest(brokerageSymbol, startDate, endDate, barTimeFrame);
+
+        foreach (var response in CreatePaginationRequest(historyOptionRequest, req => AlpacaOptionsDataClient.GetHistoricalBarsAsync(historyOptionRequest)))
+        {
+            foreach (var trade in response.Items[brokerageSymbol])
+            {
+                yield return new TradeBar(trade.TimeUtc, leanSymbol, trade.Open, trade.High, trade.Low, trade.Close, trade.Volume, period);
+            }
+        }
+    }
+
+    /// <summary>
     /// Creates a pagination request for a given request object, using a callback function
     /// to asynchronously fetch paginated results until all pages are retrieved.
     /// </summary>
@@ -193,6 +289,12 @@ public partial class AlpacaBrokerage
         do
         {
             var response = callback(request).SynchronouslyAwaitTaskResult();
+
+            if (response.Items.Count == 0)
+            {
+                continue;
+            }
+
             yield return response;
             request.Pagination.Token = response.NextPageToken;
         } while (!string.IsNullOrEmpty(request.Pagination.Token));
