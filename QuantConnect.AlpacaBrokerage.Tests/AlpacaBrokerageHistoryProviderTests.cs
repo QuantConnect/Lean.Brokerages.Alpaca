@@ -59,6 +59,18 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 yield return new TestCaseData(AAPLOption, Resolution.Minute, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 21, 16, 0, 0));
                 yield return new TestCaseData(AAPLOption, Resolution.Hour, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 21, 16, 0, 0));
                 yield return new TestCaseData(AAPLOption, Resolution.Daily, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 21, 16, 0, 0));
+
+                yield return new TestCaseData(Symbols.BTCUSD, Resolution.Tick, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
+                yield return new TestCaseData(Symbols.BTCUSD, Resolution.Second, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
+                yield return new TestCaseData(Symbols.BTCUSD, Resolution.Minute, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
+                yield return new TestCaseData(Symbols.BTCUSD, Resolution.Hour, TickType.Trade, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
+                yield return new TestCaseData(Symbols.BTCUSD, Resolution.Daily, TickType.Trade, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 21, 16, 0, 0));
+
+                yield return new TestCaseData(Symbols.BTCUSD, Resolution.Tick, TickType.Quote, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
+                yield return new TestCaseData(Symbols.BTCUSD, Resolution.Second, TickType.Quote, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
+                yield return new TestCaseData(Symbols.BTCUSD, Resolution.Minute, TickType.Quote, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
+                yield return new TestCaseData(Symbols.BTCUSD, Resolution.Hour, TickType.Quote, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 21, 16, 0, 0));
+                yield return new TestCaseData(Symbols.BTCUSD, Resolution.Daily, TickType.Quote, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 21, 16, 0, 0));
             }
         }
 
@@ -88,8 +100,10 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 yield return new TestCaseData(AAPLOption, Resolution.Minute, TickType.Quote, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
                 yield return new TestCaseData(AAPLOption, Resolution.Hour, TickType.Quote, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
                 yield return new TestCaseData(AAPLOption, Resolution.Daily, TickType.Quote, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
+
+                yield return new TestCaseData(Symbols.BTCUSD, Resolution.Daily, TickType.OpenInterest, new DateTime(default), new DateTime(default));
             }
-            }
+        }
 
         [Test, TestCaseSource(nameof(NotSupportHistoryParameters))]
         public void GetsHistoryWithNotSupportedParameters(Symbol symbol, Resolution resolution, TickType tickType, DateTime startDate, DateTime endDate)
