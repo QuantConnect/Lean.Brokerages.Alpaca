@@ -222,19 +222,15 @@ public partial class AlpacaBrokerage
             return null;
         }
 
-        if (request.TickType == TickType.Trade && request.Resolution is Resolution.Second or Resolution.Tick)
-        {
-            if (!_unsupportedOptionTradeTickAndSecondResolution)
-            {
-                _unsupportedOptionTradeTickAndSecondResolution = true;
-                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "InvalidResolution",
-                    $"The requested resolution '{request.Resolution}' is not supported for trade tick data. No historical data will be returned."));
-            }
-            return null;
-        }
-
         switch (request.TickType)
         {
+            case TickType.Trade when request.Resolution == Resolution.Tick:
+                return GetOptionHistoricalTickTradeBar(request.Symbol, brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc);
+            case TickType.Trade when request.Resolution == Resolution.Second:
+                return LeanData.AggregateTicksToTradeBars(
+                    GetOptionHistoricalTickTradeBar(request.Symbol, brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc),
+                    request.Symbol,
+                    request.Resolution.ToTimeSpan());
             case TickType.Trade:
                 return GetOptionHistoricalTradeBar(request.Symbol, brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc,
                     request.Resolution.ConvertLeanResolutionToAlpacaBarTimeFrame(), request.Resolution.ToTimeSpan());
@@ -364,6 +360,31 @@ public partial class AlpacaBrokerage
             foreach (var trade in response.Items[brokerageSymbol])
             {
                 yield return new TradeBar(trade.TimeUtc, leanSymbol, trade.Open, trade.High, trade.Low, trade.Close, trade.Volume, period);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Retrieves historical tick trade bars for <see cref="SecurityType.Option"/> based on the specified parameters.
+    /// </summary>
+    /// <param name="leanSymbol">The internal Lean symbol representation for the option.</param>
+    /// <param name="brokerageSymbol">The brokerage-specific symbol representation for the option.</param>
+    /// <param name="startDate">The start date for the historical data request.</param>
+    /// <param name="endDate">The end date for the historical data request.</param>
+    /// <returns>An enumerable collection of <see cref="Tick"/> objects representing the historical tick trade bar data for options.</returns>
+    private IEnumerable<Tick> GetOptionHistoricalTickTradeBar(Symbol leanSymbol, string brokerageSymbol, DateTime startDate, DateTime endDate)
+    {
+        var historyOptionRequest = new HistoricalOptionTradesRequest(brokerageSymbol, startDate, endDate);
+
+        foreach (var response in CreatePaginationRequest(historyOptionRequest, req => AlpacaOptionsDataClient.GetHistoricalTradesAsync(historyOptionRequest)))
+        {
+            foreach (var trade in response.Items[brokerageSymbol])
+            {
+                // If the array contains one flag, it applies to both the bid and ask.
+                // If the array contains two flags, the first one applies to the bid and the second one to the ask.
+                var (bidCondition, askCondition) = trade.Conditions.Count > 1 ? (trade.Conditions[0], trade.Conditions[1]) : (trade.Conditions[0], trade.Conditions[0]);
+                // TODO: The brokerage returns 2 conditions and 2 exchanges, but Lean currently does not handle this scenario.
+                yield return new Tick(trade.TimestampUtc, leanSymbol, bidCondition, trade.Exchange, trade.Size, trade.Price);
             }
         }
     }
