@@ -13,120 +13,101 @@
  * limitations under the License.
 */
 
+using Moq;
 using System;
+using NodaTime;
 using System.Linq;
 using NUnit.Framework;
 using QuantConnect.Data;
+using QuantConnect.Util;
 using QuantConnect.Tests;
-using QuantConnect.Logging;
+using QuantConnect.Interfaces;
 using QuantConnect.Securities;
-using QuantConnect.Data.Market;
-using QuantConnect.Lean.Engine.HistoricalData;
+using System.Collections.Generic;
 
 namespace QuantConnect.Brokerages.Alpaca.Tests
 {
-    [TestFixture, Ignore("Not implemented")]
+    [TestFixture]
     public class AlpacaBrokerageHistoryProviderTests
     {
-        private static TestCaseData[] TestParameters
+        private AlpacaBrokerage _alpacaBrokerage;
+
+        [OneTimeSetUp]
+        public void OneTimeSetUp()
+        {
+            var (apiKey, apiKeySecret, dataFeedProvider, isPaperTrading) = AlpacaBrokerageTestHelpers.GetConfigParameters();
+            _alpacaBrokerage = new AlpacaBrokerage(apiKey, apiKeySecret, dataFeedProvider, isPaperTrading, new Mock<IAlgorithm>().Object);
+        }
+
+        private static IEnumerable<TestCaseData> TestParameters
         {
             get
             {
-                return new[]
-                {
-                    // valid parameters, example:
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Tick, TimeSpan.FromMinutes(1), TickType.Quote, typeof(Tick), false),
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Minute, TimeSpan.FromMinutes(10), TickType.Quote, typeof(QuoteBar), false),
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Daily, TimeSpan.FromDays(10), TickType.Quote, typeof(QuoteBar), false),
+                yield return new TestCaseData(Symbols.AAPL, Resolution.Minute, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
+                yield return new TestCaseData(Symbols.AAPL, Resolution.Hour, TickType.Trade, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
+                yield return new TestCaseData(Symbols.AAPL, Resolution.Daily, TickType.Trade, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 21, 16, 0, 0));
 
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Tick, TimeSpan.FromMinutes(1), TickType.Trade, typeof(Tick), false),
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Minute, TimeSpan.FromMinutes(10), TickType.Trade, typeof(TradeBar), false),
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Daily, TimeSpan.FromDays(10), TickType.Trade, typeof(TradeBar), false),
+                yield return new TestCaseData(Symbols.AAPL, Resolution.Tick, TickType.Quote, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
+                yield return new TestCaseData(Symbols.AAPL, Resolution.Second, TickType.Quote, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
+                yield return new TestCaseData(Symbols.AAPL, Resolution.Minute, TickType.Quote, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
+                yield return new TestCaseData(Symbols.AAPL, Resolution.Hour, TickType.Quote, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
+                yield return new TestCaseData(Symbols.AAPL, Resolution.Daily, TickType.Quote, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
 
-                    // invalid parameter, validate SecurityType more accurate
-                    new TestCaseData(Symbols.SPY, Resolution.Hour, TimeSpan.FromHours(14), TickType.Quote, typeof(QuoteBar), true),
+                yield return new TestCaseData(Symbols.AAPL, Resolution.Tick, TickType.OpenInterest, new DateTime(2024, 6, 10, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
+            }
+        }
 
-                    /// New Listed Symbol on Brokerage <see cref="Slice.SymbolChangedEvents"/>
-                    new TestCaseData(Symbol.Create("SUSHIGBP", SecurityType.Crypto, Market.Coinbase), Resolution.Minute, TimeSpan.FromHours(2), TickType.Trade, typeof(TradeBar), false),
+        private static IEnumerable<TestCaseData> NotSupportHistoryParameters
+        {
+            get
+            {
+                yield return new TestCaseData(Symbols.AAPL, Resolution.Tick, TickType.Trade, new DateTime(default), new DateTime(default));
+                yield return new TestCaseData(Symbols.AAPL, Resolution.Second, TickType.Trade, new DateTime(default), new DateTime(default));
 
-                    /// Symbol was delisted form Brokerage (can return history data or not) <see cref="Slice.Delistings"/>
-                    new TestCaseData(Symbol.Create("SNTUSD", SecurityType.Crypto, Market.Coinbase), Resolution.Daily, TimeSpan.FromDays(14), TickType.Trade, typeof(TradeBar), true),
-                };
+                yield return new TestCaseData(Symbols.AAPL, Resolution.Second, TickType.OpenInterest, new DateTime(default), new DateTime(default));
+                yield return new TestCaseData(Symbols.AAPL, Resolution.Minute, TickType.OpenInterest, new DateTime(default), new DateTime(default));
+                yield return new TestCaseData(Symbols.AAPL, Resolution.Hour, TickType.OpenInterest, new DateTime(default), new DateTime(default));
+                yield return new TestCaseData(Symbols.AAPL, Resolution.Daily, TickType.OpenInterest, new DateTime(default), new DateTime(default));
             }
         }
 
         [Test, TestCaseSource(nameof(TestParameters))]
-        public void GetsHistory(Symbol symbol, Resolution resolution, TimeSpan period, TickType tickType, Type dataType, bool throwsException)
+        public void GetsHistory(Symbol symbol, Resolution resolution, TickType tickType, DateTime startDate, DateTime endDate)
         {
-            TestDelegate test = () =>
+            var historyRequest = CreateHistoryRequest(symbol, resolution, tickType, startDate, endDate);
+
+            var histories = _alpacaBrokerage.GetHistory(historyRequest).ToList();
+            Assert.Greater(histories.Count, 0);
+        }
+
+        internal static HistoryRequest CreateHistoryRequest(Symbol symbol, Resolution resolution, TickType tickType, DateTime startDateTime,
+            DateTime endDateTime, SecurityExchangeHours exchangeHours = null, DateTimeZone dataTimeZone = null)
+        {
+            if (exchangeHours == null)
             {
-                var brokerage = new AlpacaBrokerage(null, null, false, null);
-
-                var historyProvider = new BrokerageHistoryProvider();
-                historyProvider.SetBrokerage(brokerage);
-                historyProvider.Initialize(new HistoryProviderInitializeParameters(null, null, null,
-                    null, null, null, null,
-                    false, null, null, null));
-
-                var marketHoursDatabase = MarketHoursDatabase.FromDataFolder();
-                var now = DateTime.UtcNow;
-                var requests = new[]
-                {
-                    new HistoryRequest(now.Add(-period),
-                        now,
-                        dataType,
-                        symbol,
-                        resolution,
-                        marketHoursDatabase.GetExchangeHours(symbol.ID.Market, symbol, symbol.SecurityType),
-                        marketHoursDatabase.GetDataTimeZone(symbol.ID.Market, symbol, symbol.SecurityType),
-                        resolution,
-                        false,
-                        false,
-                        DataNormalizationMode.Adjusted,
-                        tickType)
-                };
-
-                var historyArray = historyProvider.GetHistory(requests, TimeZones.Utc).ToArray();
-                foreach (var slice in historyArray)
-                {
-                    if (resolution == Resolution.Tick)
-                    {
-                        foreach (var tick in slice.Ticks[symbol])
-                        {
-                            Log.Debug($"{tick}");
-                        }
-                    }
-                    else if (slice.QuoteBars.TryGetValue(symbol, out var quoteBar))
-                    {
-                        Log.Debug($"{quoteBar}");
-                    }
-                    else if (slice.Bars.TryGetValue(symbol, out var tradeBar))
-                    {
-                        Log.Debug($"{tradeBar}");
-                    }
-                }
-
-                if (historyProvider.DataPointCount > 0)
-                {
-                    // Ordered by time
-                    Assert.That(historyArray, Is.Ordered.By("Time"));
-
-                    // No repeating bars
-                    var timesArray = historyArray.Select(x => x.Time).ToArray();
-                    Assert.AreEqual(timesArray.Length, timesArray.Distinct().Count());
-                }
-
-                Log.Trace("Data points retrieved: " + historyProvider.DataPointCount);
-            };
-
-            if (throwsException)
-            {
-                Assert.Throws<ArgumentException>(test);
+                exchangeHours = SecurityExchangeHours.AlwaysOpen(TimeZones.NewYork);
             }
-            else
+
+            if (dataTimeZone == null)
             {
-                Assert.DoesNotThrow(test);
+                dataTimeZone = TimeZones.NewYork;
             }
+
+            var dataType = LeanData.GetDataType(resolution, tickType);
+            return new HistoryRequest(
+                startTimeUtc: startDateTime,
+                endTimeUtc: endDateTime,
+                dataType: dataType,
+                symbol: symbol,
+                resolution: resolution,
+                exchangeHours: exchangeHours,
+                dataTimeZone: dataTimeZone,
+                fillForwardResolution: null,
+                includeExtendedMarketHours: true,
+                isCustomData: false,
+                dataNormalizationMode: DataNormalizationMode.Adjusted,
+                tickType: tickType
+                );
         }
     }
 }

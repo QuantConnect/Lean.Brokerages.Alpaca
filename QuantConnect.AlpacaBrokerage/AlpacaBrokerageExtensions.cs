@@ -102,4 +102,21 @@ public static class AlpacaBrokerageExtensions
             _ => throw new NotSupportedException($"{nameof(AlpacaBrokerageExtensions)}.{nameof(ConvertLeanTimeInForceToBrokerage)}:The provided TimeInForce type '{timeInForce.GetType().Name}' is not supported.")
         };
     }
+
+    /// <summary>
+    /// Converts a Lean resolution to an Alpaca BarTimeFrame.
+    /// </summary>
+    /// <param name="leanResolution">The resolution of data requested.</param>
+    /// <returns>The corresponding Alpaca BarTimeFrame.</returns>
+    /// <exception cref="NotImplementedException">
+    /// Thrown when an unsupported resolution is provided.
+    /// </exception>
+    public static BarTimeFrame ConvertLeanResolutionToAlpacaBarTimeFrame(this Resolution leanResolution) => leanResolution switch
+    {
+        Resolution.Minute => BarTimeFrame.Minute,
+        Resolution.Hour => BarTimeFrame.Hour,
+        Resolution.Daily => BarTimeFrame.Day,
+        _ => throw new NotImplementedException($"{nameof(AlpacaBrokerageExtensions)}.{nameof(ConvertLeanResolutionToAlpacaBarTimeFrame)}: " +
+            $"The resolution '{leanResolution}' is not supported. Please use Minute, Hour, or Daily resolution.")
+    };
 }

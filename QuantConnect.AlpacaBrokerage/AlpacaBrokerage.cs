@@ -116,7 +116,7 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             var secretKey = new SecretKey(apiKey, apiKeySecret);
 
-            if (!Enum.TryParse<MarketDataFeed>(dataFeedProvider.ToLower(), true, out _marketDataFeed) || !Enum.IsDefined(typeof(MarketDataFeed), _marketDataFeed))
+            if (!Enum.TryParse(dataFeedProvider.ToLower(), true, out _marketDataFeed) || !Enum.IsDefined(typeof(MarketDataFeed), _marketDataFeed))
             {
                 throw new ArgumentException($"An error occurred while parsing the price plan '{dataFeedProvider}'. Please ensure that the provided Data Feed Provider is valid and supported by the system.");
             }
@@ -590,22 +590,6 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <param name="symbols">The symbols to be removed keyed by SecurityType</param>
         private bool Unsubscribe(IEnumerable<Symbol> symbols)
         {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// Gets the history for the requested symbols
-        /// <see cref="IBrokerage.GetHistory(Data.HistoryRequest)"/>
-        /// </summary>
-        /// <param name="request">The historical data request</param>
-        /// <returns>An enumerable of bars covering the span specified in the request</returns>
-        public override IEnumerable<BaseData> GetHistory(Data.HistoryRequest request)
-        {
-            if (!CanSubscribe(request.Symbol))
-            {
-                return null; // Should consistently return null instead of an empty enumerable
-            }
-
             throw new NotImplementedException();
         }
     }
