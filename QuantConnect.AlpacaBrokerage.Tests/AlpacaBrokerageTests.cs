@@ -109,7 +109,25 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         [Test, TestCaseSource(nameof(CryptoOrderParameters))]
         public void CloseFromLongCrypto(OrderTestParameters parameters)
         {
-            base.CloseFromLong(parameters);
+            Log.Trace("");
+            Log.Trace("CLOSE FROM LONG");
+            Log.Trace("");
+            PlaceOrderWaitForStatus(parameters.CreateLongMarketOrder(GetDefaultQuantity()), OrderStatus.Filled);
+
+            Log.Trace("");
+            Log.Trace("GET ACCOUNT HOLDINGS");
+            Log.Trace("");
+            foreach (var accountHolding in Brokerage.GetAccountHoldings())
+            {
+                if (SecurityProvider.TryGetValue(accountHolding.Symbol, out var holding))
+                {
+                    holding.Holdings.SetHoldings(accountHolding.AveragePrice, accountHolding.Quantity);
+                }
+            }
+
+            var actualOrderQuantity = SecurityProvider[parameters.Symbol].Holdings.Quantity;
+
+            PlaceOrderWaitForStatus(parameters.CreateShortOrder(actualOrderQuantity), parameters.ExpectedStatus);
         }
 
         [Test, TestCaseSource(nameof(EquityOrderParameters))]

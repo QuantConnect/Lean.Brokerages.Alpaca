@@ -111,7 +111,7 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
             case AssetClass.UsOption:
                 return ParseOptionTicker(brokerageSymbol);
             case AssetClass.Crypto:
-                return Symbol.Create(brokerageSymbol, SecurityType.Crypto, Market.USA);
+                return Symbol.Create(brokerageSymbol.Replace("/", ""), SecurityType.Crypto, Market.USA);
             default:
                 throw new NotSupportedException($"Conversion for the asset class '{brokerageAssetClass}' is not supported.");
         }
