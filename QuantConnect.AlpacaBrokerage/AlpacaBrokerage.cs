@@ -33,7 +33,7 @@ using LeanOrders = QuantConnect.Orders;
 namespace QuantConnect.Brokerages.Alpaca
 {
     [BrokerageFactory(typeof(AlpacaBrokerageFactory))]
-    public partial class AlpacaBrokerage : Brokerage, IDataQueueHandler
+    public partial class AlpacaBrokerage : Brokerage
     {
         /// <inheritdoc cref="IDataAggregator"/>
         private readonly IDataAggregator _aggregator;
@@ -63,6 +63,12 @@ namespace QuantConnect.Brokerages.Alpaca
 
         /// <inheritdoc cref="IAlpacaOptionsDataClient"/>
         private IAlpacaOptionsDataClient AlpacaOptionsDataClient { get; }
+
+        /// <inheritdoc cref="IAlpacaDataStreamingClient"/>
+        private IAlpacaDataStreamingClient AlpacaDataStreamingClient { get; }
+
+        /// <inheritdoc cref="IAlpacaCryptoStreamingClient"/>
+        private IAlpacaCryptoStreamingClient AlpacaCryptoStreamingClient { get; }
 
         /// <summary>
         /// Represents an object used for locking to ensure thread safety.
@@ -128,6 +134,8 @@ namespace QuantConnect.Brokerages.Alpaca
                 AlpacaDataClient = Environments.Paper.GetAlpacaDataClient(secretKey);
                 AlpacaCryptoDataClient = Environments.Paper.GetAlpacaCryptoDataClient(secretKey);
                 AlpacaOptionsDataClient = Environments.Paper.GetAlpacaOptionsDataClient(secretKey);
+                AlpacaDataStreamingClient = Environments.Paper.GetAlpacaDataStreamingClient(secretKey);
+                AlpacaCryptoStreamingClient = Environments.Paper.GetAlpacaCryptoStreamingClient(secretKey);
             }
             else
             {
@@ -136,9 +144,16 @@ namespace QuantConnect.Brokerages.Alpaca
                 AlpacaDataClient = Environments.Live.GetAlpacaDataClient(secretKey);
                 AlpacaCryptoDataClient = Environments.Live.GetAlpacaCryptoDataClient(secretKey);
                 AlpacaOptionsDataClient = Environments.Live.GetAlpacaOptionsDataClient(secretKey);
+                AlpacaDataStreamingClient = Environments.Live.GetAlpacaDataStreamingClient(secretKey);
+                AlpacaCryptoStreamingClient = Environments.Live.GetAlpacaCryptoStreamingClient(secretKey);
             }
-
             AlpacaStreamingClient.OnTradeUpdate += HandleTradeUpdate;
+
+            AlpacaCryptoStreamingClient.Connected += AlpacaCryptoStreamingClient_Connected;
+            AlpacaCryptoStreamingClient.OnWarning += AlpacaCryptoStreamingClient_OnWarning;
+            AlpacaCryptoStreamingClient.SocketOpened += AlpacaCryptoStreamingClient_SocketOpened;
+            AlpacaCryptoStreamingClient.SocketClosed += AlpacaCryptoStreamingClient_SocketClosed;
+            AlpacaCryptoStreamingClient.OnError += AlpacaCryptoStreamingClient_OnError;
 
             _symbolMapper = new AlpacaBrokerageSymbolMapper(AlpacaTradingClient);
             _orderProvider = orderProvider;
@@ -158,47 +173,30 @@ namespace QuantConnect.Brokerages.Alpaca
             // _connectionRateLimiter = new RateGate();
         }
 
-        #region IDataQueueHandler
-
-        /// <summary>
-        /// Subscribe to the specified configuration
-        /// </summary>
-        /// <param name="dataConfig">defines the parameters to subscribe to a data feed</param>
-        /// <param name="newDataAvailableHandler">handler to be fired on new data available</param>
-        /// <returns>The new enumerator for this subscription request</returns>
-        public IEnumerator<BaseData> Subscribe(SubscriptionDataConfig dataConfig, EventHandler newDataAvailableHandler)
+        private void AlpacaCryptoStreamingClient_OnError(Exception obj)
         {
-            if (!CanSubscribe(dataConfig.Symbol))
-            {
-                return null;
-            }
-
-            var enumerator = _aggregator.Add(dataConfig, newDataAvailableHandler);
-            _subscriptionManager.Subscribe(dataConfig);
-
-            return enumerator;
+            Log.Debug($"{nameof(AlpacaCryptoStreamingClient_OnError)}: {obj}");
         }
 
-        /// <summary>
-        /// Removes the specified configuration
-        /// </summary>
-        /// <param name="dataConfig">Subscription config to be removed</param>
-        public void Unsubscribe(SubscriptionDataConfig dataConfig)
+        private void AlpacaCryptoStreamingClient_SocketClosed()
         {
-            _subscriptionManager.Unsubscribe(dataConfig);
-            _aggregator.Remove(dataConfig);
+            Log.Debug($"{nameof(AlpacaCryptoStreamingClient_SocketClosed)}: ");
         }
 
-        /// <summary>
-        /// Sets the job we're subscribing for
-        /// </summary>
-        /// <param name="job">Job we're subscribing for</param>
-        public void SetJob(LiveNodePacket job)
+        private void AlpacaCryptoStreamingClient_SocketOpened()
         {
-            throw new NotImplementedException();
+            Log.Debug($"{nameof(AlpacaCryptoStreamingClient_SocketOpened)}: ");
         }
 
-        #endregion
+        private void AlpacaCryptoStreamingClient_OnWarning(string obj)
+        {
+            Log.Debug($"{nameof(AlpacaCryptoStreamingClient_OnWarning)}: {obj}");
+        }
+
+        private void AlpacaCryptoStreamingClient_Connected(AuthStatus obj)
+        {
+            Log.Debug($"{nameof(AlpacaCryptoStreamingClient_Connected)}: {obj}");
+        }
 
         #region Brokerage
 
@@ -523,7 +521,8 @@ namespace QuantConnect.Brokerages.Alpaca
         public override void Connect()
         {
             var authorizedStatus = AlpacaStreamingClient.ConnectAndAuthenticateAsync().SynchronouslyAwaitTaskResult();
-            _isAuthorizedOnStreamOrderUpdate = authorizedStatus == AuthStatus.Authorized;
+            var authorizedDataStatus = AlpacaDataStreamingClient.ConnectAndAuthenticateAsync().SynchronouslyAwaitTaskResult();
+            _isAuthorizedOnStreamOrderUpdate = authorizedStatus == AuthStatus.Authorized && authorizedDataStatus == AuthStatus.Authorized;
         }
 
         /// <summary>
@@ -532,12 +531,17 @@ namespace QuantConnect.Brokerages.Alpaca
         public override void Disconnect()
         {
             AlpacaStreamingClient.DisconnectAsync().SynchronouslyAwaitTask();
+            AlpacaDataStreamingClient.DisconnectAsync().SynchronouslyAwaitTask();
         }
 
         public override void Dispose()
         {
             AlpacaStreamingClient.DisposeSafely();
+            AlpacaDataStreamingClient.DisposeSafely();
             AlpacaTradingClient.DisposeSafely();
+            AlpacaDataClient.DisposeSafely();
+            AlpacaCryptoDataClient.DisposeSafely();
+            AlpacaOptionsDataClient.DisposeSafely();
         }
 
         /// <summary>
@@ -573,24 +577,6 @@ namespace QuantConnect.Brokerages.Alpaca
             }
 
             return _symbolMapper.SupportedSecurityType.Contains(symbol.SecurityType);
-        }
-
-        /// <summary>
-        /// Adds the specified symbols to the subscription
-        /// </summary>
-        /// <param name="symbols">The symbols to be added keyed by SecurityType</param>
-        private bool Subscribe(IEnumerable<Symbol> symbols)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// Removes the specified symbols to the subscription
-        /// </summary>
-        /// <param name="symbols">The symbols to be removed keyed by SecurityType</param>
-        private bool Unsubscribe(IEnumerable<Symbol> symbols)
-        {
-            throw new NotImplementedException();
         }
     }
 }

@@ -32,9 +32,9 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 return new[]
                 {
                     // valid parameters, for example
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Tick, false),
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Minute, false),
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Second, false),
+                    new TestCaseData(Symbols.ETHUSD, Resolution.Tick, false),
+                    new TestCaseData(Symbols.AAPL, Resolution.Minute, false),
+                    new TestCaseData(Symbols.AAPL, Resolution.Second, false),
                 };
             }
         }
