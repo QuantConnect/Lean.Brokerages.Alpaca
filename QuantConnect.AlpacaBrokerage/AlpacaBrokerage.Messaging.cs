@@ -13,9 +13,12 @@
  * limitations under the License.
 */
 
+using System;
+using NodaTime;
 using Alpaca.Markets;
 using QuantConnect.Logging;
-using System.Threading.Tasks;
+using QuantConnect.Securities;
+using QuantConnect.Data.Market;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 
@@ -23,7 +26,8 @@ namespace QuantConnect.Brokerages.Alpaca;
 
 public partial class AlpacaBrokerage
 {
-    private ConcurrentDictionary<Symbol, IAlpacaDataSubscription[]> _alpacaDataSubscriptionByLeanSymbol = new();
+    private readonly ConcurrentDictionary<string, SymbolSubscriptionData> _dataSubscriptionByBrokerageSymbol = new();
+    private readonly ConcurrentDictionary<Symbol, IAlpacaDataSubscription[]> _dataSubscriptionByLeanSymbol = new();
 
     /// <summary>
     /// Adds the specified symbols to the subscription
@@ -33,44 +37,31 @@ public partial class AlpacaBrokerage
     {
         foreach (var symbol in symbols)
         {
-            var res = AlpacaTradingClient.GetClockAsync().SynchronouslyAwaitTaskResult();
             var brokerageSymbol = _symbolMapper.GetBrokerageSymbol(symbol);
-            var tradeSubscription = default(IAlpacaDataSubscription<ITrade>);
-            var quoteSubscription = default(IAlpacaDataSubscription<IQuote>);
-            if (symbol.SecurityType == SecurityType.Crypto)
-            {
-                tradeSubscription = AlpacaCryptoStreamingClient.GetTradeSubscription(brokerageSymbol);
-                tradeSubscription.Received += HandleTradeReceived;
-                tradeSubscription.OnSubscribedChanged += TradeSubscription_OnSubscribedChanged;
 
-                quoteSubscription = AlpacaCryptoStreamingClient.GetQuoteSubscription(brokerageSymbol);
-                quoteSubscription.Received += HandleQuoteReceived;
+            var exchangeTimeZone = MarketHoursDatabase.FromDataFolder().GetExchangeHours(symbol.ID.Market, symbol, symbol.SecurityType).TimeZone;
+            _dataSubscriptionByBrokerageSymbol[brokerageSymbol] = new() { Symbol = symbol, ExchangeTimeZone = exchangeTimeZone };
 
+            var streamingClient = GetStreamingDataClient(symbol);
+            var tradeSubscription = streamingClient.GetTradeSubscription(brokerageSymbol);
+            tradeSubscription.Received += HandleTradeReceived;
+            tradeSubscription.OnSubscribedChanged += () => SubscriptionOnSubscribedChanged(symbol, "trade");
 
-                Task.Run(async () => await AlpacaCryptoStreamingClient.SubscribeAsync(tradeSubscription));
-                Task.Run(async () => await AlpacaCryptoStreamingClient.SubscribeAsync(quoteSubscription));
-            }
-            else
-            {
-                tradeSubscription = AlpacaDataStreamingClient.GetTradeSubscription();
-                tradeSubscription.Received += HandleTradeReceived;
-                tradeSubscription.OnSubscribedChanged += TradeSubscription_OnSubscribedChanged;
+            var quoteSubscription = streamingClient.GetQuoteSubscription(brokerageSymbol);
+            quoteSubscription.Received += HandleQuoteReceived;
+            quoteSubscription.OnSubscribedChanged += () => SubscriptionOnSubscribedChanged(symbol, "quote");
 
-                quoteSubscription = AlpacaDataStreamingClient.GetQuoteSubscription();
-                quoteSubscription.Received += HandleQuoteReceived;
+            streamingClient.SubscribeAsync(tradeSubscription).ConfigureAwait(false).GetAwaiter().GetResult();
+            streamingClient.SubscribeAsync(quoteSubscription).ConfigureAwait(false).GetAwaiter().GetResult();
 
-                AlpacaDataStreamingClient.SubscribeAsync(tradeSubscription).ConfigureAwait(false).GetAwaiter().GetResult();
-                AlpacaDataStreamingClient.SubscribeAsync(quoteSubscription).ConfigureAwait(false).GetAwaiter().GetResult();
-            }
-            _alpacaDataSubscriptionByLeanSymbol[symbol] = new IAlpacaDataSubscription[] { tradeSubscription, quoteSubscription };
+            _dataSubscriptionByLeanSymbol[symbol] = new IAlpacaDataSubscription[] { tradeSubscription, quoteSubscription };
         }
-
         return true;
     }
 
-    private void TradeSubscription_OnSubscribedChanged()
+    private void SubscriptionOnSubscribedChanged(Symbol symbol, string flavor)
     {
-        Log.Debug($"{nameof(TradeSubscription_OnSubscribedChanged)}: WTF");
+        Log.Trace($"{nameof(SubscriptionOnSubscribedChanged)}({symbol.ID}): {flavor}");
     }
 
     /// <summary>
@@ -81,33 +72,96 @@ public partial class AlpacaBrokerage
     {
         foreach (var symbol in symbols)
         {
-            if (_alpacaDataSubscriptionByLeanSymbol.TryRemove(symbol, out var subscriptions))
+            if (_dataSubscriptionByLeanSymbol.TryRemove(symbol, out var subscriptions))
             {
-                if (symbol.SecurityType == SecurityType.Crypto)
+                var streamingClient = GetStreamingDataClient(symbol);
+                foreach (var subscription in subscriptions)
                 {
-                    foreach (var subscription in subscriptions)
-                    {
-                        AlpacaCryptoStreamingClient.UnsubscribeAsync(subscription).AsTask().ConfigureAwait(continueOnCapturedContext: false).GetAwaiter().GetResult();
-                    }
-                }
-                else
-                {
-                    foreach (var subscription in subscriptions)
-                    {
-                        AlpacaDataStreamingClient.UnsubscribeAsync(subscription).AsTask().ConfigureAwait(continueOnCapturedContext: false).GetAwaiter().GetResult();
-                    }
+                    streamingClient.UnsubscribeAsync(subscription).ConfigureAwait(false).GetAwaiter().GetResult();
                 }
             }
         }
         return true;
     }
 
+    private IStreamingDataClient GetStreamingDataClient(Symbol symbol)
+    {
+        IStreamingDataClient streamingClient;
+        if (symbol.SecurityType == SecurityType.Crypto)
+        {
+            streamingClient = _cryptoStreamingClient;
+        }
+        else if (symbol.SecurityType == SecurityType.Equity)
+        {
+            streamingClient = _equityStreamingClient;
+        }
+        else
+        {
+            throw new Exception($"Symbol not expected {symbol}!");
+        }
+        return streamingClient;
+    }
+
     private void HandleTradeReceived(ITrade obj)
     {
-        Log.Debug($"{nameof(HandleTradeReceived)}: {obj}");
+        if (Log.DebuggingEnabled)
+        {
+            Log.Debug($"{nameof(HandleTradeReceived)}: {obj}");
+        }
+
+        if (!_dataSubscriptionByBrokerageSymbol.TryGetValue(obj.Symbol, out var subscriptionData))
+        {
+            return;
+        }
+        var tick = new Tick()
+        {
+            Value = obj.Price,
+            Quantity = obj.Size,
+
+            TickType = TickType.Trade,
+            Symbol = subscriptionData.Symbol,
+            Time = obj.TimestampUtc.ConvertFromUtc(subscriptionData.ExchangeTimeZone),
+        };
+        lock (_aggregator)
+        {
+            _aggregator.Update(tick);
+        }
     }
+
     private void HandleQuoteReceived(IQuote obj)
     {
-        Log.Debug($"{nameof(HandleQuoteReceived)}: {obj}");
+        if (Log.DebuggingEnabled)
+        {
+            Log.Debug($"{nameof(HandleQuoteReceived)}: {obj}");
+        }
+
+        if (!_dataSubscriptionByBrokerageSymbol.TryGetValue(obj.Symbol, out var subscriptionData))
+        {
+            return;
+        }
+
+        var tick = new Tick
+        {
+            AskSize = obj.AskSize,
+            AskPrice = obj.AskPrice,
+
+            BidSize = obj.BidSize,
+            BidPrice = obj.BidPrice,
+
+            TickType = TickType.Quote,
+            Symbol = subscriptionData.Symbol,
+            Time = obj.TimestampUtc.ConvertFromUtc(subscriptionData.ExchangeTimeZone),
+        };
+
+        lock (_aggregator)
+        {
+            _aggregator.Update(tick);
+        }
+    }
+
+    private class SymbolSubscriptionData
+    {
+        public Symbol Symbol { get; internal set; }
+        public DateTimeZone ExchangeTimeZone { get; internal set; }
     }
 }

@@ -21,7 +21,7 @@ using System.Collections.Generic;
 
 namespace QuantConnect.Brokerages.Alpaca;
 
-public partial class AlpacaBrokerage: IDataQueueHandler
+public partial class AlpacaBrokerage : IDataQueueHandler
 {
     /// <summary>
     /// Subscribe to the specified configuration
@@ -58,6 +58,19 @@ public partial class AlpacaBrokerage: IDataQueueHandler
     /// <param name="job">Job we're subscribing for</param>
     public void SetJob(LiveNodePacket job)
     {
-        throw new NotImplementedException();
+        // used for data
+        job.BrokerageData.TryGetValue("alpaca-api-key-id", out var apiKey);
+        job.BrokerageData.TryGetValue("alpaca-api-secret-key", out var secretKey);
+
+        // required for trading
+        job.BrokerageData.TryGetValue("alpaca-access-token", out var accessToken);
+
+        var usePaperTrading = Convert.ToBoolean(job.BrokerageData["alpaca-use-paper-trading"]);
+
+        Initialize(apiKey, secretKey, accessToken, usePaperTrading, null);
+        if (!IsConnected)
+        {
+            Connect();
+        }
     }
 }

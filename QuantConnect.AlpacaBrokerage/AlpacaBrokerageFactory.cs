@@ -14,15 +14,17 @@
 */
 
 using System;
+using QuantConnect.Util;
 using QuantConnect.Packets;
 using QuantConnect.Interfaces;
 using QuantConnect.Securities;
 using System.Collections.Generic;
+using QuantConnect.Configuration;
 
 namespace QuantConnect.Brokerages.Alpaca
 {
     /// <summary>
-    /// Provides a template implementation of BrokerageFactory
+    /// Factory type for the <see cref="AlpacaBrokerage"/>
     /// </summary>
     public class AlpacaBrokerageFactory : BrokerageFactory
     {
@@ -33,7 +35,15 @@ namespace QuantConnect.Brokerages.Alpaca
         /// The implementation of this property will create the brokerage data dictionary required for
         /// running live jobs. See <see cref="IJobQueueHandler.NextJob"/>
         /// </remarks>
-        public override Dictionary<string, string> BrokerageData { get; }
+        public override Dictionary<string, string> BrokerageData => new Dictionary<string, string>
+        {
+            { "alpaca-access-token", Config.Get("alpaca-access-token") },
+
+            { "alpaca-api-key-id", Config.Get("alpaca-api-key-id") },
+            { "alpaca-api-secret-key", Config.Get("alpaca-api-secret-key") },
+
+            { "alpaca-use-paper-trading", Config.Get("alpaca-use-paper-trading") },
+        };
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AlpacaBrokerageFactory"/> class
@@ -46,10 +56,7 @@ namespace QuantConnect.Brokerages.Alpaca
         /// Gets a brokerage model that can be used to model this brokerage's unique behaviors
         /// </summary>
         /// <param name="orderProvider">The order provider</param>
-        public override IBrokerageModel GetBrokerageModel(IOrderProvider orderProvider)
-        {
-            throw new NotImplementedException();
-        }
+        public override IBrokerageModel GetBrokerageModel(IOrderProvider orderProvider) => new AlpacaBrokerageModel();
 
         /// <summary>
         /// Creates a new IBrokerage instance
@@ -59,7 +66,21 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <returns>A new brokerage instance</returns>
         public override IBrokerage CreateBrokerage(LiveNodePacket job, IAlgorithm algorithm)
         {
-            throw new NotImplementedException();
+            // used for data
+            job.BrokerageData.TryGetValue("alpaca-api-key-id", out var apiKey);
+            job.BrokerageData.TryGetValue("alpaca-api-secret-key", out var secretKey);
+
+            // optionally, required for trading
+            job.BrokerageData.TryGetValue("alpaca-access-token", out var accessToken);
+
+            var usePaperTrading = Convert.ToBoolean(job.BrokerageData["alpaca-use-paper-trading"]);
+            var alpacaBrokerage = new AlpacaBrokerage(apiKey, secretKey, accessToken, usePaperTrading, algorithm);
+
+            if (!string.IsNullOrEmpty(secretKey))
+            {
+                Composer.Instance.AddPart<IDataQueueHandler>(alpacaBrokerage);
+            }
+            return alpacaBrokerage;
         }
 
         /// <summary>
@@ -67,7 +88,6 @@ namespace QuantConnect.Brokerages.Alpaca
         /// </summary>
         public override void Dispose()
         {
-            throw new NotImplementedException();
         }
     }
 }

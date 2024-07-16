@@ -23,7 +23,7 @@ using QuantConnect.Interfaces;
 using QuantConnect.Securities;
 using System.Collections.Generic;
 using QuantConnect.Tests.Brokerages;
-using QuantConnect.Lean.Engine.DataFeeds;
+using static QuantConnect.Brokerages.Alpaca.Tests.AlpacaBrokerageAdditionalTests;
 
 namespace QuantConnect.Brokerages.Alpaca.Tests
 {
@@ -35,14 +35,14 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
 
         protected override IBrokerage CreateBrokerage(IOrderProvider orderProvider, ISecurityProvider securityProvider)
         {
-            var (apiKey, apiKeySecret, dataFeedProvider, isPaperTrading) = AlpacaBrokerageTestHelpers.GetConfigParameters();
+            var (apiKey, apiKeySecret, isPaperTrading) = AlpacaBrokerageTestHelpers.GetConfigParameters();
 
-            return new AlpacaBrokerage(apiKey, apiKeySecret, dataFeedProvider, isPaperTrading, orderProvider, new AggregationManager());
+            return new TestAlpacaBrokerage(apiKey, apiKeySecret, isPaperTrading, orderProvider);
         }
         protected override bool IsAsync() => false;
         protected override decimal GetAskPrice(Symbol symbol)
         {
-            return (Brokerage as AlpacaBrokerage).GetLatestQuote(symbol).AskPrice;
+            return (Brokerage as TestAlpacaBrokerage).GetLatestQuotePublic(symbol).AskPrice;
         }
 
 

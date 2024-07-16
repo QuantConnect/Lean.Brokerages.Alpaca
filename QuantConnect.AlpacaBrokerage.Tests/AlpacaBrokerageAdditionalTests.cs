@@ -15,11 +15,13 @@
 
 using Moq;
 using System;
+using Alpaca.Markets;
 using NUnit.Framework;
 using QuantConnect.Util;
 using QuantConnect.Tests;
 using QuantConnect.Interfaces;
 using System.Collections.Generic;
+using QuantConnect.Securities;
 
 namespace QuantConnect.Brokerages.Alpaca.Tests
 {
@@ -27,15 +29,15 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
     public class AlpacaBrokerageAdditionalTests
     {
         /// <inheritdoc cref="AlpacaBrokerage"/>
-        private AlpacaBrokerage _alpacaBrokerage;
+        private TestAlpacaBrokerage _alpacaBrokerage;
 
         [OneTimeSetUp]
         public void OneTimeSetUp()
         {
-            var (apiKey, apiKeySecret, dataFeedProvider, isPaperTrading) = AlpacaBrokerageTestHelpers.GetConfigParameters();
+            var (apiKey, apiKeySecret, isPaperTrading) = AlpacaBrokerageTestHelpers.GetConfigParameters();
 
             var algorithmMock = new Mock<IAlgorithm>();
-            _alpacaBrokerage = new AlpacaBrokerage(apiKey, apiKeySecret, dataFeedProvider, isPaperTrading, algorithmMock.Object);
+            _alpacaBrokerage = new TestAlpacaBrokerage(apiKey, apiKeySecret, isPaperTrading, algorithmMock.Object);
         }
 
         [Test]
@@ -59,7 +61,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         [Test, TestCaseSource(nameof(QuoteSymbolParameters))]
         public void GetLatestQuote(Symbol symbol)
         {
-            var quote = _alpacaBrokerage.GetLatestQuote(symbol);
+            var quote = _alpacaBrokerage.GetLatestQuotePublic(symbol);
 
             Assert.IsNotNull(quote);
             Assert.Greater(quote.AskSize, 0);
@@ -68,22 +70,22 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             Assert.Greater(quote.BidPrice, 0);
         }
 
-        [TestCase("iex")]
-        [TestCase("IEX")]
-        [TestCase("Iex")]
-        [TestCase("sip")]
-        [TestCase("SIP")]
-        [TestCase("Sip")]
-        [TestCase("otc")]
-        public void CreateAlpacaBrokerageWithDifferentDataProviders(string configDataProvider)
+        internal class TestAlpacaBrokerage : AlpacaBrokerage
         {
-            var (apiKey, apiKeySecret, dataFeedProvider, isPaperTrading) = AlpacaBrokerageTestHelpers.GetConfigParameters(false);
+            public TestAlpacaBrokerage(string apiKey, string apiKeySecret, bool isPaperTrading, IAlgorithm algorithm)
+                : base(apiKey, apiKeySecret, null, isPaperTrading, algorithm)
+            {
+            }
 
-            dataFeedProvider = configDataProvider;
+            public TestAlpacaBrokerage(string apiKey, string apiKeySecret, bool isPaperTrading, IOrderProvider orderProvider)
+                : base(apiKey, apiKeySecret, null, isPaperTrading, orderProvider)
+            {
+            }
 
-            var alpacaBrokerage = new AlpacaBrokerage(apiKey, apiKeySecret, dataFeedProvider, isPaperTrading, new Mock<IAlgorithm>().Object);
-
-            Assert.IsNotNull(alpacaBrokerage);
+            public IQuote GetLatestQuotePublic(Symbol symbol)
+            {
+                return GetLatestQuote(symbol);
+            }
         }
     }
 }

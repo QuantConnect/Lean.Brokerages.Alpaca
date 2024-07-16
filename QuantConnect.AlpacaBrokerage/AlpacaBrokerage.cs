@@ -20,7 +20,6 @@ using System.Threading;
 using QuantConnect.Data;
 using QuantConnect.Util;
 using QuantConnect.Orders;
-using QuantConnect.Packets;
 using QuantConnect.Logging;
 using QuantConnect.Interfaces;
 using QuantConnect.Securities;
@@ -28,47 +27,42 @@ using QuantConnect.Orders.Fees;
 using System.Collections.Generic;
 using AlpacaMarket = Alpaca.Markets;
 using System.Collections.Concurrent;
-using LeanOrders = QuantConnect.Orders;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
+using QuantConnect.Api;
+using QuantConnect.Data.Market;
+using RestSharp;
+using System.IO;
+using System.Net.NetworkInformation;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
+using QuantConnect.Configuration;
 
 namespace QuantConnect.Brokerages.Alpaca
 {
     [BrokerageFactory(typeof(AlpacaBrokerageFactory))]
     public partial class AlpacaBrokerage : Brokerage
     {
-        /// <inheritdoc cref="IDataAggregator"/>
-        private readonly IDataAggregator _aggregator;
+        private IDataAggregator _aggregator;
 
-        /// <inheritdoc cref="IOrderProvider"/>
         private IOrderProvider _orderProvider;
 
-        /// <inheritdoc cref="MarketDataFeed"/>
-        private readonly MarketDataFeed _marketDataFeed;
+        private EventBasedDataQueueHandlerSubscriptionManager _subscriptionManager;
 
-        private readonly EventBasedDataQueueHandlerSubscriptionManager _subscriptionManager;
-
-        /// <inheritdoc cref="AlpacaBrokerageSymbolMapper"/>
         private AlpacaBrokerageSymbolMapper _symbolMapper;
 
-        /// <inheritdoc cref="IAlpacaTradingClient"/>
-        private IAlpacaTradingClient AlpacaTradingClient { get; }
+        private IAlpacaTradingClient _tradingClient;
 
-        /// <inheritdoc cref="IAlpacaStreamingClient"/>
-        private IAlpacaStreamingClient AlpacaStreamingClient { get; }
+        private IAlpacaDataClient _equityHistoricalDataClient;
+        private IAlpacaCryptoDataClient _cryptoHistoricalDataClient;
+        private IAlpacaOptionsDataClient _optionsHistoricalDataClient;
 
-        /// <inheritdoc cref="IAlpacaDataClient"/>
-        private IAlpacaDataClient AlpacaDataClient { get; }
+        private IAlpacaStreamingClient _orderStreamingClient;
+        private IAlpacaDataStreamingClient _equityStreamingClient;
+        private IAlpacaCryptoStreamingClient _cryptoStreamingClient;
 
-        /// <inheritdoc cref="IAlpacaCryptoDataClient"/>
-        private IAlpacaCryptoDataClient AlpacaCryptoDataClient { get; }
-
-        /// <inheritdoc cref="IAlpacaOptionsDataClient"/>
-        private IAlpacaOptionsDataClient AlpacaOptionsDataClient { get; }
-
-        /// <inheritdoc cref="IAlpacaDataStreamingClient"/>
-        private IAlpacaDataStreamingClient AlpacaDataStreamingClient { get; }
-
-        /// <inheritdoc cref="IAlpacaCryptoStreamingClient"/>
-        private IAlpacaCryptoStreamingClient AlpacaCryptoStreamingClient { get; }
+        private bool _isInitialized;
 
         /// <summary>
         /// Represents an object used for locking to ensure thread safety.
@@ -81,29 +75,23 @@ namespace QuantConnect.Brokerages.Alpaca
         private readonly ConcurrentDictionary<Guid, ManualResetEvent> _resetEventByBrokerageOrderID = new();
 
         /// <summary>
-        /// Indicates whether the application is subscribed to stream order updates.
-        /// </summary>
-        private bool _isAuthorizedOnStreamOrderUpdate;
-
-        /// <summary>
         /// Returns true if we're currently connected to the broker
         /// </summary>
-        public override bool IsConnected { get => _isAuthorizedOnStreamOrderUpdate; }
+        public override bool IsConnected => true;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AlpacaBrokerage"/> class.
         /// </summary>
         /// <param name="apiKey">The API key for authentication with Alpaca.</param>
         /// <param name="apiKeySecret">The secret key for authentication with Alpaca.</param>
-        /// <param name="dataFeedProvider">The data feed provider for authentication with Alpaca.</param>
         /// <param name="isPaperTrading">Indicates whether the brokerage should use the paper trading environment.</param>
         /// <remarks>
         /// This constructor initializes a new instance of the <see cref="AlpacaBrokerage"/> class with the specified API key,
         /// API secret key, and a flag indicating whether to use paper trading. It also retrieves an instance of <see cref="IDataAggregator"/>
         /// from the <see cref="Composer"/>. This constructor is required for brokerages implementing <see cref="IDataQueueHandler"/>.
         /// </remarks>
-        public AlpacaBrokerage(string apiKey, string apiKeySecret, string dataFeedProvider, bool isPaperTrading, IAlgorithm algorithm)
-            : this(apiKey, apiKeySecret, dataFeedProvider, isPaperTrading, algorithm?.Portfolio?.Transactions, Composer.Instance.GetPart<IDataAggregator>())
+        public AlpacaBrokerage(string apiKey, string apiKeySecret, string accessToken, bool isPaperTrading, IAlgorithm algorithm)
+            : this(apiKey, apiKeySecret, accessToken, isPaperTrading, algorithm?.Portfolio?.Transactions)
         { }
 
         /// <summary>
@@ -111,91 +99,118 @@ namespace QuantConnect.Brokerages.Alpaca
         /// </summary>
         /// <param name="apiKey">The API key for authentication with Alpaca.</param>
         /// <param name="apiKeySecret">The secret key for authentication with Alpaca.</param>
-        /// <param name="dataFeedProvider">The data feed provider for authentication with Alpaca.</param>
         /// <param name="isPaperTrading">Indicates whether the brokerage should use the paper trading environment.</param>
-        /// <param name="aggregator">The data aggregator used for handling data streams.</param>
         /// <remarks>
         /// This constructor initializes a new instance of the <see cref="AlpacaBrokerage"/> class with the specified API key,
         /// API secret key, a flag indicating whether to use paper trading, and an instance of <see cref="IDataAggregator"/>.
         /// </remarks>
-        public AlpacaBrokerage(string apiKey, string apiKeySecret, string dataFeedProvider, bool isPaperTrading, IOrderProvider orderProvider, IDataAggregator aggregator) : base("AlpacaBrokerage")
+        public AlpacaBrokerage(string apiKey, string apiKeySecret, string accessToken, bool isPaperTrading, IOrderProvider orderProvider) : base("AlpacaBrokerage")
         {
-            var secretKey = new SecretKey(apiKey, apiKeySecret);
+            Initialize(apiKey, apiKeySecret, accessToken, isPaperTrading, orderProvider);
+        }
 
-            if (!Enum.TryParse(dataFeedProvider.ToLower(), true, out _marketDataFeed) || !Enum.IsDefined(typeof(MarketDataFeed), _marketDataFeed))
+        /// <summary>
+        /// Initializes this instance
+        /// </summary>
+        private void Initialize(string apiKey, string apiKeySecret, string accessToken, bool isPaperTrading, IOrderProvider orderProvider)
+        {
+            if (_isInitialized)
             {
-                throw new ArgumentException($"An error occurred while parsing the price plan '{dataFeedProvider}'. Please ensure that the provided Data Feed Provider is valid and supported by the system.");
+                return;
+            }
+            _isInitialized = true;
+            ValidateSubscription();
+
+            SecurityKey tradingSecretKey = null;
+            if (!string.IsNullOrEmpty(accessToken))
+            {
+                tradingSecretKey = new OAuthKey(accessToken);
+            }
+            SecretKey secretKey = null;
+            if (!string.IsNullOrEmpty(apiKeySecret))
+            {
+                secretKey = new SecretKey(apiKey, apiKeySecret);
             }
 
-            if (isPaperTrading)
+            if (secretKey == null && tradingSecretKey == null)
             {
-                AlpacaTradingClient = Environments.Paper.GetAlpacaTradingClient(secretKey);
-                AlpacaStreamingClient = Environments.Paper.GetAlpacaStreamingClient(secretKey);
-                AlpacaDataClient = Environments.Paper.GetAlpacaDataClient(secretKey);
-                AlpacaCryptoDataClient = Environments.Paper.GetAlpacaCryptoDataClient(secretKey);
-                AlpacaOptionsDataClient = Environments.Paper.GetAlpacaOptionsDataClient(secretKey);
-                AlpacaDataStreamingClient = Environments.Paper.GetAlpacaDataStreamingClient(secretKey);
-                AlpacaCryptoStreamingClient = Environments.Paper.GetAlpacaCryptoStreamingClient(secretKey);
+                // shouldn't happen
+                throw new ArgumentException("No valid Alpaca brokerage credentials were provided!");
             }
-            else
-            {
-                AlpacaTradingClient = Environments.Live.GetAlpacaTradingClient(secretKey);
-                AlpacaStreamingClient = Environments.Live.GetAlpacaStreamingClient(secretKey);
-                AlpacaDataClient = Environments.Live.GetAlpacaDataClient(secretKey);
-                AlpacaCryptoDataClient = Environments.Live.GetAlpacaCryptoDataClient(secretKey);
-                AlpacaOptionsDataClient = Environments.Live.GetAlpacaOptionsDataClient(secretKey);
-                AlpacaDataStreamingClient = Environments.Live.GetAlpacaDataStreamingClient(secretKey);
-                AlpacaCryptoStreamingClient = Environments.Live.GetAlpacaCryptoStreamingClient(secretKey);
-            }
-            AlpacaStreamingClient.OnTradeUpdate += HandleTradeUpdate;
 
-            AlpacaCryptoStreamingClient.Connected += AlpacaCryptoStreamingClient_Connected;
-            AlpacaCryptoStreamingClient.OnWarning += AlpacaCryptoStreamingClient_OnWarning;
-            AlpacaCryptoStreamingClient.SocketOpened += AlpacaCryptoStreamingClient_SocketOpened;
-            AlpacaCryptoStreamingClient.SocketClosed += AlpacaCryptoStreamingClient_SocketClosed;
-            AlpacaCryptoStreamingClient.OnError += AlpacaCryptoStreamingClient_OnError;
+            var environment = isPaperTrading ? Environments.Paper : Environments.Live;
+            // trading api client
+            _tradingClient = EnvironmentExtensions.GetAlpacaTradingClient(environment, tradingSecretKey ?? secretKey);
+            // order updates
+            _orderStreamingClient = EnvironmentExtensions.GetAlpacaStreamingClient(environment, tradingSecretKey ?? secretKey);
+            _orderStreamingClient.OnTradeUpdate += HandleTradeUpdate;
 
-            _symbolMapper = new AlpacaBrokerageSymbolMapper(AlpacaTradingClient);
+            _symbolMapper = new AlpacaBrokerageSymbolMapper(_tradingClient);
             _orderProvider = orderProvider;
 
-            _aggregator = aggregator;
-            _subscriptionManager = new EventBasedDataQueueHandlerSubscriptionManager();
-            _subscriptionManager.SubscribeImpl += (s, t) => Subscribe(s);
-            _subscriptionManager.UnsubscribeImpl += (s, t) => Unsubscribe(s);
+            if (secretKey != null)
+            {
+                // historical equity
+                _equityHistoricalDataClient = EnvironmentExtensions.GetAlpacaDataClient(environment, secretKey);
 
-            // Useful for some brokerages:
+                // historical options
+                _optionsHistoricalDataClient = EnvironmentExtensions.GetAlpacaOptionsDataClient(environment, secretKey);
 
-            // Brokerage helper class to lock websocket message stream while executing an action, for example placing an order
-            // avoid race condition with placing an order and getting filled events before finished placing
-            // _messageHandler = new BrokerageConcurrentMessageHandler<>();
+                // equity streaming client
+                _equityStreamingClient = EnvironmentExtensions.GetAlpacaDataStreamingClient(environment, secretKey);
 
-            // Rate gate limiter useful for API/WS calls
-            // _connectionRateLimiter = new RateGate();
+                // historical crypto
+                _cryptoHistoricalDataClient = EnvironmentExtensions.GetAlpacaCryptoDataClient(environment, secretKey);
+                // streaming crypto
+                _cryptoStreamingClient = EnvironmentExtensions.GetAlpacaCryptoStreamingClient(environment, secretKey);
+
+                foreach (var streamingClient in new IStreamingClient[] { _cryptoStreamingClient, _equityStreamingClient, _orderStreamingClient })
+                {
+                    streamingClient.Connected += (obj) => StreamingClient_Connected(streamingClient, obj);
+                    streamingClient.OnWarning += (obj) => StreamingClient_OnWarning(streamingClient, obj);
+                    streamingClient.SocketOpened += () => StreamingClient_SocketOpened(streamingClient); ;
+                    streamingClient.SocketClosed += () => StreamingClient_SocketClosed(streamingClient);
+                    streamingClient.OnError += (obj) => StreamingClient_OnError(streamingClient, obj);
+                }
+
+                _subscriptionManager = new EventBasedDataQueueHandlerSubscriptionManager();
+                _subscriptionManager.SubscribeImpl += (s, t) => Subscribe(s);
+                _subscriptionManager.UnsubscribeImpl += (s, t) => Unsubscribe(s);
+
+                _aggregator = Composer.Instance.GetPart<IDataAggregator>();
+                if (_aggregator == null)
+                {
+                    // toolbox downloader case
+                    var aggregatorName = Config.Get("data-aggregator", "QuantConnect.Lean.Engine.DataFeeds.AggregationManager");
+                    Log.Trace($"AlpacaBrokerage.AlpacaBrokerage(): found no data aggregator instance, creating {aggregatorName}");
+                    _aggregator = Composer.Instance.GetExportedValueByTypeName<IDataAggregator>(aggregatorName);
+                }
+            }
         }
 
-        private void AlpacaCryptoStreamingClient_OnError(Exception obj)
+        private void StreamingClient_OnError(IStreamingClient client, Exception obj)
         {
-            Log.Debug($"{nameof(AlpacaCryptoStreamingClient_OnError)}: {obj}");
+            Log.Trace($"{nameof(StreamingClient_OnError)}({client.GetType().Name}): {obj}");
         }
 
-        private void AlpacaCryptoStreamingClient_SocketClosed()
+        private void StreamingClient_SocketClosed(IStreamingClient client)
         {
-            Log.Debug($"{nameof(AlpacaCryptoStreamingClient_SocketClosed)}: ");
+            Log.Trace($"{nameof(StreamingClient_SocketClosed)}({client.GetType().Name}): SocketClosed");
         }
 
-        private void AlpacaCryptoStreamingClient_SocketOpened()
+        private void StreamingClient_SocketOpened(IStreamingClient client)
         {
-            Log.Debug($"{nameof(AlpacaCryptoStreamingClient_SocketOpened)}: ");
+            Log.Trace($"{nameof(StreamingClient_SocketOpened)}({client.GetType().Name}): SocketOpened");
         }
 
-        private void AlpacaCryptoStreamingClient_OnWarning(string obj)
+        private void StreamingClient_OnWarning(IStreamingClient client, string obj)
         {
-            Log.Debug($"{nameof(AlpacaCryptoStreamingClient_OnWarning)}: {obj}");
+            Log.Trace($"{nameof(StreamingClient_OnWarning)}({client.GetType().Name}): {obj}");
         }
 
-        private void AlpacaCryptoStreamingClient_Connected(AuthStatus obj)
+        private void StreamingClient_Connected(IStreamingClient client, AuthStatus obj)
         {
-            Log.Debug($"{nameof(AlpacaCryptoStreamingClient_Connected)}: {obj}");
+            Log.Trace($"{nameof(StreamingClient_Connected)}({client.GetType().Name}): {obj}");
         }
 
         #region Brokerage
@@ -207,7 +222,7 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <returns>The open orders returned from IB</returns>
         public override List<Order> GetOpenOrders()
         {
-            var orders = AlpacaTradingClient.ListOrdersAsync(new ListOrdersRequest() { OrderStatusFilter = OrderStatusFilter.Open }).SynchronouslyAwaitTaskResult();
+            var orders = _tradingClient.ListOrdersAsync(new ListOrdersRequest() { OrderStatusFilter = OrderStatusFilter.Open }).SynchronouslyAwaitTaskResult();
 
             var leanOrders = new List<Order>();
             foreach (var brokerageOrder in orders)
@@ -218,31 +233,30 @@ namespace QuantConnect.Brokerages.Alpaca
                 switch (brokerageOrder.OrderType)
                 {
                     case AlpacaMarket.OrderType.Market:
-                        leanOrder = new LeanOrders.MarketOrder(leanSymbol, quantity, brokerageOrder.SubmittedAtUtc.Value);
+                        leanOrder = new Orders.MarketOrder(leanSymbol, quantity, brokerageOrder.SubmittedAtUtc.Value);
                         break;
                     case AlpacaMarket.OrderType.Limit:
-                        leanOrder = new LeanOrders.LimitOrder(leanSymbol, quantity, brokerageOrder.LimitPrice.Value, brokerageOrder.SubmittedAtUtc.Value);
+                        leanOrder = new Orders.LimitOrder(leanSymbol, quantity, brokerageOrder.LimitPrice.Value, brokerageOrder.SubmittedAtUtc.Value);
                         break;
                     case AlpacaMarket.OrderType.Stop:
                         leanOrder = new StopMarketOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, brokerageOrder.SubmittedAtUtc.Value);
                         break;
                     case AlpacaMarket.OrderType.StopLimit:
-                        leanOrder = new LeanOrders.StopLimitOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, brokerageOrder.LimitPrice.Value, brokerageOrder.SubmittedAtUtc.Value);
+                        leanOrder = new Orders.StopLimitOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, brokerageOrder.LimitPrice.Value, brokerageOrder.SubmittedAtUtc.Value);
                         break;
                     case AlpacaMarket.OrderType.TrailingStop:
                         var trailingAsPercent = brokerageOrder.TrailOffsetInPercent.HasValue ? true : false;
                         var trailingAmount = brokerageOrder.TrailOffsetInPercent.HasValue ? brokerageOrder.TrailOffsetInPercent.Value / 100m : brokerageOrder.TrailOffsetInDollars.Value;
-                        leanOrder = new LeanOrders.TrailingStopOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, trailingAmount, trailingAsPercent, brokerageOrder.SubmittedAtUtc.Value);
+                        leanOrder = new Orders.TrailingStopOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, trailingAmount, trailingAsPercent, brokerageOrder.SubmittedAtUtc.Value);
                         break;
                     default:
                         throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetOpenOrders)}: Order type '{brokerageOrder.OrderType}' is not supported.");
                 }
 
-                leanOrder.Status = LeanOrders.OrderStatus.Submitted;
-
+                leanOrder.Status = Orders.OrderStatus.Submitted;
                 if (brokerageOrder.FilledQuantity > 0 && brokerageOrder.FilledQuantity != brokerageOrder.Quantity)
                 {
-                    leanOrder.Status = LeanOrders.OrderStatus.PartiallyFilled;
+                    leanOrder.Status = Orders.OrderStatus.PartiallyFilled;
                 }
 
                 leanOrder.BrokerId.Add(brokerageOrder.OrderId.ToString());
@@ -258,7 +272,7 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <returns>The current holdings from the account</returns>
         public override List<Holding> GetAccountHoldings()
         {
-            var positions = AlpacaTradingClient.ListPositionsAsync().SynchronouslyAwaitTaskResult();
+            var positions = _tradingClient.ListPositionsAsync().SynchronouslyAwaitTaskResult();
 
             var holdings = new List<Holding>();
             foreach (var position in positions)
@@ -284,7 +298,7 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <returns>The current cash balance for each currency available for trading</returns>
         public override List<CashAmount> GetCashBalance()
         {
-            var accounts = AlpacaTradingClient.GetAccountAsync().SynchronouslyAwaitTaskResult();
+            var accounts = _tradingClient.GetAccountAsync().SynchronouslyAwaitTaskResult();
             return new List<CashAmount>() { new CashAmount(accounts.TradableCash, accounts.Currency) };
         }
 
@@ -320,7 +334,7 @@ namespace QuantConnect.Brokerages.Alpaca
             {
                 lock (_lockObject)
                 {
-                    var response = AlpacaTradingClient.PostOrderAsync(orderRequest).SynchronouslyAwaitTaskResult();
+                    var response = _tradingClient.PostOrderAsync(orderRequest).SynchronouslyAwaitTaskResult();
                     order.BrokerId.Add(response.OrderId.ToString());
                     _resetEventByBrokerageOrderID[response.OrderId] = placeOrderResetEvent;
                 }
@@ -330,7 +344,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     placeOrderResetEvent.Reset();
                     OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event")
                     {
-                        Status = LeanOrders.OrderStatus.Submitted
+                        Status = Orders.OrderStatus.Submitted
                     });
                     return true;
                 }
@@ -340,7 +354,7 @@ namespace QuantConnect.Brokerages.Alpaca
             catch (Exception ex)
             {
                 OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)}.{nameof(PlaceOrder)} Order Event")
-                { Status = LeanOrders.OrderStatus.Invalid, Message = ex.Message });
+                { Status = Orders.OrderStatus.Invalid, Message = ex.Message });
                 return false;
             }
         }
@@ -349,7 +363,7 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             Log.Debug($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}: {obj}");
 
-            var leanOrderStatus = default(LeanOrders.OrderStatus);
+            var leanOrderStatus = default(Orders.OrderStatus);
             switch (obj.Event)
             {
                 case TradeEvent.PendingNew:
@@ -379,34 +393,31 @@ namespace QuantConnect.Brokerages.Alpaca
                     }
                     return;
                 case TradeEvent.Fill:
-                    leanOrderStatus = LeanOrders.OrderStatus.Filled;
+                    leanOrderStatus = Orders.OrderStatus.Filled;
                     break;
                 case TradeEvent.PartialFill:
-                    leanOrderStatus = LeanOrders.OrderStatus.PartiallyFilled;
+                    leanOrderStatus = Orders.OrderStatus.PartiallyFilled;
                     break;
                 default:
                     return;
             }
 
             var leanOrder = _orderProvider.GetOrdersByBrokerageId(obj.Order.OrderId.ToString())?.SingleOrDefault();
-
             if (leanOrder == null)
             {
-                Log.Error($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}. order id not found: {obj.Order.OrderId}");
+                Log.Error($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}: order id not found: {obj.Order.OrderId}");
                 return;
             }
 
             var leanSymbol = _symbolMapper.GetLeanSymbol(obj.Order.AssetClass, obj.Order.Symbol);
 
-            var orderEvent = new OrderEvent(leanOrder.Id,
-                leanSymbol,
-                obj.TimestampUtc.HasValue ? obj.TimestampUtc.Value : obj.Order.SubmittedAtUtc.Value,
-                leanOrder.Status,
-                obj.Order.OrderSide == OrderSide.Buy ? OrderDirection.Buy : OrderDirection.Sell,
-                obj.Price ?? 0m,
-                obj.Order.OrderSide == OrderSide.Buy ? obj.Order.FilledQuantity : Decimal.Negate(obj.Order.FilledQuantity),
-                new OrderFee(new CashAmount(1, Currencies.USD)))
-            { Status = leanOrderStatus };
+            var orderEvent = new OrderEvent(leanOrder, obj.TimestampUtc.HasValue ? obj.TimestampUtc.Value : obj.Order.SubmittedAtUtc.Value,
+                new OrderFee(new CashAmount(0, Currencies.USD)))
+            {
+                Status = leanOrder.Status,
+                FillPrice = obj.Price ?? 0m,
+                FillQuantity = obj.Order.OrderSide == OrderSide.Buy ? obj.Order.FilledQuantity : Decimal.Negate(obj.Order.FilledQuantity),
+            };
 
             OnOrderEvent(orderEvent);
         }
@@ -424,13 +435,13 @@ namespace QuantConnect.Brokerages.Alpaca
 
             switch (order)
             {
-                case LeanOrders.LimitOrder lo:
+                case Orders.LimitOrder lo:
                     pathOrderRequest.LimitPrice = lo.LimitPrice;
                     break;
                 case StopMarketOrder smo:
                     pathOrderRequest.StopPrice = smo.StopPrice;
                     break;
-                case LeanOrders.StopLimitOrder slo:
+                case Orders.StopLimitOrder slo:
                     pathOrderRequest.LimitPrice = slo.LimitPrice;
                     pathOrderRequest.StopPrice = slo.StopPrice;
                     break;
@@ -441,7 +452,7 @@ namespace QuantConnect.Brokerages.Alpaca
             {
                 lock (_lockObject)
                 {
-                    var response = AlpacaTradingClient.PatchOrderAsync(pathOrderRequest).SynchronouslyAwaitTaskResult();
+                    var response = _tradingClient.PatchOrderAsync(pathOrderRequest).SynchronouslyAwaitTaskResult();
                     order.BrokerId.Add(response.OrderId.ToString());
                     _resetEventByBrokerageOrderID[response.OrderId] = updateOrderResetEvent;
                 }
@@ -449,7 +460,7 @@ namespace QuantConnect.Brokerages.Alpaca
             catch (Exception ex)
             {
                 OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)}.{nameof(UpdateOrder)} Order Event")
-                { Status = LeanOrders.OrderStatus.Invalid, Message = ex.Message });
+                { Status = Orders.OrderStatus.Invalid, Message = ex.Message });
             }
 
             if (updateOrderResetEvent.WaitOne(TimeSpan.FromSeconds(10)))
@@ -457,7 +468,7 @@ namespace QuantConnect.Brokerages.Alpaca
                 updateOrderResetEvent.Reset();
                 OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event")
                 {
-                    Status = LeanOrders.OrderStatus.UpdateSubmitted
+                    Status = Orders.OrderStatus.UpdateSubmitted
                 });
                 return true;
             }
@@ -472,13 +483,13 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <returns>True if the request was made for the order to be canceled, false otherwise</returns>
         public override bool CancelOrder(Order order)
         {
-            if (order.Status == LeanOrders.OrderStatus.Filled)
+            if (order.Status == Orders.OrderStatus.Filled)
             {
                 OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, "Order already filled"));
                 return false;
             }
 
-            if (order.Status is LeanOrders.OrderStatus.Canceled)
+            if (order.Status is Orders.OrderStatus.Canceled)
             {
                 OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, "Order already canceled"));
                 return false;
@@ -490,7 +501,7 @@ namespace QuantConnect.Brokerages.Alpaca
             {
                 lock (_lockObject)
                 {
-                    var response = AlpacaTradingClient.CancelOrderAsync(brokerageOrderId).SynchronouslyAwaitTaskResult();
+                    var response = _tradingClient.CancelOrderAsync(brokerageOrderId).SynchronouslyAwaitTaskResult();
                     _resetEventByBrokerageOrderID[brokerageOrderId] = cancelOrderResetEvent;
                 }
 
@@ -499,7 +510,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     cancelOrderResetEvent.Reset();
                     OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event")
                     {
-                        Status = LeanOrders.OrderStatus.Canceled
+                        Status = Orders.OrderStatus.Canceled
                     });
                     return true;
                 }
@@ -510,7 +521,7 @@ namespace QuantConnect.Brokerages.Alpaca
             catch (Exception ex)
             {
                 OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)}.{nameof(CancelOrder)} Order Event")
-                { Status = LeanOrders.OrderStatus.Invalid, Message = ex.Message });
+                { Status = Orders.OrderStatus.Invalid, Message = ex.Message });
                 return false;
             }
         }
@@ -520,9 +531,14 @@ namespace QuantConnect.Brokerages.Alpaca
         /// </summary>
         public override void Connect()
         {
-            var authorizedStatus = AlpacaStreamingClient.ConnectAndAuthenticateAsync().SynchronouslyAwaitTaskResult();
-            var authorizedDataStatus = AlpacaDataStreamingClient.ConnectAndAuthenticateAsync().SynchronouslyAwaitTaskResult();
-            _isAuthorizedOnStreamOrderUpdate = authorizedStatus == AuthStatus.Authorized && authorizedDataStatus == AuthStatus.Authorized;
+            foreach (var streamingClient in new IStreamingClient [] { _orderStreamingClient, _equityStreamingClient, _cryptoStreamingClient })
+            {
+                var authorizedStatus = streamingClient.ConnectAndAuthenticateAsync().SynchronouslyAwaitTaskResult();
+                if (authorizedStatus != AuthStatus.Authorized)
+                {
+                    throw new InvalidOperationException($"Connect(): Failed to connect to {streamingClient.GetType().Name}");
+                }
+            }
         }
 
         /// <summary>
@@ -530,18 +546,23 @@ namespace QuantConnect.Brokerages.Alpaca
         /// </summary>
         public override void Disconnect()
         {
-            AlpacaStreamingClient.DisconnectAsync().SynchronouslyAwaitTask();
-            AlpacaDataStreamingClient.DisconnectAsync().SynchronouslyAwaitTask();
+            _orderStreamingClient.DisconnectAsync().SynchronouslyAwaitTask();
+            _equityStreamingClient.DisconnectAsync().SynchronouslyAwaitTask();
+            _cryptoStreamingClient.DisconnectAsync().SynchronouslyAwaitTask();
         }
 
         public override void Dispose()
         {
-            AlpacaStreamingClient.DisposeSafely();
-            AlpacaDataStreamingClient.DisposeSafely();
-            AlpacaTradingClient.DisposeSafely();
-            AlpacaDataClient.DisposeSafely();
-            AlpacaCryptoDataClient.DisposeSafely();
-            AlpacaOptionsDataClient.DisposeSafely();
+            _tradingClient.DisposeSafely();
+
+            _equityHistoricalDataClient.DisposeSafely();
+            _cryptoHistoricalDataClient.DisposeSafely();
+            _optionsHistoricalDataClient.DisposeSafely();
+
+            // streaming
+            _orderStreamingClient.DisposeSafely();
+            _equityStreamingClient.DisposeSafely();
+            _cryptoStreamingClient.DisposeSafely();
         }
 
         /// <summary>
@@ -551,17 +572,17 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <returns>The latest quote for the specified symbol.</returns>
         /// <exception cref="NotSupportedException">Thrown when the symbol's security type is not supported.</exception>
         /// <exception cref="Exception">Thrown when an error occurs while fetching the quote.</exception>
-        public IQuote GetLatestQuote(Symbol symbol)
+        protected IQuote GetLatestQuote(Symbol symbol)
         {
             var brokerageSymbol = _symbolMapper.GetBrokerageSymbol(symbol);
             switch (symbol.SecurityType)
             {
                 case SecurityType.Equity:
-                    return AlpacaDataClient.GetLatestQuoteAsync(new LatestMarketDataRequest(brokerageSymbol) { Feed = _marketDataFeed }).SynchronouslyAwaitTaskResult();
+                    return _equityHistoricalDataClient.GetLatestQuoteAsync(new LatestMarketDataRequest(brokerageSymbol)).SynchronouslyAwaitTaskResult();
                 case SecurityType.Option:
-                    return AlpacaOptionsDataClient.ListLatestQuotesAsync(new LatestOptionsDataRequest(new string[] { brokerageSymbol })).SynchronouslyAwaitTaskResult()[brokerageSymbol];
+                    return _optionsHistoricalDataClient.ListLatestQuotesAsync(new LatestOptionsDataRequest(new string[] { brokerageSymbol })).SynchronouslyAwaitTaskResult()[brokerageSymbol];
                 case SecurityType.Crypto:
-                    return AlpacaCryptoDataClient.ListLatestQuotesAsync(new LatestDataListRequest(new string[] { brokerageSymbol })).SynchronouslyAwaitTaskResult()[brokerageSymbol];
+                    return _cryptoHistoricalDataClient.ListLatestQuotesAsync(new LatestDataListRequest(new string[] { brokerageSymbol })).SynchronouslyAwaitTaskResult()[brokerageSymbol];
                 default:
                     throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetLatestQuote)}: Security type {symbol.SecurityType} is not supported.");
             }
@@ -575,8 +596,155 @@ namespace QuantConnect.Brokerages.Alpaca
             {
                 return false;
             }
-
             return _symbolMapper.SupportedSecurityType.Contains(symbol.SecurityType);
+        }
+
+
+        private class SubscriptionEntry
+        {
+            public Symbol Symbol { get; set; }
+            public decimal PriceMagnifier { get; set; }
+            public Tick LastTradeTick { get; set; }
+            public Tick LastQuoteTick { get; set; }
+            public Tick LastOpenInterestTick { get; set; }
+        }
+
+        private class ModulesReadLicenseRead : Api.RestResponse
+        {
+            [JsonProperty(PropertyName = "license")]
+            public string License;
+            [JsonProperty(PropertyName = "organizationId")]
+            public string OrganizationId;
+        }
+
+        /// <summary>
+        /// Validate the user of this project has permission to be using it via our web API.
+        /// </summary>
+        private static void ValidateSubscription()
+        {
+            try
+            {
+                var productId = 347;
+                var userId = Globals.UserId;
+                var token = Globals.UserToken;
+                var organizationId = Globals.OrganizationID;
+                // Verify we can authenticate with this user and token
+                var api = new ApiConnection(userId, token);
+                if (!api.Connected)
+                {
+                    throw new ArgumentException("Invalid api user id or token, cannot authenticate subscription.");
+                }
+                // Compile the information we want to send when validating
+                var information = new Dictionary<string, object>()
+                {
+                    {"productId", productId},
+                    {"machineName", Environment.MachineName},
+                    {"userName", Environment.UserName},
+                    {"domainName", Environment.UserDomainName},
+                    {"os", Environment.OSVersion}
+                };
+                // IP and Mac Address Information
+                try
+                {
+                    var interfaceDictionary = new List<Dictionary<string, object>>();
+                    foreach (var nic in NetworkInterface.GetAllNetworkInterfaces().Where(nic => nic.OperationalStatus == OperationalStatus.Up))
+                    {
+                        var interfaceInformation = new Dictionary<string, object>();
+                        // Get UnicastAddresses
+                        var addresses = nic.GetIPProperties().UnicastAddresses
+                            .Select(uniAddress => uniAddress.Address)
+                            .Where(address => !IPAddress.IsLoopback(address)).Select(x => x.ToString());
+                        // If this interface has non-loopback addresses, we will include it
+                        if (!addresses.IsNullOrEmpty())
+                        {
+                            interfaceInformation.Add("unicastAddresses", addresses);
+                            // Get MAC address
+                            interfaceInformation.Add("MAC", nic.GetPhysicalAddress().ToString());
+                            // Add Interface name
+                            interfaceInformation.Add("name", nic.Name);
+                            // Add these to our dictionary
+                            interfaceDictionary.Add(interfaceInformation);
+                        }
+                    }
+                    information.Add("networkInterfaces", interfaceDictionary);
+                }
+                catch (Exception)
+                {
+                    // NOP, not necessary to crash if fails to extract and add this information
+                }
+                // Include our OrganizationId is specified
+                if (!string.IsNullOrEmpty(organizationId))
+                {
+                    information.Add("organizationId", organizationId);
+                }
+                var request = new RestRequest("modules/license/read", Method.POST) { RequestFormat = DataFormat.Json };
+                request.AddParameter("application/json", JsonConvert.SerializeObject(information), ParameterType.RequestBody);
+                api.TryRequest(request, out ModulesReadLicenseRead result);
+                if (!result.Success)
+                {
+                    throw new InvalidOperationException($"Request for subscriptions from web failed, Response Errors : {string.Join(',', result.Errors)}");
+                }
+
+                var encryptedData = result.License;
+                // Decrypt the data we received
+                DateTime? expirationDate = null;
+                long? stamp = null;
+                bool? isValid = null;
+                if (encryptedData != null)
+                {
+                    // Fetch the org id from the response if we are null, we need it to generate our validation key
+                    if (string.IsNullOrEmpty(organizationId))
+                    {
+                        organizationId = result.OrganizationId;
+                    }
+                    // Create our combination key
+                    var password = $"{token}-{organizationId}";
+                    var key = SHA256.HashData(Encoding.UTF8.GetBytes(password));
+                    // Split the data
+                    var info = encryptedData.Split("::");
+                    var buffer = Convert.FromBase64String(info[0]);
+                    var iv = Convert.FromBase64String(info[1]);
+                    // Decrypt our information
+                    using var aes = new AesManaged();
+                    var decryptor = aes.CreateDecryptor(key, iv);
+                    using var memoryStream = new MemoryStream(buffer);
+                    using var cryptoStream = new CryptoStream(memoryStream, decryptor, CryptoStreamMode.Read);
+                    using var streamReader = new StreamReader(cryptoStream);
+                    var decryptedData = streamReader.ReadToEnd();
+                    if (!decryptedData.IsNullOrEmpty())
+                    {
+                        var jsonInfo = JsonConvert.DeserializeObject<JObject>(decryptedData);
+                        expirationDate = jsonInfo["expiration"]?.Value<DateTime>();
+                        isValid = jsonInfo["isValid"]?.Value<bool>();
+                        stamp = jsonInfo["stamped"]?.Value<int>();
+                    }
+                }
+                // Validate our conditions
+                if (!expirationDate.HasValue || !isValid.HasValue || !stamp.HasValue)
+                {
+                    throw new InvalidOperationException("Failed to validate subscription.");
+                }
+
+                var nowUtc = DateTime.UtcNow;
+                var timeSpan = nowUtc - Time.UnixTimeStampToDateTime(stamp.Value);
+                if (timeSpan > TimeSpan.FromHours(12))
+                {
+                    throw new InvalidOperationException("Invalid API response.");
+                }
+                if (!isValid.Value)
+                {
+                    throw new ArgumentException($"Your subscription is not valid, please check your product subscriptions on our website.");
+                }
+                if (expirationDate < nowUtc)
+                {
+                    throw new ArgumentException($"Your subscription expired {expirationDate}, please renew in order to use this product.");
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Error($"ValidateSubscription(): Failed during validation, shutting down. Error : {e.Message}");
+                Environment.Exit(1);
+            }
         }
     }
 }

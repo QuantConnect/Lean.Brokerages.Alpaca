@@ -51,7 +51,7 @@ public partial class AlpacaBrokerage : IDataQueueUniverseProvider
             optionContractRequest.Pagination.Size = 10_000;
             do
             {
-                var response = await AlpacaTradingClient.ListOptionContractsAsync(optionContractRequest);
+                var response = await _tradingClient.ListOptionContractsAsync(optionContractRequest);
                 nextPageToken = response.NextPageToken;
                 foreach (var res in response.Items)
                 {

@@ -229,7 +229,7 @@ public partial class AlpacaBrokerage
     {
         var historyAuctionRequest = new HistoricalAuctionsRequest(brokerageSymbol, startDate, endDate);
         
-        foreach (var response in CreatePaginationRequest(historyAuctionRequest, req => AlpacaDataClient.GetHistoricalAuctionsAsync(req)))
+        foreach (var response in CreatePaginationRequest(historyAuctionRequest, req => _equityHistoricalDataClient.GetHistoricalAuctionsAsync(req)))
         {
             foreach (var auction in response.Items[brokerageSymbol])
             {
@@ -251,9 +251,9 @@ public partial class AlpacaBrokerage
     /// <returns>An enumerable collection of <see cref="Tick"/> objects representing the historical quote data.</returns>
     private IEnumerable<Tick> GetEquityHistoricalTickQuoteBar(Symbol leanSymbol, string brokerageSymbol, DateTime startDate, DateTime endDate)
     {
-        var historyQuoteRequest = new HistoricalQuotesRequest(brokerageSymbol, startDate, endDate) { Feed = _marketDataFeed };
+        var historyQuoteRequest = new HistoricalQuotesRequest(brokerageSymbol, startDate, endDate);
 
-        foreach (var response in CreatePaginationRequest(historyQuoteRequest, req => AlpacaDataClient.GetHistoricalQuotesAsync(req)))
+        foreach (var response in CreatePaginationRequest(historyQuoteRequest, req => _equityHistoricalDataClient.GetHistoricalQuotesAsync(req)))
         {
             foreach (var quote in response.Items[brokerageSymbol])
             {
@@ -279,9 +279,9 @@ public partial class AlpacaBrokerage
     private IEnumerable<TradeBar> GetEquityHistoricalTradeBar(Symbol leanSymbol, string brokerageSymbol,
         BarTimeFrame barTimeFrame, DateTime startDate, DateTime endDate, TimeSpan period)
     {
-        var historyTradeRequest = new HistoricalBarsRequest(brokerageSymbol, startDate, endDate, barTimeFrame){ Feed = _marketDataFeed };
+        var historyTradeRequest = new HistoricalBarsRequest(brokerageSymbol, startDate, endDate, barTimeFrame);
 
-        foreach (var response in CreatePaginationRequest(historyTradeRequest, req => AlpacaDataClient.GetHistoricalBarsAsync(req)))
+        foreach (var response in CreatePaginationRequest(historyTradeRequest, req => _equityHistoricalDataClient.GetHistoricalBarsAsync(req)))
         {
             foreach (var trade in response.Items[brokerageSymbol])
             {
@@ -302,7 +302,7 @@ public partial class AlpacaBrokerage
     {
         var historyOptionRequest = new HistoricalOptionTradesRequest(brokerageSymbol, startDate, endDate);
 
-        foreach (var response in CreatePaginationRequest(historyOptionRequest, req => AlpacaOptionsDataClient.GetHistoricalTradesAsync(historyOptionRequest)))
+        foreach (var response in CreatePaginationRequest(historyOptionRequest, req => _optionsHistoricalDataClient.GetHistoricalTradesAsync(historyOptionRequest)))
         {
             foreach (var trade in response.Items[brokerageSymbol])
             {
@@ -330,7 +330,7 @@ public partial class AlpacaBrokerage
     {
         var historyOptionRequest = new HistoricalOptionBarsRequest(brokerageSymbol, startDate, endDate, barTimeFrame);
 
-        foreach (var response in CreatePaginationRequest(historyOptionRequest, req => AlpacaOptionsDataClient.GetHistoricalBarsAsync(historyOptionRequest)))
+        foreach (var response in CreatePaginationRequest(historyOptionRequest, req => _optionsHistoricalDataClient.GetHistoricalBarsAsync(historyOptionRequest)))
         {
             foreach (var trade in response.Items[brokerageSymbol])
             {
@@ -351,7 +351,7 @@ public partial class AlpacaBrokerage
     {
         var historyCryptoRequest = new HistoricalCryptoQuotesRequest(brokerageSymbol, startDate, endDate);
 
-        foreach (var response in CreatePaginationRequest(historyCryptoRequest, req => AlpacaCryptoDataClient.GetHistoricalQuotesAsync(historyCryptoRequest)))
+        foreach (var response in CreatePaginationRequest(historyCryptoRequest, req => _cryptoHistoricalDataClient.GetHistoricalQuotesAsync(historyCryptoRequest)))
         {
             foreach (var quote in response.Items[brokerageSymbol])
             {
@@ -372,7 +372,7 @@ public partial class AlpacaBrokerage
     {
         var historyCryptoRequest = new HistoricalCryptoTradesRequest(brokerageSymbol, startDate, endDate);
 
-        foreach (var response in CreatePaginationRequest(historyCryptoRequest, req => AlpacaCryptoDataClient.GetHistoricalTradesAsync(historyCryptoRequest)))
+        foreach (var response in CreatePaginationRequest(historyCryptoRequest, req => _cryptoHistoricalDataClient.GetHistoricalTradesAsync(historyCryptoRequest)))
         {
             foreach (var trade in response.Items[brokerageSymbol])
             {
@@ -396,7 +396,7 @@ public partial class AlpacaBrokerage
     {
         var historyCryptoRequest = new HistoricalCryptoBarsRequest(brokerageSymbol, startDate, endDate, barTimeFrame);
 
-        foreach (var response in CreatePaginationRequest(historyCryptoRequest, req => AlpacaCryptoDataClient.GetHistoricalBarsAsync(historyCryptoRequest)))
+        foreach (var response in CreatePaginationRequest(historyCryptoRequest, req => _cryptoHistoricalDataClient.GetHistoricalBarsAsync(historyCryptoRequest)))
         {
             foreach (var trade in response.Items[brokerageSymbol])
             {
