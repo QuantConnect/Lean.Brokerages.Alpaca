@@ -13,6 +13,7 @@
  * limitations under the License.
 */
 
+using System;
 using NUnit.Framework;
 using System.Threading;
 using QuantConnect.Data;
@@ -20,10 +21,10 @@ using QuantConnect.Tests;
 using QuantConnect.Logging;
 using QuantConnect.Data.Market;
 
-namespace QuantConnect.Brokerages.Template.Tests
+namespace QuantConnect.Brokerages.Alpaca.Tests
 {
     [TestFixture]
-    public partial class TemplateBrokerageTests
+    public partial class AlpacaBrokerageTests
     {
         private static TestCaseData[] TestParameters
         {
@@ -32,9 +33,10 @@ namespace QuantConnect.Brokerages.Template.Tests
                 return new[]
                 {
                     // valid parameters, for example
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Tick, false),
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Minute, false),
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Second, false),
+                    new TestCaseData(Symbols.ETHUSD, Resolution.Tick, false),
+                    new TestCaseData(Symbols.AAPL, Resolution.Minute, false),
+                    new TestCaseData(Symbols.AAPL, Resolution.Second, false),
+                    new TestCaseData(Symbol.CreateOption(Symbols.AAPL, Symbols.AAPL.ID.Market, OptionStyle.American, OptionRight.Call, 230, new DateTime(2024, 12, 20)), Resolution.Second, false),
                 };
             }
         }
@@ -43,7 +45,7 @@ namespace QuantConnect.Brokerages.Template.Tests
         public void StreamsData(Symbol symbol, Resolution resolution, bool throwsException)
         {
             var cancelationToken = new CancellationTokenSource();
-            var brokerage = (TemplateBrokerage)Brokerage;
+            var brokerage = (AlpacaBrokerage)Brokerage;
 
             SubscriptionDataConfig[] configs;
             if (resolution == Resolution.Tick)
@@ -62,7 +64,9 @@ namespace QuantConnect.Brokerages.Template.Tests
             {
                 ProcessFeed(brokerage.Subscribe(config, (s, e) => { }),
                     cancelationToken,
-                    (baseData) => { if (baseData != null) { Log.Trace($"{baseData}"); }
+                    (baseData) =>
+                    {
+                        if (baseData != null) { Log.Trace($"{baseData}"); }
                     });
             }
 

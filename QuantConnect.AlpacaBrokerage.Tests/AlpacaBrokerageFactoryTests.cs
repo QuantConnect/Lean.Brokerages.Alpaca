@@ -13,28 +13,20 @@
  * limitations under the License.
 */
 
-using QuantConnect.ToolBox;
-using System.Collections.Generic;
+using NUnit.Framework;
+using QuantConnect.Interfaces;
+using QuantConnect.Util;
 
-namespace QuantConnect.Brokerages.Template.ToolBox
+namespace QuantConnect.Brokerages.Alpaca.Tests
 {
-    /// <summary>
-    /// Template Brokerage implementation of <see cref="IExchangeInfoDownloader"/>
-    /// </summary>
-    public class TemplateExchangeInfoDownloader : IExchangeInfoDownloader
+    [TestFixture, Ignore("This test requires a configured AlpacaBrokerageFactory")]
+    public class AlpacaBrokerageFactoryTests
     {
-        /// <summary>
-        /// Market
-        /// </summary>
-        public string Market => throw new System.NotImplementedException();
-
-        /// <summary>
-        /// Get exchange info coma-separated data
-        /// </summary>
-        /// <returns>Enumerable of exchange info for this market</returns>
-        public IEnumerable<string> Get()
+        [Test]
+        public void InitializesFactoryFromComposer()
         {
-            throw new System.NotImplementedException();
+            using var factory = Composer.Instance.Single<IBrokerageFactory>(instance => instance.BrokerageType == typeof(AlpacaBrokerage));
+            Assert.IsNotNull(factory);
         }
     }
 }
