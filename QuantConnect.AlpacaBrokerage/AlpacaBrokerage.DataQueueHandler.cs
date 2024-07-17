@@ -59,15 +59,15 @@ public partial class AlpacaBrokerage : IDataQueueHandler
     public void SetJob(LiveNodePacket job)
     {
         // used for data
-        job.BrokerageData.TryGetValue("alpaca-api-key-id", out var apiKey);
-        job.BrokerageData.TryGetValue("alpaca-api-secret-key", out var secretKey);
+        job.BrokerageData.TryGetValue("alpaca-api-key", out var apiKey);
+        job.BrokerageData.TryGetValue("alpaca-api-secret", out var secretKey);
 
         // required for trading
         job.BrokerageData.TryGetValue("alpaca-access-token", out var accessToken);
 
-        var usePaperTrading = Convert.ToBoolean(job.BrokerageData["alpaca-use-paper-trading"]);
+        var usePaperTrading = Convert.ToBoolean(job.BrokerageData["alpaca-paper-trading"]);
 
-        Initialize(apiKey, secretKey, accessToken, usePaperTrading, null);
+        Initialize(apiKey, secretKey, accessToken, usePaperTrading, null, null);
         if (!IsConnected)
         {
             Connect();

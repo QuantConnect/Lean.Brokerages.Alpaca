@@ -13,16 +13,16 @@
  * limitations under the License.
 */
 
-using System;
-using System.Linq;
 using NUnit.Framework;
-using QuantConnect.Tests;
-using QuantConnect.Orders;
-using QuantConnect.Logging;
 using QuantConnect.Interfaces;
+using QuantConnect.Logging;
+using QuantConnect.Orders;
 using QuantConnect.Securities;
-using System.Collections.Generic;
+using QuantConnect.Tests;
 using QuantConnect.Tests.Brokerages;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using static QuantConnect.Brokerages.Alpaca.Tests.AlpacaBrokerageAdditionalTests;
 
 namespace QuantConnect.Brokerages.Alpaca.Tests
@@ -37,14 +37,13 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         {
             var (apiKey, apiKeySecret, isPaperTrading) = AlpacaBrokerageTestHelpers.GetConfigParameters();
 
-            return new TestAlpacaBrokerage(apiKey, apiKeySecret, isPaperTrading, orderProvider);
+            return new TestAlpacaBrokerage(apiKey, apiKeySecret, isPaperTrading, orderProvider, securityProvider);
         }
         protected override bool IsAsync() => false;
         protected override decimal GetAskPrice(Symbol symbol)
         {
             return (Brokerage as TestAlpacaBrokerage).GetLatestQuotePublic(symbol).AskPrice;
         }
-
 
         /// <summary>
         /// Provides the data required to test each order type in various cases
@@ -64,6 +63,22 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         /// <summary>
         /// Provides the data required to test each order type in various cases
         /// </summary>
+        private static IEnumerable<TestCaseData> OptionOrderParameters
+        {
+            get
+            {
+
+                var option = Symbol.CreateOption(Symbols.AAPL, Symbols.AAPL.ID.Market, OptionStyle.American, OptionRight.Call, 230, new DateTime(2024, 12, 20));
+                yield return new TestCaseData(new MarketOrderTestParameters(option));
+                yield return new TestCaseData(new LimitOrderTestParameters(option, 20m, 10m));
+                yield return new TestCaseData(new StopMarketOrderTestParameters(option, 20m, 10m));
+                yield return new TestCaseData(new StopLimitOrderTestParameters(option, 20m, 10m));
+            }
+        }
+
+        /// <summary>
+        /// Provides the data required to test each order type in various cases
+        /// </summary>
         private static IEnumerable<TestCaseData> CryptoOrderParameters
         {
             get
@@ -75,7 +90,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             }
         }
 
-        [Test, TestCaseSource(nameof(EquityOrderParameters))]
+        [Test, TestCaseSource(nameof(OptionOrderParameters))]
         public override void CancelOrders(OrderTestParameters parameters)
         {
             base.CancelOrders(parameters);
@@ -83,6 +98,12 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
 
         [Test, TestCaseSource(nameof(CryptoOrderParameters))]
         public void CancelOrdersCrypto(OrderTestParameters parameters)
+        {
+            base.CancelOrders(parameters);
+        }
+
+        [Test, TestCaseSource(nameof(OptionOrderParameters))]
+        public void CancelOrdersOption(OrderTestParameters parameters)
         {
             base.CancelOrders(parameters);
         }
@@ -99,8 +120,20 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             base.LongFromZero(parameters);
         }
 
+        [Test, TestCaseSource(nameof(OptionOrderParameters))]
+        public void LongFromZeroOption(OrderTestParameters parameters)
+        {
+            base.LongFromZero(parameters);
+        }
+
         [Test, TestCaseSource(nameof(EquityOrderParameters))]
         public override void CloseFromLong(OrderTestParameters parameters)
+        {
+            base.CloseFromLong(parameters);
+        }
+
+        [Test, TestCaseSource(nameof(OptionOrderParameters))]
+        public void CloseFromLongOption(OrderTestParameters parameters)
         {
             base.CloseFromLong(parameters);
         }
@@ -135,6 +168,12 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             base.ShortFromZero(parameters);
         }
 
+        [Test, TestCaseSource(nameof(OptionOrderParameters))]
+        public void ShortFromZeroOption(OrderTestParameters parameters)
+        {
+            base.ShortFromZero(parameters);
+        }
+
         [Test, TestCaseSource(nameof(CryptoOrderParameters))]
         public void ShortFromZeroCrypto(OrderTestParameters parameters)
         {
@@ -143,6 +182,12 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
 
         [Test, TestCaseSource(nameof(EquityOrderParameters))]
         public override void CloseFromShort(OrderTestParameters parameters)
+        {
+            base.CloseFromShort(parameters);
+        }
+
+        [Test, TestCaseSource(nameof(OptionOrderParameters))]
+        public void CloseFromShortOption(OrderTestParameters parameters)
         {
             base.CloseFromShort(parameters);
         }

@@ -14,11 +14,9 @@
 */
 
 using System;
-using Alpaca.Markets;
 using QuantConnect.Orders;
 using QuantConnect.Logging;
 using AlpacaMarket = Alpaca.Markets;
-using LeanOrders = QuantConnect.Orders;
 using QuantConnect.Orders.TimeInForces;
 
 namespace QuantConnect.Brokerages.Alpaca;
@@ -30,24 +28,55 @@ public static class AlpacaBrokerageExtensions
     /// </summary>
     /// <param name="order">The order object containing details for the trade.</param>
     /// <param name="brokerageSymbol">The symbol used by the brokerage for the asset being traded.</param>
+    /// <param name="targetQuantity">The target order quantity which might not be the same quantity as the original order, due to cross zero holdings</param>
     /// <returns>Returns an OrderBase object representing the specific Alpaca sell order.</returns>
     /// <exception cref="NotSupportedException">Thrown when the order type is not supported.</exception>
-    public static OrderBase CreateAlpacaSellOrder(this Order order, string brokerageSymbol)
+    public static AlpacaMarket.OrderBase CreateAlpacaOrder(this Order order, decimal targetQuantity, ISymbolMapper symbolMapper, OrderType orderType)
     {
-        var quantity = OrderQuantity.Fractional(order.AbsoluteQuantity);
-        switch (order)
+        var quantity = AlpacaMarket.OrderQuantity.Fractional(targetQuantity);
+        var brokerageSymbol = symbolMapper.GetBrokerageSymbol(order.Symbol);
+        var orderRequest = default(AlpacaMarket.OrderBase);
+        if (order.Direction == OrderDirection.Buy)
         {
-            case LeanOrders.MarketOrder:
+            orderRequest = order.CreateAlpacaBuyOrder(brokerageSymbol, quantity, orderType);
+        }
+        else if (order.Direction == OrderDirection.Sell)
+        {
+            orderRequest = order.CreateAlpacaSellOrder(brokerageSymbol, quantity, orderType);
+        }
+        else
+        {
+            throw new InvalidOperationException($"Can't create order for direction {order.Direction}");
+        }
+        var alpacaTimeInForce = order.TimeInForce.ConvertLeanTimeInForceToBrokerage(order.SecurityType);
+        AlpacaMarket.OrderBaseExtensions.WithDuration(orderRequest, alpacaTimeInForce);
+        return orderRequest;
+    }
+
+    /// <summary>
+    /// Creates an Alpaca sell order based on the provided Lean order type.
+    /// </summary>
+    /// <param name="order">The order object containing details for the trade.</param>
+    /// <param name="brokerageSymbol">The symbol used by the brokerage for the asset being traded.</param>
+    /// <param name="targetQuantity">The target order quantity which might not be the same quantity as the original order, due to cross zero holdings</param>
+    /// <returns>Returns an OrderBase object representing the specific Alpaca sell order.</returns>
+    /// <exception cref="NotSupportedException">Thrown when the order type is not supported.</exception>
+    private static AlpacaMarket.OrderBase CreateAlpacaSellOrder(this Order order, string brokerageSymbol, AlpacaMarket.OrderQuantity quantity, OrderType orderType)
+    {
+        switch (orderType)
+        {
+            case OrderType.Market:
                 return AlpacaMarket.MarketOrder.Sell(brokerageSymbol, quantity);
-            case LeanOrders.TrailingStopOrder tso:
-                var trailOffset = tso.TrailingAsPercentage ? TrailOffset.InPercent(tso.TrailingAmount) : TrailOffset.InDollars(tso.TrailingAmount);
+            case OrderType.TrailingStop:
+                var tso = (TrailingStopOrder)order;
+                var trailOffset = tso.TrailingAsPercentage ? AlpacaMarket.TrailOffset.InPercent(tso.TrailingAmount) : AlpacaMarket.TrailOffset.InDollars(tso.TrailingAmount);
                 return AlpacaMarket.TrailingStopOrder.Sell(brokerageSymbol, quantity, trailOffset);
-            case LeanOrders.LimitOrder lo:
-                return AlpacaMarket.LimitOrder.Sell(brokerageSymbol, quantity, lo.LimitPrice);
-            case StopMarketOrder smo:
-                return StopOrder.Sell(brokerageSymbol, quantity, smo.StopPrice);
-            case LeanOrders.StopLimitOrder slo:
-                return AlpacaMarket.StopLimitOrder.Sell(brokerageSymbol, quantity, slo.StopPrice, slo.LimitPrice);
+            case OrderType.Limit:
+                return AlpacaMarket.LimitOrder.Sell(brokerageSymbol, quantity, ((LimitOrder)order).LimitPrice);
+            case OrderType.StopMarket:
+                return AlpacaMarket.StopOrder.Sell(brokerageSymbol, quantity, ((StopMarketOrder)order).StopPrice);
+            case OrderType.StopLimit:
+                return AlpacaMarket.StopLimitOrder.Sell(brokerageSymbol, quantity, ((StopLimitOrder)order).StopPrice, ((StopLimitOrder)order).LimitPrice);
             default:
                 throw new NotSupportedException($"{nameof(AlpacaBrokerageExtensions)}.{nameof(CreateAlpacaSellOrder)}: The order type '{order.GetType().Name}' is not supported for Alpaca sell orders.");
         };
@@ -58,24 +87,25 @@ public static class AlpacaBrokerageExtensions
     /// </summary>
     /// <param name="order">The order object containing details for the trade.</param>
     /// <param name="brokerageSymbol">The symbol used by the brokerage for the asset being traded.</param>
+    /// <param name="targetQuantity">The target order quantity which might not be the same quantity as the original order, due to cross zero holdings</param>
     /// <returns>Returns an OrderBase object representing the specific Alpaca buy order.</returns>
     /// <exception cref="NotSupportedException">Thrown when the order type is not supported.</exception>
-    public static OrderBase CreateAlpacaBuyOrder(this Order order, string brokerageSymbol)
+    private static AlpacaMarket.OrderBase CreateAlpacaBuyOrder(this Order order, string brokerageSymbol, AlpacaMarket.OrderQuantity quantity, OrderType orderType)
     {
-        var quantity = OrderQuantity.Fractional(order.AbsoluteQuantity);
-        switch (order)
+        switch (orderType)
         {
-            case LeanOrders.MarketOrder:
+            case OrderType.Market:
                 return AlpacaMarket.MarketOrder.Buy(brokerageSymbol, quantity);
-            case LeanOrders.TrailingStopOrder tso:
-                var trailOffset = tso.TrailingAsPercentage ? TrailOffset.InPercent(tso.TrailingAmount) : TrailOffset.InDollars(tso.TrailingAmount);
+            case OrderType.TrailingStop:
+                var tso = (TrailingStopOrder)order;
+                var trailOffset = tso.TrailingAsPercentage ? AlpacaMarket.TrailOffset.InPercent(tso.TrailingAmount) : AlpacaMarket.TrailOffset.InDollars(tso.TrailingAmount);
                 return AlpacaMarket.TrailingStopOrder.Buy(brokerageSymbol, quantity, trailOffset);
-            case LeanOrders.LimitOrder lo:
-                return AlpacaMarket.LimitOrder.Buy(brokerageSymbol, quantity, lo.LimitPrice);
-            case StopMarketOrder smo:
-                return StopOrder.Buy(brokerageSymbol, quantity, smo.StopPrice);
-            case LeanOrders.StopLimitOrder slo:
-                return AlpacaMarket.StopLimitOrder.Buy(brokerageSymbol, quantity, slo.StopPrice, slo.LimitPrice);
+            case OrderType.Limit:
+                return AlpacaMarket.LimitOrder.Buy(brokerageSymbol, quantity, ((LimitOrder)order).LimitPrice);
+            case OrderType.StopMarket:
+                return AlpacaMarket.StopOrder.Buy(brokerageSymbol, quantity, ((StopMarketOrder)order).StopPrice);
+            case OrderType.StopLimit:
+                return AlpacaMarket.StopLimitOrder.Buy(brokerageSymbol, quantity, ((StopLimitOrder)order).StopPrice, ((StopLimitOrder)order).LimitPrice);
             default:
                 throw new NotSupportedException($"{nameof(AlpacaBrokerageExtensions)}.{nameof(CreateAlpacaBuyOrder)}: The order type '{order.GetType().Name}' is not supported for Alpaca buy orders.");
         };
@@ -87,7 +117,7 @@ public static class AlpacaBrokerageExtensions
     /// <param name="timeInForce">The Lean TimeInForce object to be converted.</param>
     /// <returns>Returns the corresponding AlpacaMarket.TimeInForce value.</returns>
     /// <exception cref="NotSupportedException">Thrown when the provided TimeInForce type is not supported.</exception>
-    public static AlpacaMarket.TimeInForce ConvertLeanTimeInForceToBrokerage(this LeanOrders.TimeInForce timeInForce, SecurityType securityType)
+    private static AlpacaMarket.TimeInForce ConvertLeanTimeInForceToBrokerage(this TimeInForce timeInForce, SecurityType securityType)
     {
         if (securityType == SecurityType.Option && timeInForce is not DayTimeInForce)
         {
@@ -111,11 +141,11 @@ public static class AlpacaBrokerageExtensions
     /// <exception cref="NotImplementedException">
     /// Thrown when an unsupported resolution is provided.
     /// </exception>
-    public static BarTimeFrame ConvertLeanResolutionToAlpacaBarTimeFrame(this Resolution leanResolution) => leanResolution switch
+    public static AlpacaMarket.BarTimeFrame ConvertLeanResolutionToAlpacaBarTimeFrame(this Resolution leanResolution) => leanResolution switch
     {
-        Resolution.Minute => BarTimeFrame.Minute,
-        Resolution.Hour => BarTimeFrame.Hour,
-        Resolution.Daily => BarTimeFrame.Day,
+        Resolution.Minute => AlpacaMarket.BarTimeFrame.Minute,
+        Resolution.Hour => AlpacaMarket.BarTimeFrame.Hour,
+        Resolution.Daily => AlpacaMarket.BarTimeFrame.Day,
         _ => throw new NotImplementedException($"{nameof(AlpacaBrokerageExtensions)}.{nameof(ConvertLeanResolutionToAlpacaBarTimeFrame)}: " +
             $"The resolution '{leanResolution}' is not supported. Please use Minute, Hour, or Daily resolution.")
     };

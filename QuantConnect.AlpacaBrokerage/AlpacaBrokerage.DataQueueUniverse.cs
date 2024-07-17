@@ -14,13 +14,11 @@
 */
 
 using System;
-using System.Linq;
 using Alpaca.Markets;
 using QuantConnect.Logging;
-using System.Threading.Tasks;
+using QuantConnect.Securities;
 using QuantConnect.Interfaces;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 
 namespace QuantConnect.Brokerages.Alpaca;
 
@@ -37,41 +35,26 @@ public partial class AlpacaBrokerage : IDataQueueUniverseProvider
     {
         if (!symbol.SecurityType.IsOption())
         {
-            Log.Error("The provided symbol is not an option. SecurityType: " + symbol.SecurityType);
-            return Enumerable.Empty<Symbol>();
+            Log.Error("AlpacaBrokerage.LookupSymbols(): The provided symbol is not an option. SecurityType: " + symbol.SecurityType);
+            yield break;
         }
-        var blockingOptionCollection = new BlockingCollection<Symbol>();
 
-        Task.Run(async () =>
+        var exchangeTimeZone = MarketHoursDatabase.FromDataFolder().GetExchangeHours(symbol.ID.Market, symbol, symbol.SecurityType).TimeZone;
+        var exchangeDate = DateTime.UtcNow.ConvertFromUtc(exchangeTimeZone).Date;
+
+        var nextPageToken = default(string);
+        var optionContractRequest = new OptionContractsRequest(symbol.Underlying.Value) { ExpirationDateGreaterThanOrEqualTo = DateOnly.FromDateTime(exchangeDate) };
+        optionContractRequest.Pagination.Size = 500;
+        do
         {
-            var underlying = symbol.Underlying.Value;
-
-            var nextPageToken = default(string);
-            var optionContractRequest = new OptionContractsRequest(symbol.Underlying.Value) { ExpirationDateGreaterThanOrEqualTo = DateOnly.FromDateTime(DateTime.UtcNow) };
-            optionContractRequest.Pagination.Size = 10_000;
-            do
+            var response = _tradingClient.ListOptionContractsAsync(optionContractRequest).SynchronouslyAwaitTask();
+            nextPageToken = response.NextPageToken;
+            foreach (var res in response.Items)
             {
-                var response = await _tradingClient.ListOptionContractsAsync(optionContractRequest);
-                nextPageToken = response.NextPageToken;
-                foreach (var res in response.Items)
-                {
-                    blockingOptionCollection.Add(_symbolMapper.GetLeanSymbol(AssetClass.UsOption, res.Symbol));
-                }
-
-                optionContractRequest.Pagination.Token = nextPageToken;
-
-            } while (!string.IsNullOrEmpty(nextPageToken));
-        }).ContinueWith(_ => blockingOptionCollection.CompleteAdding());
-
-        var options = blockingOptionCollection.GetConsumingEnumerable();
-
-        // Validate if the collection contains at least one successful response from history.
-        if (!options.Any())
-        {
-            return null;
-        }
-
-        return options;
+                yield return _symbolMapper.GetLeanSymbol(AssetClass.UsOption, res.Symbol);
+            }
+            optionContractRequest.Pagination.Token = nextPageToken;
+        } while (!string.IsNullOrEmpty(nextPageToken));
     }
 
     /// <summary>

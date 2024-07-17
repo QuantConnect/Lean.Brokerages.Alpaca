@@ -39,10 +39,10 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             { "alpaca-access-token", Config.Get("alpaca-access-token") },
 
-            { "alpaca-api-key-id", Config.Get("alpaca-api-key-id") },
-            { "alpaca-api-secret-key", Config.Get("alpaca-api-secret-key") },
+            { "alpaca-api-key", Config.Get("alpaca-api-key") },
+            { "alpaca-api-secret", Config.Get("alpaca-api-secret") },
 
-            { "alpaca-use-paper-trading", Config.Get("alpaca-use-paper-trading") },
+            { "alpaca-paper-trading", Config.Get("alpaca-paper-trading") },
         };
 
         /// <summary>
@@ -67,13 +67,13 @@ namespace QuantConnect.Brokerages.Alpaca
         public override IBrokerage CreateBrokerage(LiveNodePacket job, IAlgorithm algorithm)
         {
             // used for data
-            job.BrokerageData.TryGetValue("alpaca-api-key-id", out var apiKey);
-            job.BrokerageData.TryGetValue("alpaca-api-secret-key", out var secretKey);
+            job.BrokerageData.TryGetValue("alpaca-api-key", out var apiKey);
+            job.BrokerageData.TryGetValue("alpaca-api-secret", out var secretKey);
 
             // optionally, required for trading
             job.BrokerageData.TryGetValue("alpaca-access-token", out var accessToken);
 
-            var usePaperTrading = Convert.ToBoolean(job.BrokerageData["alpaca-use-paper-trading"]);
+            var usePaperTrading = Convert.ToBoolean(job.BrokerageData["alpaca-paper-trading"]);
             var alpacaBrokerage = new AlpacaBrokerage(apiKey, secretKey, accessToken, usePaperTrading, algorithm);
 
             if (!string.IsNullOrEmpty(secretKey))

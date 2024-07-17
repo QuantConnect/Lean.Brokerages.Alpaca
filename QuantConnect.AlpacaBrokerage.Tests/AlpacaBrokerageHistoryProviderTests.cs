@@ -53,8 +53,6 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 yield return new TestCaseData(Symbols.AAPL, Resolution.Hour, TickType.Quote, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
                 yield return new TestCaseData(Symbols.AAPL, Resolution.Daily, TickType.Quote, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
 
-                yield return new TestCaseData(Symbols.AAPL, Resolution.Tick, TickType.OpenInterest, new DateTime(2024, 6, 10, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
-
                 var AAPLOption = Symbol.CreateOption(Symbols.AAPL, Symbols.AAPL.ID.Market, OptionStyle.American, OptionRight.Call, 100, new DateTime(2024, 06, 21));
                 yield return new TestCaseData(AAPLOption, Resolution.Tick, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 21, 16, 0, 0));
                 yield return new TestCaseData(AAPLOption, Resolution.Second, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 21, 16, 0, 0));
@@ -88,6 +86,8 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 yield return new TestCaseData(Symbols.AAPL, Resolution.Hour, TickType.OpenInterest, new DateTime(default), new DateTime(default));
                 yield return new TestCaseData(Symbols.AAPL, Resolution.Daily, TickType.OpenInterest, new DateTime(default), new DateTime(default));
 
+                yield return new TestCaseData(Symbols.AAPL, Resolution.Tick, TickType.OpenInterest, new DateTime(2024, 6, 10, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
+
                 var AAPLOption = Symbol.CreateOption(Symbols.AAPL, Symbols.AAPL.ID.Market, OptionStyle.American, OptionRight.Call, 100, new DateTime(2024, 06, 21));
                 yield return new TestCaseData(AAPLOption, Resolution.Second, TickType.OpenInterest, new DateTime(default), new DateTime(default));
                 yield return new TestCaseData(AAPLOption, Resolution.Minute, TickType.OpenInterest, new DateTime(default), new DateTime(default));
@@ -101,7 +101,6 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 yield return new TestCaseData(AAPLOption, Resolution.Daily, TickType.Quote, new DateTime(2024, 6, 17, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
 
                 yield return new TestCaseData(Symbols.BTCUSD, Resolution.Daily, TickType.OpenInterest, new DateTime(default), new DateTime(default));
-                yield return new TestCaseData(Symbols.BTCUSD, Resolution.Daily, TickType.Quote, new DateTime(default), new DateTime(default));
             }
         }
 
@@ -120,6 +119,9 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
 
             var histories = _alpacaBrokerage.GetHistory(historyRequest).ToList();
             Assert.Greater(histories.Count, 0);
+            Assert.IsTrue(histories.All(x => x.EndTime - x.Time == resolution.ToTimeSpan()));
+            Assert.IsTrue(histories.All(x => x.Symbol == symbol));
+            Assert.IsTrue(histories.All(x => x is not Data.Market.Tick tick || tick.TickType == tickType));
         }
 
         internal static HistoryRequest CreateHistoryRequest(Symbol symbol, Resolution resolution, TickType tickType, DateTime startDateTime,
