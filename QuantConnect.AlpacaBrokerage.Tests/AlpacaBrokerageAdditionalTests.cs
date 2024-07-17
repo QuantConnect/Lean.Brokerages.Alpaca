@@ -77,8 +77,8 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             {
             }
 
-            public TestAlpacaBrokerage(string apiKey, string apiKeySecret, bool isPaperTrading, IOrderProvider orderProvider)
-                : base(apiKey, apiKeySecret, null, isPaperTrading, orderProvider)
+            public TestAlpacaBrokerage(string apiKey, string apiKeySecret, bool isPaperTrading, IOrderProvider orderProvider, ISecurityProvider securityProvider)
+                : base(apiKey, apiKeySecret, null, isPaperTrading, orderProvider, securityProvider)
             {
             }
 

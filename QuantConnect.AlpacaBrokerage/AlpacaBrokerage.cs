@@ -16,7 +16,6 @@
 using System;
 using System.Linq;
 using Alpaca.Markets;
-using System.Threading;
 using QuantConnect.Data;
 using QuantConnect.Util;
 using QuantConnect.Orders;
@@ -26,7 +25,6 @@ using QuantConnect.Securities;
 using QuantConnect.Orders.Fees;
 using System.Collections.Generic;
 using AlpacaMarket = Alpaca.Markets;
-using System.Collections.Concurrent;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 using QuantConnect.Api;
@@ -38,6 +36,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using QuantConnect.Configuration;
+using QuantConnect.Brokerages.CrossZero;
 
 namespace QuantConnect.Brokerages.Alpaca
 {
@@ -47,9 +46,11 @@ namespace QuantConnect.Brokerages.Alpaca
         private IDataAggregator _aggregator;
 
         private IOrderProvider _orderProvider;
+        private ISecurityProvider _securityProvider;
 
         private EventBasedDataQueueHandlerSubscriptionManager _subscriptionManager;
 
+        private BrokerageConcurrentMessageHandler<ITradeUpdate> _messageHandler;
         private AlpacaBrokerageSymbolMapper _symbolMapper;
 
         private IAlpacaTradingClient _tradingClient;
@@ -65,19 +66,16 @@ namespace QuantConnect.Brokerages.Alpaca
         private bool _isInitialized;
 
         /// <summary>
-        /// Represents an object used for locking to ensure thread safety.
-        /// </summary>
-        private object _lockObject = new();
-
-        /// <summary>
-        /// A concurrent dictionary that maps brokerage order IDs to their respective <see cref="AutoResetEvent"/> instances.
-        /// </summary>
-        private readonly ConcurrentDictionary<Guid, ManualResetEvent> _resetEventByBrokerageOrderID = new();
-
-        /// <summary>
         /// Returns true if we're currently connected to the broker
         /// </summary>
         public override bool IsConnected => true;
+
+        /// <summary>
+        /// Parameterless constructor for brokerage
+        /// </summary>
+        public AlpacaBrokerage() : base("Alpaca")
+        {
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AlpacaBrokerage"/> class.
@@ -91,7 +89,7 @@ namespace QuantConnect.Brokerages.Alpaca
         /// from the <see cref="Composer"/>. This constructor is required for brokerages implementing <see cref="IDataQueueHandler"/>.
         /// </remarks>
         public AlpacaBrokerage(string apiKey, string apiKeySecret, string accessToken, bool isPaperTrading, IAlgorithm algorithm)
-            : this(apiKey, apiKeySecret, accessToken, isPaperTrading, algorithm?.Portfolio?.Transactions)
+            : this(apiKey, apiKeySecret, accessToken, isPaperTrading, algorithm?.Portfolio?.Transactions, algorithm?.Portfolio)
         { }
 
         /// <summary>
@@ -100,19 +98,20 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <param name="apiKey">The API key for authentication with Alpaca.</param>
         /// <param name="apiKeySecret">The secret key for authentication with Alpaca.</param>
         /// <param name="isPaperTrading">Indicates whether the brokerage should use the paper trading environment.</param>
+        /// <param name="securityProvider">The type capable of fetching the holdings for the specified symbol</param>
         /// <remarks>
         /// This constructor initializes a new instance of the <see cref="AlpacaBrokerage"/> class with the specified API key,
         /// API secret key, a flag indicating whether to use paper trading, and an instance of <see cref="IDataAggregator"/>.
         /// </remarks>
-        public AlpacaBrokerage(string apiKey, string apiKeySecret, string accessToken, bool isPaperTrading, IOrderProvider orderProvider) : base("AlpacaBrokerage")
+        public AlpacaBrokerage(string apiKey, string apiKeySecret, string accessToken, bool isPaperTrading, IOrderProvider orderProvider, ISecurityProvider securityProvider) : base("Alpaca")
         {
-            Initialize(apiKey, apiKeySecret, accessToken, isPaperTrading, orderProvider);
+            Initialize(apiKey, apiKeySecret, accessToken, isPaperTrading, orderProvider, securityProvider);
         }
 
         /// <summary>
         /// Initializes this instance
         /// </summary>
-        private void Initialize(string apiKey, string apiKeySecret, string accessToken, bool isPaperTrading, IOrderProvider orderProvider)
+        private void Initialize(string apiKey, string apiKeySecret, string accessToken, bool isPaperTrading, IOrderProvider orderProvider, ISecurityProvider securityProvider)
         {
             if (_isInitialized)
             {
@@ -138,15 +137,22 @@ namespace QuantConnect.Brokerages.Alpaca
                 throw new ArgumentException("No valid Alpaca brokerage credentials were provided!");
             }
 
+            _orderProvider = orderProvider;
+            _securityProvider = securityProvider;
+
             var environment = isPaperTrading ? Environments.Paper : Environments.Live;
             // trading api client
             _tradingClient = EnvironmentExtensions.GetAlpacaTradingClient(environment, tradingSecretKey ?? secretKey);
             // order updates
             _orderStreamingClient = EnvironmentExtensions.GetAlpacaStreamingClient(environment, tradingSecretKey ?? secretKey);
-            _orderStreamingClient.OnTradeUpdate += HandleTradeUpdate;
 
+            // if we are used as a data queue handler ignore order updates
+            if (_orderProvider != null)
+            {
+                _orderStreamingClient.OnTradeUpdate += (message) => _messageHandler.HandleNewMessage(message);
+            }
+            _messageHandler = new(HandleTradeUpdate);
             _symbolMapper = new AlpacaBrokerageSymbolMapper(_tradingClient);
-            _orderProvider = orderProvider;
 
             if (secretKey != null)
             {
@@ -299,7 +305,7 @@ namespace QuantConnect.Brokerages.Alpaca
         public override List<CashAmount> GetCashBalance()
         {
             var accounts = _tradingClient.GetAccountAsync().SynchronouslyAwaitTaskResult();
-            return new List<CashAmount>() { new CashAmount(accounts.TradableCash, accounts.Currency) };
+            return new List<CashAmount>() { new(accounts.TradableCash, accounts.Currency) };
         }
 
         /// <summary>
@@ -315,111 +321,93 @@ namespace QuantConnect.Brokerages.Alpaca
                 return false;
             }
 
-            var brokerageSymbol = _symbolMapper.GetBrokerageSymbol(order.Symbol);
-
-            var orderRequest = default(OrderBase);
-            if (order.Direction == OrderDirection.Buy)
-            {
-                orderRequest = order.CreateAlpacaBuyOrder(brokerageSymbol);
-            }
-            else if (order.Direction == OrderDirection.Sell)
-            {
-                orderRequest = order.CreateAlpacaSellOrder(brokerageSymbol);
-            }
-
-            orderRequest.WithDuration(order.TimeInForce.ConvertLeanTimeInForceToBrokerage(order.SecurityType));
-
-            var placeOrderResetEvent = new ManualResetEvent(false);
+            var result = false;
             try
             {
-                lock (_lockObject)
+                _messageHandler.WithLockedStream(() =>
                 {
-                    var response = _tradingClient.PostOrderAsync(orderRequest).SynchronouslyAwaitTaskResult();
-                    order.BrokerId.Add(response.OrderId.ToString());
-                    _resetEventByBrokerageOrderID[response.OrderId] = placeOrderResetEvent;
-                }
-
-                if (placeOrderResetEvent.WaitOne(TimeSpan.FromSeconds(10)))
-                {
-                    placeOrderResetEvent.Reset();
-                    OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event")
+                    var holdingQuantity = _securityProvider.GetHoldingsQuantity(order.Symbol);
+                    var isPlaceCrossOrder = TryCrossZeroPositionOrder(order, holdingQuantity);
+                    if (isPlaceCrossOrder == null)
                     {
-                        Status = Orders.OrderStatus.Submitted
-                    });
-                    return true;
-                }
+                        var orderRequest = order.CreateAlpacaOrder(order.AbsoluteQuantity, _symbolMapper, order.Type);
+                        var response = _tradingClient.PostOrderAsync(orderRequest).SynchronouslyAwaitTaskResult();
+                        if (response == null || response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
+                        {
+                            OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Place Order Failed") { Status = Orders.OrderStatus.Invalid });
+                            return;
+                        }
+                        order.BrokerId.Add(response.OrderId.ToString());
 
-                return false;
+                        OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event") { Status = Orders.OrderStatus.Submitted });
+                        result = response != null && response.OrderStatus != AlpacaMarket.OrderStatus.Rejected;
+                    }
+                    else
+                    {
+                        result = isPlaceCrossOrder.Value;
+                    }
+                });
             }
             catch (Exception ex)
             {
-                OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)}.{nameof(PlaceOrder)} Order Event")
-                { Status = Orders.OrderStatus.Invalid, Message = ex.Message });
-                return false;
+                OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, ex.Message) { Status = Orders.OrderStatus.Invalid });
             }
+
+            return result;
         }
 
         private void HandleTradeUpdate(ITradeUpdate obj)
         {
-            Log.Debug($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}: {obj}");
-
-            var leanOrderStatus = default(Orders.OrderStatus);
-            switch (obj.Event)
+            if (Log.DebuggingEnabled)
             {
-                case TradeEvent.PendingNew:
-                    return;
-                case TradeEvent.New:
-                    if (_resetEventByBrokerageOrderID.TryRemove(obj.Order.OrderId, out var submittedResetEvent))
-                    {
-                        submittedResetEvent.Set();
-                    }
-                    return;
-                case TradeEvent.Rejected:
-                    if (_resetEventByBrokerageOrderID.TryRemove(obj.Order.OrderId, out var rejectedResetEvent))
-                    {
-                        rejectedResetEvent.Set();
-                    }
-                    break;
-                case TradeEvent.Canceled:
-                    if (_resetEventByBrokerageOrderID.TryRemove(obj.Order.OrderId, out var canceledResetEvent))
-                    {
-                        canceledResetEvent.Set();
-                    }
-                    return;
-                case TradeEvent.Replaced:
-                    if (_resetEventByBrokerageOrderID.TryRemove(obj.Order.ReplacedByOrderId.Value, out var updateResetEvent))
-                    {
-                        updateResetEvent.Set();
-                    }
-                    return;
-                case TradeEvent.Fill:
-                    leanOrderStatus = Orders.OrderStatus.Filled;
-                    break;
-                case TradeEvent.PartialFill:
-                    leanOrderStatus = Orders.OrderStatus.PartiallyFilled;
-                    break;
-                default:
-                    return;
+                Log.Debug($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}: {obj}");
             }
 
-            var leanOrder = _orderProvider.GetOrdersByBrokerageId(obj.Order.OrderId.ToString())?.SingleOrDefault();
+            var brokerageOrderId = obj.Order.OrderId.ToString();
+            var newLeanOrderStatus = GetOrderStatus(obj.Event);
+            if (!TryGetOrRemoveCrossZeroOrder(brokerageOrderId, newLeanOrderStatus, out var leanOrder))
+            {
+                leanOrder = _orderProvider.GetOrdersByBrokerageId(brokerageOrderId)?.SingleOrDefault();
+            }
             if (leanOrder == null)
             {
                 Log.Error($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}: order id not found: {obj.Order.OrderId}");
                 return;
             }
 
+            switch (obj.Event)
+            {
+                case TradeEvent.New:
+                case TradeEvent.PendingNew:
+                    // we don't send anything for this event
+                    return;
+                case TradeEvent.Rejected:
+                case TradeEvent.Canceled:
+                case TradeEvent.Replaced:
+                    OnOrderEvent(new OrderEvent(leanOrder, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event") { Status = newLeanOrderStatus });
+                    return;
+                case TradeEvent.Fill:
+                case TradeEvent.PartialFill:
+                    break;
+                default:
+                    return;
+            }
+
             var leanSymbol = _symbolMapper.GetLeanSymbol(obj.Order.AssetClass, obj.Order.Symbol);
 
-            var orderEvent = new OrderEvent(leanOrder, obj.TimestampUtc.HasValue ? obj.TimestampUtc.Value : obj.Order.SubmittedAtUtc.Value,
+            var orderEvent = new OrderEvent(leanOrder, obj.TimestampUtc.HasValue ? obj.TimestampUtc.Value : DateTime.UtcNow,
                 new OrderFee(new CashAmount(0, Currencies.USD)))
             {
-                Status = leanOrder.Status,
+                Status = newLeanOrderStatus,
                 FillPrice = obj.Price ?? 0m,
-                FillQuantity = obj.Order.OrderSide == OrderSide.Buy ? obj.Order.FilledQuantity : Decimal.Negate(obj.Order.FilledQuantity),
+                FillQuantity = obj.Order.OrderSide == OrderSide.Buy ? obj.Order.FilledQuantity : decimal.Negate(obj.Order.FilledQuantity),
             };
 
-            OnOrderEvent(orderEvent);
+            // if we filled the order and have another contingent order waiting, submit it
+            if (!TryHandleRemainingCrossZeroOrder(leanOrder, orderEvent))
+            {
+                OnOrderEvent(orderEvent);
+            }
         }
 
         /// <summary>
@@ -429,9 +417,14 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <returns>True if the request was made for the order to be updated, false otherwise</returns>
         public override bool UpdateOrder(Order order)
         {
-            var brokerageOrderId = order.BrokerId.Last();
+            if (!TryGetUpdateCrossZeroOrderQuantity(order, out var orderQuantity))
+            {
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, $"{nameof(AlpacaBrokerage)}.{nameof(UpdateOrder)}: Unable to modify order quantities."));
+                return false;
+            }
 
-            var pathOrderRequest = new ChangeOrderRequest(new Guid(brokerageOrderId)) { Quantity = Convert.ToInt64(order.AbsoluteQuantity) };
+            var brokerageOrderId = order.BrokerId.Last();
+            var pathOrderRequest = new ChangeOrderRequest(new Guid(brokerageOrderId)) { Quantity = Convert.ToInt64(orderQuantity) };
 
             switch (order)
             {
@@ -447,33 +440,31 @@ namespace QuantConnect.Brokerages.Alpaca
                     break;
             }
 
-            var updateOrderResetEvent = new ManualResetEvent(false);
             try
             {
-                lock (_lockObject)
+                IOrder response = null;
+                _messageHandler.WithLockedStream(() =>
                 {
-                    var response = _tradingClient.PatchOrderAsync(pathOrderRequest).SynchronouslyAwaitTaskResult();
-                    order.BrokerId.Add(response.OrderId.ToString());
-                    _resetEventByBrokerageOrderID[response.OrderId] = updateOrderResetEvent;
-                }
+                    response = _tradingClient.PatchOrderAsync(pathOrderRequest).SynchronouslyAwaitTaskResult();
+                    if (response == null || response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
+                    {
+                        OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event") { Status = Orders.OrderStatus.Invalid });
+                        return;
+                    }
+
+                    var brokerageOrderId = response.OrderId.ToString();
+                    if (!order.BrokerId.Contains(brokerageOrderId))
+                    {
+                        order.BrokerId.Add(brokerageOrderId);
+                    }
+                });
+                return response != null && response.OrderStatus != AlpacaMarket.OrderStatus.Rejected;
             }
             catch (Exception ex)
             {
-                OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)}.{nameof(UpdateOrder)} Order Event")
-                { Status = Orders.OrderStatus.Invalid, Message = ex.Message });
+                OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, ex.Message) { Status = Orders.OrderStatus.Invalid });
+                return false;
             }
-
-            if (updateOrderResetEvent.WaitOne(TimeSpan.FromSeconds(10)))
-            {
-                updateOrderResetEvent.Reset();
-                OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event")
-                {
-                    Status = Orders.OrderStatus.UpdateSubmitted
-                });
-                return true;
-            }
-
-            return false;
         }
 
         /// <summary>
@@ -495,35 +486,49 @@ namespace QuantConnect.Brokerages.Alpaca
                 return false;
             }
 
-            var brokerageOrderId = new Guid(order.BrokerId.Last());
-            var cancelOrderResetEvent = new ManualResetEvent(false);
             try
             {
-                lock (_lockObject)
+                var response = false;
+                _messageHandler.WithLockedStream(() =>
                 {
-                    var response = _tradingClient.CancelOrderAsync(brokerageOrderId).SynchronouslyAwaitTaskResult();
-                    _resetEventByBrokerageOrderID[brokerageOrderId] = cancelOrderResetEvent;
-                }
-
-                if (cancelOrderResetEvent.WaitOne(TimeSpan.FromSeconds(10)))
-                {
-                    cancelOrderResetEvent.Reset();
-                    OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event")
-                    {
-                        Status = Orders.OrderStatus.Canceled
-                    });
-                    return true;
-                }
-
-                return false;
-
+                    var brokerageOrderId = new Guid(order.BrokerId.Last());
+                    response = _tradingClient.CancelOrderAsync(brokerageOrderId).SynchronouslyAwaitTaskResult();
+                });
+                return response;
             }
             catch (Exception ex)
             {
-                OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)}.{nameof(CancelOrder)} Order Event")
-                { Status = Orders.OrderStatus.Invalid, Message = ex.Message });
+                OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"Cancel order {order.Id} failed: {ex.Message}") { Status = Orders.OrderStatus.Invalid });
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Places an order that crosses zero (transitions from a short position to a long position or vice versa) and returns the response.
+        /// This method implements brokerage-specific logic for placing such orders using Tradier brokerage.
+        /// </summary>
+        /// <param name="crossZeroOrderRequest">The request object containing details of the cross zero order to be placed.</param>
+        /// <param name="isPlaceOrderWithLeanEvent">
+        /// A boolean indicating whether the order should be placed with triggering a Lean event.
+        /// Default is <c>true</c>, meaning Lean events will be triggered.
+        /// </param>
+        /// <returns>
+        /// A <see cref="CrossZeroOrderResponse"/> object indicating the result of the order placement.
+        /// </returns>
+        protected override CrossZeroOrderResponse PlaceCrossZeroOrder(CrossZeroFirstOrderRequest crossZeroOrderRequest, bool isPlaceOrderWithLeanEvent)
+        {
+            var orderRequest = crossZeroOrderRequest.LeanOrder.CreateAlpacaOrder(crossZeroOrderRequest.AbsoluteOrderQuantity, _symbolMapper, crossZeroOrderRequest.OrderType);
+            var response = _tradingClient.PostOrderAsync(orderRequest).SynchronouslyAwaitTaskResult();
+            if (response == null || response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
+            {
+                return new CrossZeroOrderResponse(string.Empty, false);
+            }
+
+            if (isPlaceOrderWithLeanEvent)
+            {
+                OnOrderEvent(new OrderEvent(crossZeroOrderRequest.LeanOrder, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event") { Status = Orders.OrderStatus.Submitted });
+            }
+            return new CrossZeroOrderResponse(response.OrderId.ToString(), true);
         }
 
         /// <summary>
@@ -531,7 +536,7 @@ namespace QuantConnect.Brokerages.Alpaca
         /// </summary>
         public override void Connect()
         {
-            foreach (var streamingClient in new IStreamingClient [] { _orderStreamingClient, _equityStreamingClient, _cryptoStreamingClient })
+            foreach (var streamingClient in new IStreamingClient[] { _orderStreamingClient, _equityStreamingClient, _cryptoStreamingClient })
             {
                 var authorizedStatus = streamingClient.ConnectAndAuthenticateAsync().SynchronouslyAwaitTaskResult();
                 if (authorizedStatus != AuthStatus.Authorized)
@@ -585,6 +590,29 @@ namespace QuantConnect.Brokerages.Alpaca
                     return _cryptoHistoricalDataClient.ListLatestQuotesAsync(new LatestDataListRequest(new string[] { brokerageSymbol })).SynchronouslyAwaitTaskResult()[brokerageSymbol];
                 default:
                     throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetLatestQuote)}: Security type {symbol.SecurityType} is not supported.");
+            }
+        }
+
+        private static Orders.OrderStatus GetOrderStatus(TradeEvent tradeEvent)
+        {
+            switch (tradeEvent)
+            {
+                case TradeEvent.PendingNew:
+                    return Orders.OrderStatus.New;
+                case TradeEvent.New:
+                    return Orders.OrderStatus.Submitted;
+                case TradeEvent.Rejected:
+                    return Orders.OrderStatus.Invalid;
+                case TradeEvent.Canceled:
+                    return Orders.OrderStatus.Canceled;
+                case TradeEvent.Replaced:
+                    return Orders.OrderStatus.UpdateSubmitted;
+                case TradeEvent.Fill:
+                    return Orders.OrderStatus.Filled;
+                case TradeEvent.PartialFill:
+                    return Orders.OrderStatus.PartiallyFilled;
+                default:
+                    return Orders.OrderStatus.New;
             }
         }
 

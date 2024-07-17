@@ -1,7 +1,12 @@
 {
-  "data-folder": "../../../../Lean/Data/",
+    "data-folder": "../../../../Lean/Data/",
 
-  "alpaca-api-key-id": "",
-  "alpaca-api-secret-key": "",
-  "alpaca-use-paper-trading": true
+    "job-user-id": "0",
+    "api-access-token": "",
+    "job-organization-id": "",
+
+    "alpaca-api-key": "",
+    "alpaca-api-secret": "",
+    "alpaca-access-token": "",
+    "alpaca-paper-trading": true
 }

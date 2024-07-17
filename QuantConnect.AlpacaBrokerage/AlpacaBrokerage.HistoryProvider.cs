@@ -21,6 +21,7 @@ using System.Threading.Tasks;
 using QuantConnect.Interfaces;
 using QuantConnect.Data.Market;
 using System.Collections.Generic;
+using AlpacaMarket = Alpaca.Markets;
 
 namespace QuantConnect.Brokerages.Alpaca;
 
@@ -83,7 +84,7 @@ public partial class AlpacaBrokerage
             case SecurityType.Crypto:
                 return GetCryptoHistory(request, brokerageSymbol);
             default:
-                throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetHistory)}: SecurityType '{request.Symbol.SecurityType}' is not supported.");
+                return null;
         }
     }
 
@@ -110,21 +111,23 @@ public partial class AlpacaBrokerage
         switch (request.TickType)
         {
             case TickType.Trade when request.Resolution == Resolution.Tick:
-                return GetCryptoHistoricalTickTradeBar(request.Symbol, brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc);
+                return GetGenericHistoricalTradeTick(request, brokerageSymbol, _cryptoHistoricalDataClient, new HistoricalCryptoTradesRequest(brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc));
             case TickType.Trade when request.Resolution == Resolution.Second:
-                return LeanData.AggregateTicksToTradeBars(GetCryptoHistoricalTickTradeBar(request.Symbol, brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc), request.Symbol, request.Resolution.ToTimeSpan());
+                var data = GetGenericHistoricalTradeTick(request, brokerageSymbol, _cryptoHistoricalDataClient, new HistoricalCryptoTradesRequest(brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc));
+                return LeanData.AggregateTicksToTradeBars(data, request.Symbol, request.Resolution.ToTimeSpan());
             case TickType.Trade:
-                return GetCryptoHistoricalTradeBar(request.Symbol, brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc,
-                    request.Resolution.ConvertLeanResolutionToAlpacaBarTimeFrame(), request.Resolution.ToTimeSpan());
-            case TickType.Quote when request.Resolution == Resolution.Tick:
-                return GetCryptoHistoricalTickQuoteBar(request.Symbol, brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc);
+                var alpacaRequest = new HistoricalCryptoBarsRequest(brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc, request.Resolution.ConvertLeanResolutionToAlpacaBarTimeFrame());
+                return GetGenericHistoricalTradeBar(request, brokerageSymbol, _cryptoHistoricalDataClient, alpacaRequest);
+
             case TickType.Quote:
-                return LeanData.AggregateTicks(
-                    GetCryptoHistoricalTickQuoteBar(request.Symbol, brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc),
-                    request.Symbol,
-                    request.Resolution.ToTimeSpan());
+                var quoteTicks = GetGenericHistoricalQuoteTick(request, brokerageSymbol, _cryptoHistoricalDataClient, new HistoricalCryptoQuotesRequest(brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc));
+                if (request.Resolution == Resolution.Tick)
+                {
+                    return quoteTicks;
+                }
+                return LeanData.AggregateTicks(quoteTicks, request.Symbol, request.Resolution.ToTimeSpan());
             default:
-                throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetOptionHistory)}: The TickType '{request.TickType}' is not supported for option data.");
+                return null;
         }
     }
 
@@ -151,17 +154,17 @@ public partial class AlpacaBrokerage
         switch (request.TickType)
         {
             case TickType.Trade when request.Resolution == Resolution.Tick:
-                return GetOptionHistoricalTickTradeBar(request.Symbol, brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc);
+                return GetGenericHistoricalTradeTick(request, brokerageSymbol, _optionsHistoricalDataClient, new HistoricalOptionTradesRequest(brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc));
             case TickType.Trade when request.Resolution == Resolution.Second:
-                return LeanData.AggregateTicksToTradeBars(
-                    GetOptionHistoricalTickTradeBar(request.Symbol, brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc),
-                    request.Symbol,
-                    request.Resolution.ToTimeSpan());
+                var data = GetGenericHistoricalTradeTick(request, brokerageSymbol, _optionsHistoricalDataClient, new HistoricalOptionTradesRequest(brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc));
+                return LeanData.AggregateTicksToTradeBars(data, request.Symbol, request.Resolution.ToTimeSpan());
             case TickType.Trade:
-                return GetOptionHistoricalTradeBar(request.Symbol, brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc,
-                    request.Resolution.ConvertLeanResolutionToAlpacaBarTimeFrame(), request.Resolution.ToTimeSpan());
+                var alpacaRequest = new HistoricalOptionBarsRequest(brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc, request.Resolution.ConvertLeanResolutionToAlpacaBarTimeFrame());
+                return GetGenericHistoricalTradeBar(request, brokerageSymbol, _optionsHistoricalDataClient, alpacaRequest);
+            case TickType.OpenInterest:
+            // TODO
             default:
-                throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetOptionHistory)}: The TickType '{request.TickType}' is not supported for option data.");
+                return null;
         }
     }
 
@@ -185,222 +188,69 @@ public partial class AlpacaBrokerage
             return null;
         }
 
-        if (request.TickType == TickType.OpenInterest && request.Resolution != Resolution.Tick)
-        {
-            if (!_unsupportedOpenInterestNonTickResolution)
-            {
-                _unsupportedOpenInterestNonTickResolution = true;
-                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "InvalidResolution",
-                    $"The requested resolution '{request.Resolution}' is not supported for open interest data. Only tick resolution is supported."));
-            }
-            return null;
-        }
-
         switch (request.TickType)
         {
             case TickType.Trade:
-                return GetEquityHistoricalTradeBar(request.Symbol, brokerageSymbol,
-                    request.Resolution.ConvertLeanResolutionToAlpacaBarTimeFrame(), request.StartTimeUtc, request.EndTimeUtc, request.Resolution.ToTimeSpan());
+                var alpacaRequest = new HistoricalBarsRequest(brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc, request.Resolution.ConvertLeanResolutionToAlpacaBarTimeFrame());
+                return GetGenericHistoricalTradeBar(request, brokerageSymbol, _equityHistoricalDataClient, alpacaRequest);
             case TickType.Quote:
+                var data = GetGenericHistoricalQuoteTick(request, brokerageSymbol, _equityHistoricalDataClient, new HistoricalQuotesRequest(brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc));
                 if (request.Resolution == Resolution.Tick)
                 {
-                    return GetEquityHistoricalTickQuoteBar(request.Symbol, brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc);
+                    return data;
                 }
-                return LeanData.AggregateTicks(
-                    GetEquityHistoricalTickQuoteBar(request.Symbol, brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc),
-                    request.Symbol,
-                    request.Resolution.ToTimeSpan());
-            case TickType.OpenInterest:
-                return GetEquityHistoricalAuction(request.Symbol, brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc);
+                return LeanData.AggregateTicks(data, request.Symbol, request.Resolution.ToTimeSpan());
             default:
-                throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetEquityHistory)}: The TickType '{request.TickType}' is not supported. Please provide a valid TickType.");
+                return null;
         }
     }
 
-    /// <summary>
-    /// Retrieves historical auction data for an <see cref="SecurityType.Equity"/> symbol within a specified date range.
-    /// </summary>
-    /// <param name="leanSymbol">The internal Lean symbol representation.</param>
-    /// <param name="brokerageSymbol">The brokerage-specific symbol representation.</param>
-    /// <param name="startDate">The start date for the historical data request.</param>
-    /// <param name="endDate">The end date for the historical data request.</param>
-    /// <returns>An enumerable collection of <see cref="OpenInterest"/> objects representing the historical auction data.</returns>
-    private IEnumerable<OpenInterest> GetEquityHistoricalAuction(Symbol leanSymbol, string brokerageSymbol, DateTime startDate, DateTime endDate)
+    private IEnumerable<Tick> GetGenericHistoricalQuoteTick<T>(HistoryRequest leanRequest, string brokerageSymbol, IHistoricalQuotesClient<T> client, T alpacaRequest)
+        where T : IHistoricalRequest<T, IQuote>
     {
-        var historyAuctionRequest = new HistoricalAuctionsRequest(brokerageSymbol, startDate, endDate);
-        
-        foreach (var response in CreatePaginationRequest(historyAuctionRequest, req => _equityHistoricalDataClient.GetHistoricalAuctionsAsync(req)))
+        foreach (var response in CreatePaginationRequest(alpacaRequest, req => client.GetHistoricalQuotesAsync(alpacaRequest)))
         {
-            foreach (var auction in response.Items[brokerageSymbol])
+            foreach (var quote in response.Items[brokerageSymbol])
             {
-                foreach (var opening in auction.Openings)
+                var condition = string.Empty;
+                if (quote.Conditions.Count > 1)
                 {
-                    yield return new OpenInterest(opening.TimestampUtc, leanSymbol, opening.Price);
+                    condition = quote.Conditions[0];
                 }
+                var tick = new Tick(quote.TimestampUtc.ConvertFromUtc(leanRequest.ExchangeHours.TimeZone), leanRequest.Symbol, condition, quote.AskExchange, quote.BidSize, quote.BidPrice, quote.AskSize, quote.AskPrice);
+                yield return tick;
             }
         }
     }
 
-    /// <summary>
-    /// Retrieves historical tick quote bars for an <see cref="SecurityType.Equity"/> symbol within a specified date range.
-    /// </summary>
-    /// <param name="leanSymbol">The internal Lean symbol representation.</param>
-    /// <param name="brokerageSymbol">The brokerage-specific symbol representation.</param>
-    /// <param name="startDate">The start date for the historical data request.</param>
-    /// <param name="endDate">The end date for the historical data request.</param>
-    /// <returns>An enumerable collection of <see cref="Tick"/> objects representing the historical quote data.</returns>
-    private IEnumerable<Tick> GetEquityHistoricalTickQuoteBar(Symbol leanSymbol, string brokerageSymbol, DateTime startDate, DateTime endDate)
+    private IEnumerable<Tick> GetGenericHistoricalTradeTick<T>(HistoryRequest leanRequest, string brokerageSymbol, IHistoricalTradesClient<T> client, T alpacaRequest)
+        where T : IHistoricalRequest<T, ITrade>
     {
-        var historyQuoteRequest = new HistoricalQuotesRequest(brokerageSymbol, startDate, endDate);
-
-        foreach (var response in CreatePaginationRequest(historyQuoteRequest, req => _equityHistoricalDataClient.GetHistoricalQuotesAsync(req)))
-        {
-            foreach (var quote in response.Items[brokerageSymbol])
-            {
-                // If the array contains one flag, it applies to both the bid and ask.
-                // If the array contains two flags, the first one applies to the bid and the second one to the ask.
-                var (bidCondition, askCondition) = quote.Conditions.Count > 1 ? (quote.Conditions[0], quote.Conditions[1]) : (quote.Conditions[0], quote.Conditions[0]);
-                // TODO: The brokerage returns 2 conditions and 2 exchanges, but Lean currently does not handle this scenario.
-                yield return new Tick(quote.TimestampUtc, leanSymbol, bidCondition, quote.AskExchange, quote.BidSize, quote.BidPrice, quote.AskSize, quote.AskPrice);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Retrieves historical trade bars for an <see cref="SecurityType.Equity"/> symbol within a specified date range and timeframe.
-    /// </summary>
-    /// <param name="leanSymbol">The internal Lean symbol representation.</param>
-    /// <param name="brokerageSymbol">The brokerage-specific symbol representation.</param>
-    /// <param name="barTimeFrame">The timeframe for each bar (e.g., minute, hour, day).</param>
-    /// <param name="startDate">The start date for the historical data request.</param>
-    /// <param name="endDate">The end date for the historical data request.</param>
-    /// <param name="period">The time span representing the duration of each trade bar.</param>
-    /// <returns>An enumerable collection of <see cref="TradeBar"/> objects representing the historical data.</returns>
-    private IEnumerable<TradeBar> GetEquityHistoricalTradeBar(Symbol leanSymbol, string brokerageSymbol,
-        BarTimeFrame barTimeFrame, DateTime startDate, DateTime endDate, TimeSpan period)
-    {
-        var historyTradeRequest = new HistoricalBarsRequest(brokerageSymbol, startDate, endDate, barTimeFrame);
-
-        foreach (var response in CreatePaginationRequest(historyTradeRequest, req => _equityHistoricalDataClient.GetHistoricalBarsAsync(req)))
+        foreach (var response in CreatePaginationRequest(alpacaRequest, req => client.GetHistoricalTradesAsync(alpacaRequest)))
         {
             foreach (var trade in response.Items[brokerageSymbol])
             {
-                yield return new TradeBar(trade.TimeUtc, leanSymbol, trade.Open, trade.High, trade.Low, trade.Close, trade.Volume, period);
+                var condition = string.Empty;
+                if (trade.Conditions.Count > 1)
+                {
+                    condition = trade.Conditions[0];
+                }
+                var tick = new Tick(trade.TimestampUtc.ConvertFromUtc(leanRequest.ExchangeHours.TimeZone), leanRequest.Symbol, condition, trade.Exchange, trade.Size, trade.Price);
+                yield return tick;
             }
         }
     }
 
-    /// <summary>
-    /// Retrieves historical tick trade bars for <see cref="SecurityType.Option"/> based on the specified parameters.
-    /// </summary>
-    /// <param name="leanSymbol">The internal Lean symbol representation for the option.</param>
-    /// <param name="brokerageSymbol">The brokerage-specific symbol representation for the option.</param>
-    /// <param name="startDate">The start date for the historical data request.</param>
-    /// <param name="endDate">The end date for the historical data request.</param>
-    /// <returns>An enumerable collection of <see cref="Tick"/> objects representing the historical tick trade bar data for options.</returns>
-    private IEnumerable<Tick> GetOptionHistoricalTickTradeBar(Symbol leanSymbol, string brokerageSymbol, DateTime startDate, DateTime endDate)
+    private IEnumerable<TradeBar> GetGenericHistoricalTradeBar<T>(HistoryRequest leanRequest, string brokerageSymbol, IHistoricalBarsClient<T> client, T alpacaRequest)
+        where T : IHistoricalRequest<T, AlpacaMarket.IBar>
     {
-        var historyOptionRequest = new HistoricalOptionTradesRequest(brokerageSymbol, startDate, endDate);
-
-        foreach (var response in CreatePaginationRequest(historyOptionRequest, req => _optionsHistoricalDataClient.GetHistoricalTradesAsync(historyOptionRequest)))
+        var period = leanRequest.Resolution.ToTimeSpan();
+        foreach (var response in CreatePaginationRequest(alpacaRequest, req => client.GetHistoricalBarsAsync(req)))
         {
             foreach (var trade in response.Items[brokerageSymbol])
             {
-                // If the array contains one flag, it applies to both the bid and ask.
-                // If the array contains two flags, the first one applies to the bid and the second one to the ask.
-                var (bidCondition, askCondition) = trade.Conditions.Count > 1 ? (trade.Conditions[0], trade.Conditions[1]) : (trade.Conditions[0], trade.Conditions[0]);
-                // TODO: The brokerage returns 2 conditions and 2 exchanges, but Lean currently does not handle this scenario.
-                yield return new Tick(trade.TimestampUtc, leanSymbol, bidCondition, trade.Exchange, trade.Size, trade.Price);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Retrieves historical trade bars for <see cref="SecurityType.Option"/> based on the specified parameters.
-    /// </summary>
-    /// <param name="leanSymbol">The internal Lean symbol representation.</param>
-    /// <param name="brokerageSymbol">The brokerage-specific symbol representation for options.</param>
-    /// <param name="startDate">The start date for the historical data request.</param>
-    /// <param name="endDate">The end date for the historical data request.</param>
-    /// <param name="barTimeFrame">The timeframe for each bar (e.g., minute, hour, day).</param>
-    /// <param name="period">The time span representing the duration of each trade bar.</param>
-    /// <returns>An enumerable collection of <see cref="TradeBar"/> objects representing the historical trade bar data for options.</returns>
-    private IEnumerable<TradeBar> GetOptionHistoricalTradeBar(Symbol leanSymbol, string brokerageSymbol, DateTime startDate, DateTime endDate,
-    BarTimeFrame barTimeFrame, TimeSpan period)
-    {
-        var historyOptionRequest = new HistoricalOptionBarsRequest(brokerageSymbol, startDate, endDate, barTimeFrame);
-
-        foreach (var response in CreatePaginationRequest(historyOptionRequest, req => _optionsHistoricalDataClient.GetHistoricalBarsAsync(historyOptionRequest)))
-        {
-            foreach (var trade in response.Items[brokerageSymbol])
-            {
-                yield return new TradeBar(trade.TimeUtc, leanSymbol, trade.Open, trade.High, trade.Low, trade.Close, trade.Volume, period);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Retrieves historical tick quote bars for <see cref="SecurityType.Crypto"/> symbol based on the specified parameters.
-    /// </summary>
-    /// <param name="leanSymbol">The internal Lean symbol representation for the cryptocurrency.</param>
-    /// <param name="brokerageSymbol">The brokerage-specific symbol representation for the cryptocurrency.</param>
-    /// <param name="startDate">The start date for the historical data request.</param>
-    /// <param name="endDate">The end date for the historical data request.</param>
-    /// <returns>An enumerable collection of <see cref="Tick"/> objects representing the historical tick quote bar data for cryptocurrency.</returns>
-    private IEnumerable<Tick> GetCryptoHistoricalTickQuoteBar(Symbol leanSymbol, string brokerageSymbol, DateTime startDate, DateTime endDate)
-    {
-        var historyCryptoRequest = new HistoricalCryptoQuotesRequest(brokerageSymbol, startDate, endDate);
-
-        foreach (var response in CreatePaginationRequest(historyCryptoRequest, req => _cryptoHistoricalDataClient.GetHistoricalQuotesAsync(historyCryptoRequest)))
-        {
-            foreach (var quote in response.Items[brokerageSymbol])
-            {
-                yield return new Tick(quote.TimestampUtc, leanSymbol, string.Empty, quote.AskExchange, quote.BidSize, quote.BidPrice, quote.AskSize, quote.AskPrice);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Retrieves historical tick trade bars for <see cref="SecurityType.Crypto"/> symbol based on the specified parameters.
-    /// </summary>
-    /// <param name="leanSymbol">The internal Lean symbol representation for the cryptocurrency.</param>
-    /// <param name="brokerageSymbol">The brokerage-specific symbol representation for the cryptocurrency.</param>
-    /// <param name="startDate">The start date for the historical data request.</param>
-    /// <param name="endDate">The end date for the historical data request.</param>
-    /// <returns>An enumerable collection of <see cref="Tick"/> objects representing the historical tick trade bar data for cryptocurrency.</returns>
-    private IEnumerable<Tick> GetCryptoHistoricalTickTradeBar(Symbol leanSymbol, string brokerageSymbol, DateTime startDate, DateTime endDate)
-    {
-        var historyCryptoRequest = new HistoricalCryptoTradesRequest(brokerageSymbol, startDate, endDate);
-
-        foreach (var response in CreatePaginationRequest(historyCryptoRequest, req => _cryptoHistoricalDataClient.GetHistoricalTradesAsync(historyCryptoRequest)))
-        {
-            foreach (var trade in response.Items[brokerageSymbol])
-            {
-                yield return new Tick(trade.TimestampUtc, leanSymbol, string.Empty, trade.Exchange, trade.Size, trade.Price);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Retrieves historical trade bars for <see cref="SecurityType.Crypto"/> symbol based on the specified parameters.
-    /// </summary>
-    /// <param name="leanSymbol">The internal Lean symbol representation for the cryptocurrency.</param>
-    /// <param name="brokerageSymbol">The brokerage-specific symbol representation for the cryptocurrency.</param>
-    /// <param name="startDate">The start date for the historical data request.</param>
-    /// <param name="endDate">The end date for the historical data request.</param>
-    /// <param name="barTimeFrame">The timeframe for each bar (e.g., minute, hour, day).</param>
-    /// <param name="period">The time span representing the duration of each trade bar.</param>
-    /// <returns>An enumerable collection of <see cref="TradeBar"/> objects representing the historical trade bar data for cryptocurrency.</returns>
-    private IEnumerable<TradeBar> GetCryptoHistoricalTradeBar(Symbol leanSymbol, string brokerageSymbol,
-        DateTime startDate, DateTime endDate, BarTimeFrame barTimeFrame, TimeSpan period)
-    {
-        var historyCryptoRequest = new HistoricalCryptoBarsRequest(brokerageSymbol, startDate, endDate, barTimeFrame);
-
-        foreach (var response in CreatePaginationRequest(historyCryptoRequest, req => _cryptoHistoricalDataClient.GetHistoricalBarsAsync(historyCryptoRequest)))
-        {
-            foreach (var trade in response.Items[brokerageSymbol])
-            {
-                yield return new TradeBar(trade.TimeUtc, leanSymbol, trade.Open, trade.High, trade.Low, trade.Close, trade.Volume, period);
+                var bar = new TradeBar(trade.TimeUtc.ConvertFromUtc(leanRequest.ExchangeHours.TimeZone), leanRequest.Symbol, trade.Open, trade.High, trade.Low, trade.Close, trade.Volume, period);
+                yield return bar;
             }
         }
     }
@@ -429,7 +279,6 @@ public partial class AlpacaBrokerage
         do
         {
             var response = callback(request).SynchronouslyAwaitTaskResult();
-
             if (response.Items.Count == 0)
             {
                 continue;

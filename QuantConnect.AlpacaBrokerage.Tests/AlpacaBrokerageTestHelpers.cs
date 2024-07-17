@@ -53,7 +53,7 @@ public static class AlpacaBrokerageTestHelpers
     /// </exception>
     public static (string ApiKey, string ApiKeySecret, bool IsPapperTrading) GetConfigParameters(bool isValidateOnEmpty = true)
     {
-        var (apiKey, apiKeySecret, isPaperTrading) = (Config.Get("alpaca-api-key-id"), Config.Get("alpaca-api-secret-key"), Config.GetBool("alpaca-use-paper-trading"));
+        var (apiKey, apiKeySecret, isPaperTrading) = (Config.Get("alpaca-api-key"), Config.Get("alpaca-api-secret"), Config.GetBool("alpaca-paper-trading"));
 
         if (!isValidateOnEmpty)
         {
