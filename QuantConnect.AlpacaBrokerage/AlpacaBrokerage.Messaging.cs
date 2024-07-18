@@ -45,11 +45,9 @@ public partial class AlpacaBrokerage
             var streamingClient = GetStreamingDataClient(symbol);
             var tradeSubscription = streamingClient.GetTradeSubscription(brokerageSymbol);
             tradeSubscription.Received += HandleTradeReceived;
-            tradeSubscription.OnSubscribedChanged += () => SubscriptionOnSubscribedChanged(symbol, "trade");
 
             var quoteSubscription = streamingClient.GetQuoteSubscription(brokerageSymbol);
             quoteSubscription.Received += HandleQuoteReceived;
-            quoteSubscription.OnSubscribedChanged += () => SubscriptionOnSubscribedChanged(symbol, "quote");
 
             streamingClient.SubscribeAsync(tradeSubscription).ConfigureAwait(false).GetAwaiter().GetResult();
             streamingClient.SubscribeAsync(quoteSubscription).ConfigureAwait(false).GetAwaiter().GetResult();
@@ -57,11 +55,6 @@ public partial class AlpacaBrokerage
             _dataSubscriptionByLeanSymbol[symbol] = new IAlpacaDataSubscription[] { tradeSubscription, quoteSubscription };
         }
         return true;
-    }
-
-    private void SubscriptionOnSubscribedChanged(Symbol symbol, string flavor)
-    {
-        Log.Trace($"{nameof(SubscriptionOnSubscribedChanged)}({symbol.ID}): {flavor}");
     }
 
     /// <summary>
@@ -77,8 +70,17 @@ public partial class AlpacaBrokerage
                 var streamingClient = GetStreamingDataClient(symbol);
                 foreach (var subscription in subscriptions)
                 {
+                    if (subscription is IAlpacaDataSubscription<IQuote> quoteSubscription)
+                    {
+                        quoteSubscription.Received -= HandleQuoteReceived;
+                    }
+                    else if(subscription is IAlpacaDataSubscription<ITrade> tradeSubscription)
+                    {
+                        tradeSubscription.Received -= HandleTradeReceived;
+                    }
                     streamingClient.UnsubscribeAsync(subscription).ConfigureAwait(false).GetAwaiter().GetResult();
                 }
+                _dataSubscriptionByBrokerageSymbol.TryRemove(_symbolMapper.GetBrokerageSymbol(symbol), out _);
             }
         }
         return true;

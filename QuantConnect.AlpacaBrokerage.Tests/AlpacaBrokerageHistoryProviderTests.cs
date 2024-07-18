@@ -35,8 +35,8 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         [OneTimeSetUp]
         public void OneTimeSetUp()
         {
-            var (apiKey, apiKeySecret, isPaperTrading) = AlpacaBrokerageTestHelpers.GetConfigParameters();
-            _alpacaBrokerage = new AlpacaBrokerage(apiKey, apiKeySecret, null, isPaperTrading, new Mock<IAlgorithm>().Object);
+            var (apiKey, apiKeySecret, isPaperTrading, accessToken) = AlpacaBrokerageTestHelpers.GetConfigParameters();
+            _alpacaBrokerage = new AlpacaBrokerage(apiKey, apiKeySecret, accessToken, isPaperTrading, new Mock<IAlgorithm>().Object);
         }
 
         private static IEnumerable<TestCaseData> TestParameters

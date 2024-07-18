@@ -16,7 +16,6 @@
 using System;
 using Alpaca.Markets;
 using NUnit.Framework;
-using QuantConnect.Configuration;
 
 namespace QuantConnect.Brokerages.Alpaca.Tests
 {
@@ -29,7 +28,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         [OneTimeSetUp]
         public void OneTimeSetUp()
         {
-            var (apiKey, apiKeySecret, _) = AlpacaBrokerageTestHelpers.GetConfigParameters();
+            var (apiKey, apiKeySecret, _, _) = AlpacaBrokerageTestHelpers.GetConfigParameters();
 
             var secretKey = new SecretKey(apiKey, apiKeySecret);
             var alpacaTradingClient = Environments.Paper.GetAlpacaTradingClient(secretKey);
