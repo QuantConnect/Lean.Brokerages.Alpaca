@@ -538,6 +538,12 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             foreach (var streamingClient in new IStreamingClient[] { _orderStreamingClient, _equityStreamingClient, _cryptoStreamingClient })
             {
+                if (streamingClient == null)
+                {
+                    // expected if we are working as a brokerage only
+                    continue;
+                }
+
                 var authorizedStatus = streamingClient.ConnectAndAuthenticateAsync().SynchronouslyAwaitTaskResult();
                 if (authorizedStatus != AuthStatus.Authorized)
                 {
@@ -551,9 +557,9 @@ namespace QuantConnect.Brokerages.Alpaca
         /// </summary>
         public override void Disconnect()
         {
-            _orderStreamingClient.DisconnectAsync().SynchronouslyAwaitTask();
-            _equityStreamingClient.DisconnectAsync().SynchronouslyAwaitTask();
-            _cryptoStreamingClient.DisconnectAsync().SynchronouslyAwaitTask();
+            _orderStreamingClient?.DisconnectAsync().SynchronouslyAwaitTask();
+            _equityStreamingClient?.DisconnectAsync().SynchronouslyAwaitTask();
+            _cryptoStreamingClient?.DisconnectAsync().SynchronouslyAwaitTask();
         }
 
         public override void Dispose()
