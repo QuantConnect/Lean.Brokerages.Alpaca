@@ -424,7 +424,7 @@ namespace QuantConnect.Brokerages.Alpaca
             }
 
             var brokerageOrderId = order.BrokerId.Last();
-            var pathOrderRequest = new ChangeOrderRequest(new Guid(brokerageOrderId)) { Quantity = Convert.ToInt64(orderQuantity) };
+            var pathOrderRequest = new ChangeOrderRequest(new Guid(brokerageOrderId)) { Quantity = Convert.ToInt64(Math.Abs(orderQuantity)) };
 
             switch (order)
             {

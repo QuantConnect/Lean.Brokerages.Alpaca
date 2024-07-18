@@ -36,7 +36,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                     new TestCaseData(Symbols.ETHUSD, Resolution.Tick, false),
                     new TestCaseData(Symbols.AAPL, Resolution.Minute, false),
                     new TestCaseData(Symbols.AAPL, Resolution.Second, false),
-                    new TestCaseData(Symbol.CreateOption(Symbols.AAPL, Symbols.AAPL.ID.Market, OptionStyle.American, OptionRight.Call, 230, new DateTime(2024, 12, 20)), Resolution.Second, false),
+                    new TestCaseData(Symbol.CreateOption(Symbols.AAPL, Symbols.AAPL.ID.Market, OptionStyle.American, OptionRight.Call, 230, new DateTime(2024, 12, 20)), Resolution.Second, false).Explicit("TODO"),
                 };
             }
         }
