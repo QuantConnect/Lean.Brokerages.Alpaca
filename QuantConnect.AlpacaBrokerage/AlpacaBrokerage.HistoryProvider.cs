@@ -162,7 +162,7 @@ public partial class AlpacaBrokerage
                 var alpacaRequest = new HistoricalOptionBarsRequest(brokerageSymbol, request.StartTimeUtc, request.EndTimeUtc, request.Resolution.ConvertLeanResolutionToAlpacaBarTimeFrame());
                 return GetGenericHistoricalTradeBar(request, brokerageSymbol, _optionsHistoricalDataClient, alpacaRequest);
             case TickType.OpenInterest:
-            // TODO
+            // TODO: not supported by alpaca
             default:
                 return null;
         }

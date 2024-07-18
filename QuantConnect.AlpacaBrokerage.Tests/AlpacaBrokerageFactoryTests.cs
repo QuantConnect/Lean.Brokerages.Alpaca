@@ -14,12 +14,12 @@
 */
 
 using NUnit.Framework;
-using QuantConnect.Interfaces;
 using QuantConnect.Util;
+using QuantConnect.Interfaces;
 
 namespace QuantConnect.Brokerages.Alpaca.Tests
 {
-    [TestFixture, Ignore("This test requires a configured AlpacaBrokerageFactory")]
+    [TestFixture]
     public class AlpacaBrokerageFactoryTests
     {
         [Test]

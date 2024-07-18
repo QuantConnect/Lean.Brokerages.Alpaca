@@ -72,7 +72,17 @@ public static class AlpacaBrokerageExtensions
                 var trailOffset = tso.TrailingAsPercentage ? AlpacaMarket.TrailOffset.InPercent(tso.TrailingAmount) : AlpacaMarket.TrailOffset.InDollars(tso.TrailingAmount);
                 return AlpacaMarket.TrailingStopOrder.Sell(brokerageSymbol, quantity, trailOffset);
             case OrderType.Limit:
-                return AlpacaMarket.LimitOrder.Sell(brokerageSymbol, quantity, ((LimitOrder)order).LimitPrice);
+                decimal limitPrice;
+                if (order is StopLimitOrder stopLimitOrder)
+                {
+                    // for cross zero, second part of StopLimit is converted to limit, see 'CrossZeroSecondOrderRequest'
+                    limitPrice = stopLimitOrder.LimitPrice;
+                }
+                else
+                {
+                    limitPrice = ((LimitOrder)order).LimitPrice;
+                }
+                return AlpacaMarket.LimitOrder.Sell(brokerageSymbol, quantity, limitPrice);
             case OrderType.StopMarket:
                 return AlpacaMarket.StopOrder.Sell(brokerageSymbol, quantity, ((StopMarketOrder)order).StopPrice);
             case OrderType.StopLimit:
@@ -101,7 +111,17 @@ public static class AlpacaBrokerageExtensions
                 var trailOffset = tso.TrailingAsPercentage ? AlpacaMarket.TrailOffset.InPercent(tso.TrailingAmount) : AlpacaMarket.TrailOffset.InDollars(tso.TrailingAmount);
                 return AlpacaMarket.TrailingStopOrder.Buy(brokerageSymbol, quantity, trailOffset);
             case OrderType.Limit:
-                return AlpacaMarket.LimitOrder.Buy(brokerageSymbol, quantity, ((LimitOrder)order).LimitPrice);
+                decimal limitPrice;
+                if (order is StopLimitOrder stopLimitOrder)
+                {
+                    // for cross zero, second part of StopLimit is converted to limit, see 'CrossZeroSecondOrderRequest'
+                    limitPrice = stopLimitOrder.LimitPrice;
+                }
+                else
+                {
+                    limitPrice = ((LimitOrder)order).LimitPrice;
+                }
+                return AlpacaMarket.LimitOrder.Buy(brokerageSymbol, quantity, limitPrice);
             case OrderType.StopMarket:
                 return AlpacaMarket.StopOrder.Buy(brokerageSymbol, quantity, ((StopMarketOrder)order).StopPrice);
             case OrderType.StopLimit:

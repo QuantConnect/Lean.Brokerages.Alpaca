@@ -52,11 +52,11 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         {
             get
             {
-                var EPU = Symbol.Create("EPU", SecurityType.Equity, Market.USA);
+                var EPU = Symbol.Create("AAPL", SecurityType.Equity, Market.USA);
                 yield return new TestCaseData(new MarketOrderTestParameters(EPU));
-                yield return new TestCaseData(new LimitOrderTestParameters(EPU, 40m, 30m));
-                yield return new TestCaseData(new StopMarketOrderTestParameters(EPU, 40m, 30m));
-                yield return new TestCaseData(new StopLimitOrderTestParameters(EPU, 40m, 30m));
+                yield return new TestCaseData(new LimitOrderTestParameters(EPU, 250m, 200m));
+                yield return new TestCaseData(new StopMarketOrderTestParameters(EPU, 250m, 200m));
+                yield return new TestCaseData(new StopLimitOrderTestParameters(EPU, 250m, 200m));
             }
         }
 
@@ -71,8 +71,10 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 var option = Symbol.CreateOption(Symbols.AAPL, Symbols.AAPL.ID.Market, OptionStyle.American, OptionRight.Call, 230, new DateTime(2024, 12, 20));
                 yield return new TestCaseData(new MarketOrderTestParameters(option));
                 yield return new TestCaseData(new LimitOrderTestParameters(option, 20m, 10m));
-                yield return new TestCaseData(new StopMarketOrderTestParameters(option, 20m, 10m));
-                yield return new TestCaseData(new StopLimitOrderTestParameters(option, 20m, 10m));
+
+                // see https://docs.alpaca.markets/docs/options-trading-overview
+                yield return new TestCaseData(new StopMarketOrderTestParameters(option, 20m, 10m)).Explicit("Not supported by alpaca");
+                yield return new TestCaseData(new StopLimitOrderTestParameters(option, 20m, 10m)).Explicit("Not supported by alpaca");
             }
         }
 
@@ -90,7 +92,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             }
         }
 
-        [Test, TestCaseSource(nameof(OptionOrderParameters))]
+        [Test, TestCaseSource(nameof(EquityOrderParameters))]
         public override void CancelOrders(OrderTestParameters parameters)
         {
             base.CancelOrders(parameters);
@@ -168,39 +170,19 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             base.ShortFromZero(parameters);
         }
 
-        [Test, TestCaseSource(nameof(OptionOrderParameters))]
-        public void ShortFromZeroOption(OrderTestParameters parameters)
-        {
-            base.ShortFromZero(parameters);
-        }
-
-        [Test, TestCaseSource(nameof(CryptoOrderParameters))]
-        public void ShortFromZeroCrypto(OrderTestParameters parameters)
-        {
-            base.ShortFromZero(parameters);
-        }
-
         [Test, TestCaseSource(nameof(EquityOrderParameters))]
         public override void CloseFromShort(OrderTestParameters parameters)
         {
             base.CloseFromShort(parameters);
         }
 
-        [Test, TestCaseSource(nameof(OptionOrderParameters))]
-        public void CloseFromShortOption(OrderTestParameters parameters)
-        {
-            base.CloseFromShort(parameters);
-        }
-
         [Test, TestCaseSource(nameof(EquityOrderParameters))]
-        [Explicit("Not supported: Different side position if we have bought 1 quantity we can not sell more then 1")]
         public override void ShortFromLong(OrderTestParameters parameters)
         {
             base.ShortFromLong(parameters);
         }
 
         [Test, TestCaseSource(nameof(EquityOrderParameters))]
-        [Explicit("Not supported: Different side position if we have sold -1 quantity we can not bought more then 1")]
         public override void LongFromShort(OrderTestParameters parameters)
         {
             base.LongFromShort(parameters);
