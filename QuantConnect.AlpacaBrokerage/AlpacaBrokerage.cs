@@ -64,11 +64,12 @@ namespace QuantConnect.Brokerages.Alpaca
         private IAlpacaCryptoStreamingClient _cryptoStreamingClient;
 
         private bool _isInitialized;
+        private bool _connected;
 
         /// <summary>
         /// Returns true if we're currently connected to the broker
         /// </summary>
-        public override bool IsConnected => true;
+        public override bool IsConnected => _connected;
 
         /// <summary>
         /// Parameterless constructor for brokerage
@@ -536,6 +537,11 @@ namespace QuantConnect.Brokerages.Alpaca
         /// </summary>
         public override void Connect()
         {
+            if (_connected)
+            {
+                return;
+            }
+
             foreach (var streamingClient in new IStreamingClient[] { _orderStreamingClient, _equityStreamingClient, _cryptoStreamingClient })
             {
                 if (streamingClient == null)
@@ -550,6 +556,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     throw new InvalidOperationException($"Connect(): Failed to connect to {streamingClient.GetType().Name}");
                 }
             }
+            _connected = true;
         }
 
         /// <summary>
