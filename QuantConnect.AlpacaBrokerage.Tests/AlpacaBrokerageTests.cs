@@ -92,6 +92,14 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             }
         }
 
+        [Test]
+        public void PartialCryptoFill()
+        {
+            var parameters = new MarketOrderTestParameters(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.USA));
+
+            PlaceOrderWaitForStatus(parameters.CreateLongOrder(2), parameters.ExpectedStatus);
+        }
+
         [Test, TestCaseSource(nameof(EquityOrderParameters))]
         public override void CancelOrders(OrderTestParameters parameters)
         {
