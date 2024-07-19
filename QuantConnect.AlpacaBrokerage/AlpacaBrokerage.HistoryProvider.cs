@@ -14,6 +14,7 @@
 */
 
 using System;
+using System.Linq;
 using Alpaca.Markets;
 using QuantConnect.Util;
 using QuantConnect.Data;
@@ -75,17 +76,26 @@ public partial class AlpacaBrokerage
 
         var brokerageSymbol = _symbolMapper.GetBrokerageSymbol(request.Symbol);
 
+        IEnumerable<BaseData> data;
         switch (request.Symbol.SecurityType)
         {
             case SecurityType.Equity:
-                return GetEquityHistory(request, brokerageSymbol);
+                data = GetEquityHistory(request, brokerageSymbol);
+                break;
             case SecurityType.Option:
-                return GetOptionHistory(request, brokerageSymbol);
+                data = GetOptionHistory(request, brokerageSymbol);
+                break;
             case SecurityType.Crypto:
-                return GetCryptoHistory(request, brokerageSymbol);
+                data = GetCryptoHistory(request, brokerageSymbol);
+                break;
             default:
                 return null;
         }
+        if (data != null)
+        {
+            return data.Where(x => request.ExchangeHours.IsOpen(x.Time, x.EndTime, request.IncludeExtendedMarketHours));
+        }
+        return data;
     }
 
     /// <summary>
