@@ -35,6 +35,7 @@ using System.Net.NetworkInformation;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
 using QuantConnect.Configuration;
 using QuantConnect.Brokerages.CrossZero;
 
@@ -203,6 +204,13 @@ namespace QuantConnect.Brokerages.Alpaca
         private void StreamingClient_SocketClosed(IStreamingClient client)
         {
             Log.Trace($"{nameof(StreamingClient_SocketClosed)}({client.GetType().Name}): SocketClosed");
+            if (_connected)
+            {
+                _connected = false;
+                // let consumers know, we will try to reconnect internally, if we can't lean will kill us
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Disconnect, "Disconnected", "Brokerage Disconnected"));
+                RunReconnectionLogic(5);
+            }
         }
 
         private void StreamingClient_SocketOpened(IStreamingClient client)
@@ -557,6 +565,35 @@ namespace QuantConnect.Brokerages.Alpaca
                 }
             }
             _connected = true;
+        }
+
+        private void RunReconnectionLogic(int secondsDelay)
+        {
+            Task.Delay(TimeSpan.FromSeconds(secondsDelay)).ContinueWith(_ =>
+            {
+                try
+                {
+                    Connect();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex);
+                }
+
+                if (!IsConnected)
+                {
+                    RunReconnectionLogic(60);
+                }
+                else
+                {
+                    // resubscribe
+                    var symbols = _subscriptionManager.GetSubscribedSymbols();
+                    Unsubscribe(symbols);
+                    Subscribe(symbols);
+                    // let consumers know we are reconnected, avoid lean killing us
+                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Reconnect, "Reconnected", "Brokerage Reconnected"));
+                }
+            });
         }
 
         /// <summary>

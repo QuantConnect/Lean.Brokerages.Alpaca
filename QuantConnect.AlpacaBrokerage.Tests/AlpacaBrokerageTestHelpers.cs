@@ -51,21 +51,21 @@ public static class AlpacaBrokerageTestHelpers
     /// <exception cref="ArgumentNullException">
     /// Thrown when <paramref name="isValidateOnEmpty"/> is <c>true</c> and any configuration parameter is null or empty.
     /// </exception>
-    public static (string ApiKey, string ApiKeySecret, bool IsPapperTrading) GetConfigParameters(bool isValidateOnEmpty = true)
+    public static (string ApiKey, string ApiKeySecret, bool IsPapperTrading, string accessToken) GetConfigParameters(bool isValidateOnEmpty = true)
     {
-        var (apiKey, apiKeySecret, isPaperTrading) = (Config.Get("alpaca-api-key"), Config.Get("alpaca-api-secret"), Config.GetBool("alpaca-paper-trading"));
+        var (apiKey, apiKeySecret, isPaperTrading, accessToken) = (Config.Get("alpaca-api-key"), Config.Get("alpaca-api-secret"), Config.GetBool("alpaca-paper-trading"), Config.Get("alpaca-access-token"));
 
         if (!isValidateOnEmpty)
         {
-            return (apiKey, apiKeySecret, isPaperTrading);
+            return (apiKey, apiKeySecret, isPaperTrading, accessToken);
         }
 
-        if (string.IsNullOrEmpty(apiKey) || string.IsNullOrEmpty(apiKeySecret))
+        if (string.IsNullOrEmpty(accessToken) && (string.IsNullOrEmpty(apiKey) || string.IsNullOrEmpty(apiKeySecret)))
         {
             throw new ArgumentNullException("'API Key' or 'Secret Key' or 'Data Feed Provider' cannot be null or empty. Please check your configuration.");
         }
 
-        return (apiKey, apiKeySecret, isPaperTrading);
+        return (apiKey, apiKeySecret, isPaperTrading, accessToken);
 
     }
 }

@@ -34,10 +34,10 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         [OneTimeSetUp]
         public void OneTimeSetUp()
         {
-            var (apiKey, apiKeySecret, isPaperTrading) = AlpacaBrokerageTestHelpers.GetConfigParameters();
+            var (apiKey, apiKeySecret, isPaperTrading, accessToken) = AlpacaBrokerageTestHelpers.GetConfigParameters();
 
             var algorithmMock = new Mock<IAlgorithm>();
-            _alpacaBrokerage = new TestAlpacaBrokerage(apiKey, apiKeySecret, isPaperTrading, algorithmMock.Object);
+            _alpacaBrokerage = new TestAlpacaBrokerage(apiKey, apiKeySecret, isPaperTrading, algorithmMock.Object, accessToken);
         }
 
         [Test]
@@ -72,13 +72,13 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
 
         internal class TestAlpacaBrokerage : AlpacaBrokerage
         {
-            public TestAlpacaBrokerage(string apiKey, string apiKeySecret, bool isPaperTrading, IAlgorithm algorithm)
-                : base(apiKey, apiKeySecret, null, isPaperTrading, algorithm)
+            public TestAlpacaBrokerage(string apiKey, string apiKeySecret, bool isPaperTrading, IAlgorithm algorithm, string accessToken)
+                : base(apiKey, apiKeySecret, accessToken, isPaperTrading, algorithm)
             {
             }
 
-            public TestAlpacaBrokerage(string apiKey, string apiKeySecret, bool isPaperTrading, IOrderProvider orderProvider, ISecurityProvider securityProvider)
-                : base(apiKey, apiKeySecret, null, isPaperTrading, orderProvider, securityProvider)
+            public TestAlpacaBrokerage(string apiKey, string apiKeySecret, bool isPaperTrading, IOrderProvider orderProvider, ISecurityProvider securityProvider, string accessToken)
+                : base(apiKey, apiKeySecret, accessToken, isPaperTrading, orderProvider, securityProvider)
             {
             }
 
