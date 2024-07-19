@@ -38,6 +38,7 @@ using System.Text;
 using System.Threading.Tasks;
 using QuantConnect.Configuration;
 using QuantConnect.Brokerages.CrossZero;
+using System.Collections.Concurrent;
 
 namespace QuantConnect.Brokerages.Alpaca
 {
@@ -51,6 +52,7 @@ namespace QuantConnect.Brokerages.Alpaca
 
         private EventBasedDataQueueHandlerSubscriptionManager _subscriptionManager;
 
+        private ConcurrentDictionary<int, decimal> _orderIdToFillQuantity = new();
         private BrokerageConcurrentMessageHandler<ITradeUpdate> _messageHandler;
         private AlpacaBrokerageSymbolMapper _symbolMapper;
 
@@ -404,12 +406,23 @@ namespace QuantConnect.Brokerages.Alpaca
 
             var leanSymbol = _symbolMapper.GetLeanSymbol(obj.Order.AssetClass, obj.Order.Symbol);
 
+            // alpaca sends the accumulative filled quantity but we need the partial amount for our event
+            _orderIdToFillQuantity.TryGetValue(leanOrder.Id, out var previouslyFilledAmount);
+            var accumulativeFilledQuantity = _orderIdToFillQuantity[leanOrder.Id] =
+                obj.Order.OrderSide == OrderSide.Buy ? obj.Order.FilledQuantity : decimal.Negate(obj.Order.FilledQuantity);
+
+            if (newLeanOrderStatus.IsClosed())
+            {
+                // cleanup
+                _orderIdToFillQuantity.TryRemove(leanOrder.Id, out _);
+            }
+
             var orderEvent = new OrderEvent(leanOrder, obj.TimestampUtc.HasValue ? obj.TimestampUtc.Value : DateTime.UtcNow,
                 new OrderFee(new CashAmount(0, Currencies.USD)))
             {
                 Status = newLeanOrderStatus,
                 FillPrice = obj.Price ?? 0m,
-                FillQuantity = obj.Order.OrderSide == OrderSide.Buy ? obj.Order.FilledQuantity : decimal.Negate(obj.Order.FilledQuantity),
+                FillQuantity = accumulativeFilledQuantity - previouslyFilledAmount,
             };
 
             // if we filled the order and have another contingent order waiting, submit it
