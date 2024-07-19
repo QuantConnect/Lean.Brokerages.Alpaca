@@ -533,11 +533,17 @@ namespace QuantConnect.Brokerages.Alpaca
                 return new CrossZeroOrderResponse(string.Empty, false);
             }
 
+            var newBrokerageOrderId = response.OrderId.ToString();
+            if (!crossZeroOrderRequest.LeanOrder.BrokerId.Contains(newBrokerageOrderId))
+            {
+                crossZeroOrderRequest.LeanOrder.BrokerId.Add(newBrokerageOrderId);
+            }
+
             if (isPlaceOrderWithLeanEvent)
             {
                 OnOrderEvent(new OrderEvent(crossZeroOrderRequest.LeanOrder, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event") { Status = Orders.OrderStatus.Submitted });
             }
-            return new CrossZeroOrderResponse(response.OrderId.ToString(), true);
+            return new CrossZeroOrderResponse(newBrokerageOrderId, true);
         }
 
         /// <summary>
