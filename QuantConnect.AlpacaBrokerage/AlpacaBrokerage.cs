@@ -417,8 +417,14 @@ namespace QuantConnect.Brokerages.Alpaca
                 _orderIdToFillQuantity.TryRemove(leanOrder.Id, out _);
             }
 
-            var orderEvent = new OrderEvent(leanOrder, obj.TimestampUtc.HasValue ? obj.TimestampUtc.Value : DateTime.UtcNow,
-                new OrderFee(new CashAmount(0, Currencies.USD)))
+            var fee = new OrderFee(new CashAmount(0, Currencies.USD));
+            if (newLeanOrderStatus == Orders.OrderStatus.Filled)
+            {
+                var security = _securityProvider.GetSecurity(leanOrder.Symbol);
+                fee = security.FeeModel.GetOrderFee(new OrderFeeParameters(security, leanOrder));
+            }
+
+            var orderEvent = new OrderEvent(leanOrder, obj.TimestampUtc.HasValue ? obj.TimestampUtc.Value : DateTime.UtcNow, fee)
             {
                 Status = newLeanOrderStatus,
                 FillPrice = obj.Price ?? 0m,
