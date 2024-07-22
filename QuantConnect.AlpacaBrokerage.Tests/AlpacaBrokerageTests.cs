@@ -33,6 +33,8 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         protected override Symbol Symbol { get; } = Symbols.AAPL;
         protected override SecurityType SecurityType { get; }
 
+        protected override BrokerageName BrokerageName => BrokerageName.Alpaca;
+
         protected override IBrokerage CreateBrokerage(IOrderProvider orderProvider, ISecurityProvider securityProvider)
         {
             var (apiKey, apiKeySecret, isPaperTrading, accessToken) = AlpacaBrokerageTestHelpers.GetConfigParameters();
