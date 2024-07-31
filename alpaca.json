@@ -9,16 +9,15 @@
 			"Live Trading":	[0,0,0]
         }
     ],
-    "order-types": ["Market", "Limit", "..."],
-	"assets": ["Equity", "Future Options", "..."], 
-	"brokerage-url": "",
-  	"documentation": "link on QuantConnect dock",
+    "order-types": ["Market", "Limit", "Stop Market", "Stop Limit", "Trailing"],
+	"assets": ["Equity", "Equity Options", "Crypto"], 
+	"brokerage-url": "https://alpaca.markets/",
+  	"documentation": "/docs/v2/cloud-platform/live-trading/brokerages/alpaca",
 	"module-specification": {
 		"download": {
 			"data-types": [
 				"Trade",
-				"Quote",
-                "OpenInterest"
+				"Quote"
 			],
 			"resolutions": [
                 "Tick",
@@ -29,12 +28,12 @@
 			],
 			"security-types": [
 				"Equity",
-				"FutureOption",
-                "..."
+				"Option",
+                "Crypto"
 			],
 			"markets": [
 				"USA",
-                "..."
+                "Coinbase"
 			]
 		}
 	}
