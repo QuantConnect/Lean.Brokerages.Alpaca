@@ -158,19 +158,20 @@ namespace QuantConnect.Brokerages.Alpaca
             _messageHandler = new(HandleTradeUpdate);
             _symbolMapper = new AlpacaBrokerageSymbolMapper(_tradingClient);
 
+            // historical equity
+            _equityHistoricalDataClient = EnvironmentExtensions.GetAlpacaDataClient(environment, tradingSecretKey ?? secretKey);
+
+            // historical options
+            _optionsHistoricalDataClient = EnvironmentExtensions.GetAlpacaOptionsDataClient(environment, tradingSecretKey ?? secretKey);
+
+            // historical crypto
+            _cryptoHistoricalDataClient = EnvironmentExtensions.GetAlpacaCryptoDataClient(environment, tradingSecretKey ?? secretKey);
+
             if (secretKey != null)
             {
-                // historical equity
-                _equityHistoricalDataClient = EnvironmentExtensions.GetAlpacaDataClient(environment, secretKey);
-
-                // historical options
-                _optionsHistoricalDataClient = EnvironmentExtensions.GetAlpacaOptionsDataClient(environment, secretKey);
-
                 // equity streaming client
                 _equityStreamingClient = EnvironmentExtensions.GetAlpacaDataStreamingClient(environment, secretKey);
 
-                // historical crypto
-                _cryptoHistoricalDataClient = EnvironmentExtensions.GetAlpacaCryptoDataClient(environment, secretKey);
                 // streaming crypto
                 _cryptoStreamingClient = EnvironmentExtensions.GetAlpacaCryptoStreamingClient(environment, secretKey);
 
@@ -178,7 +179,7 @@ namespace QuantConnect.Brokerages.Alpaca
                 {
                     streamingClient.Connected += (obj) => StreamingClient_Connected(streamingClient, obj);
                     streamingClient.OnWarning += (obj) => StreamingClient_OnWarning(streamingClient, obj);
-                    streamingClient.SocketOpened += () => StreamingClient_SocketOpened(streamingClient); ;
+                    streamingClient.SocketOpened += () => StreamingClient_SocketOpened(streamingClient);
                     streamingClient.SocketClosed += () => StreamingClient_SocketClosed(streamingClient);
                     streamingClient.OnError += (obj) => StreamingClient_OnError(streamingClient, obj);
                 }
