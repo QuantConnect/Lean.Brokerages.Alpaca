@@ -1,5 +1,5 @@
 {
-    "description": "Alpaca offers simple, modern solutions to enable anyone, either individuals or businesses, to connect applications and build algorithms to buy and sell stocks or crypto.",
+    "description": "Alpaca offers commission-free trading to buy and sell stocks, options, or crypto.",
     "platforms-features": [
         {
             "Platforms": ["Cloud Platform", "Local Platform", "LEAN CLI"],
@@ -29,11 +29,11 @@
 			"security-types": [
 				"Equity",
 				"Option",
-                "Crypto"
+                		"Crypto"
 			],
 			"markets": [
 				"USA",
-                "Coinbase"
+                		"Coinbase"
 			]
 		}
 	}
