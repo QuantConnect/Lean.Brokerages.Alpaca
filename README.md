@@ -4,6 +4,7 @@
 &nbsp;
 &nbsp;
 
+
 ## Introduction
 
 This repository hosts the Alpaca Brokerage Plugin Integration with the QuantConnect LEAN Algorithmic Trading Engine. LEAN is a brokerage agnostic operating system for quantitative finance. Thanks to open-source plugins such as this [LEAN](https://github.com/QuantConnect/Lean) can route strategies to almost any market.
@@ -15,9 +16,9 @@ This repository hosts the Alpaca Brokerage Plugin Integration with the QuantConn
 
 <p align="center">
 <picture >
-  <source media="(prefers-color-scheme: dark)" srcset="">
-  <source media="(prefers-color-scheme: light)" srcset="">
-  <img alt="introduction" width="40%">
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/5ae043e7-ee44-4fa4-820a-2d948ef9ad9d">
+  <source media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/82d9657d-86a4-4c6c-acc2-efdf184a2026">
+  <img alt="introduction" width="25%">
 </picture>
 <p>
 
