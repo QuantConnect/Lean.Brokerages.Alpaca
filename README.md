@@ -27,11 +27,11 @@ For more information about the Alpaca brokerage, see the [QuantConnect-Alpaca In
 
 ## Using the Brokerage Plugin
   
-### Deploying Alpaca with VSCode User Interace
+### Deploying Alpaca with VSCode User Interface
 
   You can deploy using a visual interface in the QuantConnect cloud. For instructions, see the [QuantConnect-Alpaca Integration Page](https://www.quantconnect.com/docs/v2/our-platform/live-trading/brokerages/alpaca). 
   
-  ![deploy-alpaca]() 
+ ![alpaca-deployment](https://github.com/user-attachments/assets/6c21eb08-7185-4716-9ddb-6f18904e2ceb)
 
   In the QuantConnect Cloud Platform, you can harness the QuantConnect Live Data Feed, the Alpaca Live Data Feed, or both. For most users, this is substantially cheaper and easier than self-hosting.
   
