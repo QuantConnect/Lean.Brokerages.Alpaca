@@ -63,8 +63,9 @@ namespace QuantConnect.Brokerages.Alpaca
         private IAlpacaOptionsDataClient _optionsHistoricalDataClient;
 
         private IAlpacaStreamingClient _orderStreamingClient;
-        private IAlpacaDataStreamingClient _equityStreamingClient;
-        private IAlpacaCryptoStreamingClient _cryptoStreamingClient;
+        private AlpacaStreamingClientWrapper _equityStreamingClient;
+        private AlpacaStreamingClientWrapper _optionsStreamingClient;
+        private AlpacaStreamingClientWrapper _cryptoStreamingClient;
 
         private bool _isInitialized;
         private bool _connected;
@@ -170,18 +171,26 @@ namespace QuantConnect.Brokerages.Alpaca
             if (secretKey != null)
             {
                 // equity streaming client
-                _equityStreamingClient = EnvironmentExtensions.GetAlpacaDataStreamingClient(environment, secretKey);
+                _equityStreamingClient = new AlpacaStreamingClientWrapper(secretKey, SecurityType.Equity);
 
                 // streaming crypto
-                _cryptoStreamingClient = EnvironmentExtensions.GetAlpacaCryptoStreamingClient(environment, secretKey);
+                _cryptoStreamingClient = new AlpacaStreamingClientWrapper(secretKey, SecurityType.Crypto);
 
-                foreach (var streamingClient in new IStreamingClient[] { _cryptoStreamingClient, _equityStreamingClient, _orderStreamingClient })
+                // streaming options
+                _optionsStreamingClient = new AlpacaStreamingClientWrapper(secretKey, SecurityType.Option);
+
+                foreach (var streamingClient in new IStreamingClient[] { _cryptoStreamingClient, _optionsStreamingClient, _equityStreamingClient, _orderStreamingClient })
                 {
                     streamingClient.Connected += (obj) => StreamingClient_Connected(streamingClient, obj);
                     streamingClient.OnWarning += (obj) => StreamingClient_OnWarning(streamingClient, obj);
                     streamingClient.SocketOpened += () => StreamingClient_SocketOpened(streamingClient);
                     streamingClient.SocketClosed += () => StreamingClient_SocketClosed(streamingClient);
                     streamingClient.OnError += (obj) => StreamingClient_OnError(streamingClient, obj);
+
+                    if (streamingClient is AlpacaStreamingClientWrapper wrapper)
+                    {
+                        wrapper.EnviromentFailure += (message) => Log.Trace($"AlpacaBrokerage.Initialize(): {message}");
+                    }
                 }
 
                 _subscriptionManager = new EventBasedDataQueueHandlerSubscriptionManager();
@@ -576,7 +585,7 @@ namespace QuantConnect.Brokerages.Alpaca
                 return;
             }
 
-            foreach (var streamingClient in new IStreamingClient[] { _orderStreamingClient, _equityStreamingClient, _cryptoStreamingClient })
+            foreach (var streamingClient in new IStreamingClient[] { _optionsStreamingClient, _orderStreamingClient, _equityStreamingClient, _cryptoStreamingClient })
             {
                 if (streamingClient == null)
                 {
@@ -630,6 +639,7 @@ namespace QuantConnect.Brokerages.Alpaca
             _orderStreamingClient?.DisconnectAsync().SynchronouslyAwaitTask();
             _equityStreamingClient?.DisconnectAsync().SynchronouslyAwaitTask();
             _cryptoStreamingClient?.DisconnectAsync().SynchronouslyAwaitTask();
+            _optionsStreamingClient?.DisconnectAsync().SynchronouslyAwaitTask();
         }
 
         public override void Dispose()
@@ -644,6 +654,7 @@ namespace QuantConnect.Brokerages.Alpaca
             _orderStreamingClient.DisposeSafely();
             _equityStreamingClient.DisposeSafely();
             _cryptoStreamingClient.DisposeSafely();
+            _optionsStreamingClient.DisposeSafely();
         }
 
         /// <summary>

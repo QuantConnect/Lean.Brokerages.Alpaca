@@ -37,5 +37,8 @@
         <Content Include="config.json">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
-    </ItemGroup>
+		<Reference Include="Alpaca.Markets">
+			<HintPath>..\QuantConnect.AlpacaBrokerage\Alpaca.Markets.dll</HintPath>
+		</Reference>
+	</ItemGroup>
 </Project>
