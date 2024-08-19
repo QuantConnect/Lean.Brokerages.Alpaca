@@ -91,11 +91,15 @@ public partial class AlpacaBrokerage
         IStreamingDataClient streamingClient;
         if (symbol.SecurityType == SecurityType.Crypto)
         {
-            streamingClient = _cryptoStreamingClient;
+            streamingClient = _cryptoStreamingClient.StreamingClient;
         }
         else if (symbol.SecurityType == SecurityType.Equity)
         {
-            streamingClient = _equityStreamingClient;
+            streamingClient = _equityStreamingClient.StreamingClient;
+        }
+        else if (symbol.SecurityType.IsOption())
+        {
+            streamingClient = _optionsStreamingClient.StreamingClient;
         }
         else
         {
@@ -122,7 +126,7 @@ public partial class AlpacaBrokerage
 
             TickType = TickType.Trade,
             Symbol = subscriptionData.Symbol,
-            Time = obj.TimestampUtc.ConvertFromUtc(subscriptionData.ExchangeTimeZone),
+            Time = DateTime.UtcNow.ConvertFromUtc(subscriptionData.ExchangeTimeZone),
         };
         lock (_aggregator)
         {
@@ -152,7 +156,7 @@ public partial class AlpacaBrokerage
 
             TickType = TickType.Quote,
             Symbol = subscriptionData.Symbol,
-            Time = obj.TimestampUtc.ConvertFromUtc(subscriptionData.ExchangeTimeZone),
+            Time = DateTime.UtcNow.ConvertFromUtc(subscriptionData.ExchangeTimeZone),
         };
 
         lock (_aggregator)

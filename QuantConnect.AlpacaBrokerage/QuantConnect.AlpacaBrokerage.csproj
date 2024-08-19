@@ -27,8 +27,23 @@
 		<Compile Include="..\..\Lean\Common\Properties\SharedAssemblyInfo.cs" Link="Properties\SharedAssemblyInfo.cs" />
 	</ItemGroup>
 	<ItemGroup>
-		<PackageReference Include="Alpaca.Markets" Version="7.1.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
 		<PackageReference Include="QuantConnect.Brokerages" Version="2.5.*" />
+		<PackageReference Include="Polly" Version="8.3.1" />
+		<PackageReference Include="MessagePack" Version="2.5.172" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Include="Alpaca.Markets">
+			<HintPath>Alpaca.Markets.dll</HintPath>
+		</Reference>
+		<None Update="Alpaca.Markets.dll" Pack="True">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<PackageCopyToOutput>true</PackageCopyToOutput>
+		</None>
+		<None Update="Alpaca.Markets.deps.json" Pack="True">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<PackageCopyToOutput>true</PackageCopyToOutput>
+		</None>
 	</ItemGroup>
 </Project>

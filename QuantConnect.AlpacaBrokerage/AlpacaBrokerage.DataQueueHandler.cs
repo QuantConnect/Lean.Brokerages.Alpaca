@@ -31,7 +31,7 @@ public partial class AlpacaBrokerage : IDataQueueHandler
     /// <returns>The new enumerator for this subscription request</returns>
     public IEnumerator<BaseData> Subscribe(SubscriptionDataConfig dataConfig, EventHandler newDataAvailableHandler)
     {
-        if (!CanSubscribe(dataConfig.Symbol) || dataConfig.Symbol.SecurityType == SecurityType.Option)
+        if (!CanSubscribe(dataConfig.Symbol))
         {
             return null;
         }
