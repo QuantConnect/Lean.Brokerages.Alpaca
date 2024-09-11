@@ -342,7 +342,6 @@ namespace QuantConnect.Brokerages.Alpaca
                 return false;
             }
 
-            var result = false;
             try
             {
                 _messageHandler.WithLockedStream(() =>
@@ -361,11 +360,6 @@ namespace QuantConnect.Brokerages.Alpaca
                         order.BrokerId.Add(response.OrderId.ToString());
 
                         OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event") { Status = Orders.OrderStatus.Submitted });
-                        result = response != null && response.OrderStatus != AlpacaMarket.OrderStatus.Rejected;
-                    }
-                    else
-                    {
-                        result = isPlaceCrossOrder.Value;
                     }
                 });
             }
@@ -373,8 +367,7 @@ namespace QuantConnect.Brokerages.Alpaca
             {
                 OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, ex.Message) { Status = Orders.OrderStatus.Invalid });
             }
-
-            return result;
+            return true;
         }
 
         private void HandleTradeUpdate(ITradeUpdate obj)
