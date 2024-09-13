@@ -65,7 +65,12 @@ public partial class AlpacaBrokerage : IDataQueueHandler
         // required for trading
         job.BrokerageData.TryGetValue("alpaca-access-token", out var accessToken);
 
-        var usePaperTrading = Convert.ToBoolean(job.BrokerageData["alpaca-paper-trading"]);
+        var usePaperTrading = false;
+        // might not be there if only used as a data source
+        if (job.BrokerageData.TryGetValue("alpaca-paper-trading", out var usePaper))
+        {
+            usePaperTrading = Convert.ToBoolean(usePaper);
+        }
 
         Initialize(apiKey, secretKey, accessToken, usePaperTrading, null, null);
         if (!IsConnected)
