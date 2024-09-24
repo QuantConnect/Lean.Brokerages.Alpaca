@@ -252,12 +252,16 @@ namespace QuantConnect.Brokerages.Alpaca
             var orders = _tradingClient.ListOrdersAsync(new ListOrdersRequest() { OrderStatusFilter = OrderStatusFilter.Open }).SynchronouslyAwaitTaskResult();
 
             var leanOrders = new List<Order>();
+            var unsupportedTimeInForce = new HashSet<AlpacaMarket.TimeInForce>();
             foreach (var brokerageOrder in orders)
             {
                 var orderProperties = new AlpacaOrderProperties();
                 if (!orderProperties.TryGetLeanTimeInForceByAlpacaTimeInForce(brokerageOrder.TimeInForce))
                 {
-                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, $"Detected unsupported Lean TimeInForce of '{brokerageOrder.TimeInForce}', ignoring. Using default: TimeInForce.GoodTilCanceled"));
+                    if (unsupportedTimeInForce.Add(brokerageOrder.TimeInForce))
+                    {
+                        OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, $"Detected unsupported Lean TimeInForce of '{brokerageOrder.TimeInForce}', ignoring. Using default: TimeInForce.GoodTilCanceled"));
+                    }
                 }
 
                 var leanSymbol = _symbolMapper.GetLeanSymbol(brokerageOrder.AssetClass, brokerageOrder.Symbol);
