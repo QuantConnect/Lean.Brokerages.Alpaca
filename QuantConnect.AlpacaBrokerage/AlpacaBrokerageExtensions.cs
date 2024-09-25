@@ -48,9 +48,37 @@ public static class AlpacaBrokerageExtensions
         {
             throw new InvalidOperationException($"Can't create order for direction {order.Direction}");
         }
-        var alpacaTimeInForce = order.TimeInForce.ConvertLeanTimeInForceToBrokerage(order.SecurityType);
+        var alpacaTimeInForce = order.TimeInForce.ConvertLeanTimeInForceToBrokerage(order.SecurityType, order.Type);
         AlpacaMarket.OrderBaseExtensions.WithDuration(orderRequest, alpacaTimeInForce);
         return orderRequest;
+    }
+
+    /// <summary>
+    /// Try to Convert Alpaca <see cref="AlpacaMarket.TimeInForce"/> to Lean <see cref="TimeInForce"/>
+    /// </summary>
+    /// <param name="orderProperties">The instance of Alpaca Order Properties.</param>
+    /// <param name="timeInForce">The Alpaca Time In Force duration of order.</param>
+    /// <returns>
+    /// true - if it was converted successfully.
+    /// false - if Alpaca Time In Force was not provided.
+    /// </returns>
+    public static bool TryGetLeanTimeInForceByAlpacaTimeInForce(this AlpacaOrderProperties orderProperties, AlpacaMarket.TimeInForce timeInForce)
+    {
+        switch (timeInForce)
+        {
+            case AlpacaMarket.TimeInForce.Day:
+                orderProperties.TimeInForce = TimeInForce.Day;
+                return true;
+            case AlpacaMarket.TimeInForce.Gtc:
+                orderProperties.TimeInForce = TimeInForce.GoodTilCanceled;
+                return true;
+            case AlpacaMarket.TimeInForce.Opg:
+            case AlpacaMarket.TimeInForce.Cls:
+                orderProperties.TimeInForce = TimeInForce.GoodTilCanceled;
+                return true;
+            default:
+                return false;
+        }
     }
 
     /// <summary>
@@ -66,6 +94,8 @@ public static class AlpacaBrokerageExtensions
         switch (orderType)
         {
             case OrderType.Market:
+            case OrderType.MarketOnOpen:
+            case OrderType.MarketOnClose:
                 return AlpacaMarket.MarketOrder.Sell(brokerageSymbol, quantity);
             case OrderType.TrailingStop:
                 var tso = (TrailingStopOrder)order;
@@ -105,6 +135,8 @@ public static class AlpacaBrokerageExtensions
         switch (orderType)
         {
             case OrderType.Market:
+            case OrderType.MarketOnOpen:
+            case OrderType.MarketOnClose:
                 return AlpacaMarket.MarketOrder.Buy(brokerageSymbol, quantity);
             case OrderType.TrailingStop:
                 var tso = (TrailingStopOrder)order;
@@ -135,14 +167,24 @@ public static class AlpacaBrokerageExtensions
     /// Converts Lean TimeInForce to Alpaca brokerage TimeInForce.
     /// </summary>
     /// <param name="timeInForce">The Lean TimeInForce object to be converted.</param>
+    /// <param name="securityType">The SecurityType of tradable security.</param>
+    /// <param name="leanOrderType">The Lean order type.</param>
     /// <returns>Returns the corresponding AlpacaMarket.TimeInForce value.</returns>
     /// <exception cref="NotSupportedException">Thrown when the provided TimeInForce type is not supported.</exception>
-    private static AlpacaMarket.TimeInForce ConvertLeanTimeInForceToBrokerage(this TimeInForce timeInForce, SecurityType securityType)
+    private static AlpacaMarket.TimeInForce ConvertLeanTimeInForceToBrokerage(this TimeInForce timeInForce, SecurityType securityType, OrderType leanOrderType)
     {
         if (securityType == SecurityType.Option && timeInForce is not DayTimeInForce)
         {
             Log.Error($"{nameof(AlpacaBrokerageExtensions)}.{nameof(ConvertLeanTimeInForceToBrokerage)}: Invalid TimeInForce '{timeInForce.GetType().Name}' for Option security type. Only 'DayTimeInForce' is supported for options.");
             return AlpacaMarket.TimeInForce.Day;
+        }
+
+        switch (leanOrderType)
+        {
+            case OrderType.MarketOnOpen:
+                return AlpacaMarket.TimeInForce.Opg;
+            case OrderType.MarketOnClose:
+                return AlpacaMarket.TimeInForce.Cls;
         }
 
         return timeInForce switch

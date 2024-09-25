@@ -23,6 +23,7 @@ using QuantConnect.Tests.Brokerages;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using static QuantConnect.Brokerages.Alpaca.Tests.AlpacaBrokerageAdditionalTests;
 
 namespace QuantConnect.Brokerages.Alpaca.Tests
@@ -230,6 +231,73 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             if (parameters.ModifyUntilFilled)
             {
                 ModifyOrderUntilFilled(order, parameters);
+            }
+        }
+
+        private static IEnumerable<TestCaseData> MarketOpenCloseOrderTypeParameters
+        {
+            get
+            {
+                var symbol = Symbols.AAPL;
+                yield return new TestCaseData(new MarketOnOpenOrder(symbol, 1m, DateTime.UtcNow), !symbol.IsMarketOpen(DateTime.UtcNow, false));
+                yield return new TestCaseData(new MarketOnCloseOrder(symbol, 1m, DateTime.UtcNow), symbol.IsMarketOpen(DateTime.UtcNow, false));
+            }
+        }
+
+        [TestCaseSource(nameof(MarketOpenCloseOrderTypeParameters))]
+        public void PlaceMarketOpenCloseOrder(Order order, bool marketIsOpen)
+        {
+            Log.Trace($"PLACE {order.Type} ORDER TEST");
+
+            var submittedResetEvent = new AutoResetEvent(false);
+            var invalidResetEvent = new AutoResetEvent(false);
+
+            OrderProvider.Add(order);
+
+            Brokerage.OrdersStatusChanged += (_, orderEvents) =>
+            {
+                var orderEvent = orderEvents[0];
+
+                Log.Trace("");
+                Log.Trace($"{nameof(PlaceMarketOpenCloseOrder)}.OrderEvent.Status: {orderEvent.Status}");
+                Log.Trace("");
+
+                if (orderEvent.Status == OrderStatus.Submitted)
+                {
+                    submittedResetEvent.Set();
+                }
+                else if (orderEvent.Status == OrderStatus.Invalid)
+                {
+                    invalidResetEvent.Set();
+                }
+            };
+
+            
+
+            if (marketIsOpen)
+            {
+                Assert.IsTrue(Brokerage.PlaceOrder(order));
+
+                if (!submittedResetEvent.WaitOne(TimeSpan.FromSeconds(5)))
+                {
+                    Assert.Fail($"{nameof(PlaceMarketOpenCloseOrder)}: the brokerage doesn't return {OrderStatus.Submitted}");
+                }
+
+                var openOrders = Brokerage.GetOpenOrders();
+
+                Assert.IsNotEmpty(openOrders);
+                Assert.That(openOrders.Count, Is.EqualTo(1));
+                Assert.That(openOrders[0].Type, Is.EqualTo(order.Type));
+                Assert.IsTrue(Brokerage.CancelOrder(order));
+            }
+            else
+            {
+                Assert.IsFalse(Brokerage.PlaceOrder(order));
+
+                if (!invalidResetEvent.WaitOne(TimeSpan.FromSeconds(5)))
+                {
+                    Assert.Fail($"{nameof(PlaceMarketOpenCloseOrder)}: the brokerage doesn't return {OrderStatus.Invalid}");
+                }
             }
         }
     }
