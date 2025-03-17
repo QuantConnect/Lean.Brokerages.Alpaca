@@ -299,9 +299,16 @@ public partial class AlpacaBrokerage
         {
             repeatBySipException = false;
             // If the token is null, it indicates the first request; otherwise, it's a subsequent page.
-            if (_isSipDataRestricted && string.IsNullOrEmpty(request.Pagination.Token))
+            if (_isSipDataRestricted && !IsCryptoRequest(request) && string.IsNullOrEmpty(request.Pagination.Token))
             {
-                request = (T)ChangeIntoTimeIntervalInHistoricalRequest(request);
+                try
+                {
+                    request = (T)ChangeIntoTimeIntervalInHistoricalRequest(request);
+                }
+                catch (ArgumentException)
+                {
+                    break;
+                }
             }
 
             try
@@ -329,55 +336,37 @@ public partial class AlpacaBrokerage
     }
 
     /// <summary>
+    /// Determines whether the given historical request is related to cryptocurrency data.
+    /// </summary>
+    /// <param name="historicalRequest">The historical request object.</param>
+    /// <returns><c>true</c> if the request is for cryptocurrency data; otherwise, <c>false</c>.</returns>
+    private bool IsCryptoRequest(IHistoricalRequest historicalRequest) =>
+        historicalRequest is HistoricalCryptoBarsRequest or HistoricalCryptoQuotesRequest or HistoricalCryptoTradesRequest;
+
+    /// <summary>
     /// Adjusts the time interval in a historical request to account for restricted SIP data access.
     /// </summary>
     /// <param name="historicalRequest">The original historical request object.</param>
     /// <returns>A new historical request with the adjusted time range.</returns>
     /// <exception cref="NotImplementedException">Thrown if the request type is not handled.</exception>
+    /// <exception cref="ArgumentException">Thrown if the adjusted time range is invalid.</exception>
     private IHistoricalRequest ChangeIntoTimeIntervalInHistoricalRequest(IHistoricalRequest historicalRequest)
     {
-        switch (historicalRequest)
+        var end = DateTime.UtcNow.AddMinutes(-15);
+        var start = (historicalRequest as HistoricalRequestBase).TimeInterval.From.Value;
+
+        if (start >= end)
         {
-            case HistoricalBarsRequest hbr:
-                var (start, end) = GetAdjustedDateRange(hbr.TimeInterval.From.Value, hbr.TimeInterval.Into.Value);
-                return new HistoricalBarsRequest(hbr.Symbols, start, end, hbr.TimeFrame);
-            case HistoricalQuotesRequest hqr:
-                (start, end) = GetAdjustedDateRange(hqr.TimeInterval.From.Value, hqr.TimeInterval.Into.Value);
-                return new HistoricalQuotesRequest(hqr.Symbols, start, end);
-            case HistoricalOptionTradesRequest hor:
-                (start, end) = GetAdjustedDateRange(hor.TimeInterval.From.Value, hor.TimeInterval.Into.Value);
-                return new HistoricalOptionTradesRequest(hor.Symbols, start, end);
-            case HistoricalOptionBarsRequest hobr:
-                (start, end) = GetAdjustedDateRange(hobr.TimeInterval.From.Value, hobr.TimeInterval.Into.Value);
-                return new HistoricalOptionBarsRequest(hobr.Symbols, start, end, hobr.TimeFrame);
-            default:
-                throw new NotImplementedException($"The historical request type '{historicalRequest.GetType().FullName}' is not implemented.");
-        }
-    }
-
-    /// <summary>
-    /// Adjusts the date range based on optional time adjustments (e.g., subtracting minutes) for specific use cases.
-    /// </summary>
-    /// <param name="startDateTime">The original start date and time.</param>
-    /// <param name="endDateTime">The original end date and time.</param>
-    /// <param name="adjustMinutes">The number of minutes to adjust the end time by. Defaults to -15 if not provided.</param>
-    /// <returns>A tuple containing the adjusted start and end date and time.</returns>
-    internal static (DateTime start, DateTime end) GetAdjustedDateRange(DateTime startDateTime, DateTime endDateTime, int adjustMinutes = 15)
-    {
-        var utcNow = DateTime.UtcNow;
-        var difference = utcNow - endDateTime;
-
-        var adjustment = TimeSpan.FromMinutes(adjustMinutes) - difference;
-
-        var adjustedEnd = endDateTime.Add(-adjustment);
-        var adjustedStart = startDateTime;
-
-        if (adjustedStart >= adjustedEnd)
-        {
-            var originalDuration = endDateTime - startDateTime;
-            adjustedStart = adjustedEnd.Add(-originalDuration);
+            throw new ArgumentException($"{nameof(AlpacaBrokerage)}.{nameof(ChangeIntoTimeIntervalInHistoricalRequest)}: Invalid time range: SIP's 15-minute delay may cause end time to fall before start, especially across trading days. Adjust accordingly.");
         }
 
-        return (adjustedStart, adjustedEnd);
+        return historicalRequest switch
+        {
+            HistoricalBarsRequest hbr => new HistoricalBarsRequest(hbr.Symbols, start, end, hbr.TimeFrame),
+            HistoricalQuotesRequest hqr => new HistoricalQuotesRequest(hqr.Symbols, start, end),
+            HistoricalOptionTradesRequest hor => new HistoricalOptionTradesRequest(hor.Symbols, start, end),
+            HistoricalOptionBarsRequest hobr => new HistoricalOptionBarsRequest(hobr.Symbols, start, end, hobr.TimeFrame),
+            _ => throw new NotImplementedException($"{nameof(AlpacaBrokerage)}.{nameof(ChangeIntoTimeIntervalInHistoricalRequest)}: The historical request type '{historicalRequest.GetType().FullName}' is not implemented."),
+        };
     }
 }

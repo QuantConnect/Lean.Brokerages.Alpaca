@@ -41,7 +41,6 @@ using QuantConnect.Brokerages.CrossZero;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("QuantConnect.Brokerages.Alpaca.Tests")]
 namespace QuantConnect.Brokerages.Alpaca
 {
     [BrokerageFactory(typeof(AlpacaBrokerageFactory))]
