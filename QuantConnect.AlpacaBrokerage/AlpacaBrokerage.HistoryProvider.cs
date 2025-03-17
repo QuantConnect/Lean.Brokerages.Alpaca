@@ -29,6 +29,12 @@ namespace QuantConnect.Brokerages.Alpaca;
 public partial class AlpacaBrokerage
 {
     /// <summary>
+    /// Indicates whether querying recent SIP (Securities Information Processor) data  
+    /// is restricted due to subscription limitations.
+    /// </summary>
+    private bool _isSipDataRestricted;
+
+    /// <summary>
     /// Flag to ensure the warning message of <see cref="SecurityType.Equity"/> symbol for unsupported <see cref="TickType.Trade"/>
     /// <seealso cref="Resolution.Tick"/> and <seealso cref="Resolution.Second"/> is only logged once.
     /// </summary>

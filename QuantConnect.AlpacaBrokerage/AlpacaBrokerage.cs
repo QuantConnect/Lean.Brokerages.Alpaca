@@ -39,7 +39,6 @@ using System.Threading.Tasks;
 using QuantConnect.Configuration;
 using QuantConnect.Brokerages.CrossZero;
 using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
 
 namespace QuantConnect.Brokerages.Alpaca
 {
@@ -70,12 +69,6 @@ namespace QuantConnect.Brokerages.Alpaca
 
         private bool _isInitialized;
         private bool _connected;
-
-        /// <summary>
-        /// Indicates whether querying recent SIP (Securities Information Processor) data  
-        /// is restricted due to subscription limitations.
-        /// </summary>
-        private bool _isSipDataRestricted;
 
         /// <summary>
         /// Returns true if we're currently connected to the broker
