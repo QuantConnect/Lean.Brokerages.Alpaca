@@ -81,11 +81,6 @@ public partial class AlpacaBrokerage
 
         var brokerageSymbol = _symbolMapper.GetBrokerageSymbol(request.Symbol);
 
-        if (request.Symbol.SecurityType != SecurityType.Crypto && _isSipDataRestricted)
-        {
-            request = new HistoryRequest(request, request.Symbol, request.StartTimeUtc, request.EndTimeUtc.AddMinutes(-15));
-        }
-
         if (request.StartTimeUtc >= request.EndTimeUtc)
         {
             if (!_invalidStartTimeWarningLogged)
@@ -239,7 +234,7 @@ public partial class AlpacaBrokerage
     private IEnumerable<Tick> GetGenericHistoricalQuoteTick<T>(HistoryRequest leanRequest, string brokerageSymbol, IHistoricalQuotesClient<T> client, T alpacaRequest)
         where T : IHistoricalRequest<T, IQuote>
     {
-        foreach (var response in CreatePaginationRequest(alpacaRequest, req => client.GetHistoricalQuotesAsync(alpacaRequest)))
+        foreach (var response in CreatePaginationRequest(alpacaRequest, req => client.GetHistoricalQuotesAsync(req)))
         {
             foreach (var quote in response.Items[brokerageSymbol])
             {
@@ -257,7 +252,7 @@ public partial class AlpacaBrokerage
     private IEnumerable<Tick> GetGenericHistoricalTradeTick<T>(HistoryRequest leanRequest, string brokerageSymbol, IHistoricalTradesClient<T> client, T alpacaRequest)
         where T : IHistoricalRequest<T, ITrade>
     {
-        foreach (var response in CreatePaginationRequest(alpacaRequest, req => client.GetHistoricalTradesAsync(alpacaRequest)))
+        foreach (var response in CreatePaginationRequest(alpacaRequest, req => client.GetHistoricalTradesAsync(req)))
         {
             foreach (var trade in response.Items[brokerageSymbol])
             {
@@ -287,29 +282,42 @@ public partial class AlpacaBrokerage
     }
 
     /// <summary>
-    /// Creates a pagination request for a given request object, using a callback function
-    /// to asynchronously fetch paginated results until all pages are retrieved.
+    /// Creates a pagination request for historical data based on the given request and callback function.
     /// </summary>
-    /// <typeparam name="T">The type of request object that implements <see cref="IHistoricalRequest"/>.</typeparam>
-    /// <typeparam name="U">The type of elements contained in each page of the response implementing <see cref="IMultiPage{U}"/>.</typeparam>
-    /// <param name="request">The request object specifying the pagination parameters.</param>
-    /// <param name="callback">The asynchronous function callback that fetches a page of results.</param>
-    /// <param name="paginationSize">The maximum number of items per page (default is 10,000).</param>
-    /// <returns>An enumerable sequence of paginated responses, each implementing <see cref="IMultiPage{U}"/>.</returns>
-    /// <remarks>
-    /// This method iterates over pages of results until there are no more pages to retrieve,
-    /// using the <paramref name="callback"/> function to fetch each page asynchronously.
-    /// It assumes that the <paramref name="request"/> object has pagination settings configured,
-    /// and it updates the <paramref name="request"/> object with the next page token after each retrieval.
-    /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="request"/> or <paramref name="callback"/> is null.</exception>
+    /// <typeparam name="T">The type of the historical request (must implement IHistoricalRequest).</typeparam>
+    /// <typeparam name="U">The type of the data being returned in the paginated response.</typeparam>
+    /// <param name="request">The request object that contains the pagination parameters.</param>
+    /// <param name="callback">A callback function that performs the API request and returns a paginated result.</param>
+    /// <param name="paginationSize">The size of each page of results. Defaults to 10,000.</param>
+    /// <returns>An enumerable of paginated responses, yielding one page at a time.</returns>
     private IEnumerable<IMultiPage<U>> CreatePaginationRequest<T, U>(T request, Func<T, Task<IMultiPage<U>>> callback, uint paginationSize = 10_000)
-        where T : IHistoricalRequest
+    where T : IHistoricalRequest
     {
-        request.Pagination.Size = paginationSize;
+        var response = default(IMultiPage<U>);
+        var repeatBySipException = default(bool);
         do
         {
-            var response = callback(request).SynchronouslyAwaitTaskResult();
+            repeatBySipException = false;
+            // If the token is null, it indicates the first request; otherwise, it's a subsequent page.
+            if (_isSipDataRestricted && string.IsNullOrEmpty(request.Pagination.Token))
+            {
+                request = (T)ChangeIntoTimeIntervalInHistoricalRequest(request);
+            }
+
+            try
+            {
+                request.Pagination.Size ??= paginationSize;
+                response = callback(request).SynchronouslyAwaitTaskResult();
+            }
+            catch (RestClientErrorException ex) when (ex.Message.Equals("subscription does not permit querying recent SIP data", StringComparison.InvariantCultureIgnoreCase))
+            {
+                repeatBySipException = true;
+                _isSipDataRestricted = true;
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "SIPDataRestriction",
+                    "Real-time SIP data is restricted for free subscriptions. Historical data will have a 15-minute delay."));
+                continue;
+            }
+
             if (response.Items.Count == 0)
             {
                 continue;
@@ -317,6 +325,59 @@ public partial class AlpacaBrokerage
 
             yield return response;
             request.Pagination.Token = response.NextPageToken;
-        } while (!string.IsNullOrEmpty(request.Pagination.Token));
+        } while (!string.IsNullOrEmpty(request.Pagination.Token) || repeatBySipException);
+    }
+
+    /// <summary>
+    /// Adjusts the time interval in a historical request to account for restricted SIP data access.
+    /// </summary>
+    /// <param name="historicalRequest">The original historical request object.</param>
+    /// <returns>A new historical request with the adjusted time range.</returns>
+    /// <exception cref="NotImplementedException">Thrown if the request type is not handled.</exception>
+    private IHistoricalRequest ChangeIntoTimeIntervalInHistoricalRequest(IHistoricalRequest historicalRequest)
+    {
+        switch (historicalRequest)
+        {
+            case HistoricalBarsRequest hbr:
+                var (start, end) = GetAdjustedDateRange(hbr.TimeInterval.From.Value, hbr.TimeInterval.Into.Value);
+                return new HistoricalBarsRequest(hbr.Symbols, start, end, hbr.TimeFrame);
+            case HistoricalQuotesRequest hqr:
+                (start, end) = GetAdjustedDateRange(hqr.TimeInterval.From.Value, hqr.TimeInterval.Into.Value);
+                return new HistoricalQuotesRequest(hqr.Symbols, start, end);
+            case HistoricalOptionTradesRequest hor:
+                (start, end) = GetAdjustedDateRange(hor.TimeInterval.From.Value, hor.TimeInterval.Into.Value);
+                return new HistoricalOptionTradesRequest(hor.Symbols, start, end);
+            case HistoricalOptionBarsRequest hobr:
+                (start, end) = GetAdjustedDateRange(hobr.TimeInterval.From.Value, hobr.TimeInterval.Into.Value);
+                return new HistoricalOptionBarsRequest(hobr.Symbols, start, end, hobr.TimeFrame);
+            default:
+                throw new NotImplementedException($"The historical request type '{historicalRequest.GetType().FullName}' is not implemented.");
+        }
+    }
+
+    /// <summary>
+    /// Adjusts the date range based on optional time adjustments (e.g., subtracting minutes) for specific use cases.
+    /// </summary>
+    /// <param name="startDateTime">The original start date and time.</param>
+    /// <param name="endDateTime">The original end date and time.</param>
+    /// <param name="adjustMinutes">The number of minutes to adjust the end time by. Defaults to -15 if not provided.</param>
+    /// <returns>A tuple containing the adjusted start and end date and time.</returns>
+    internal static (DateTime start, DateTime end) GetAdjustedDateRange(DateTime startDateTime, DateTime endDateTime, int adjustMinutes = 15)
+    {
+        var utcNow = DateTime.UtcNow;
+        var difference = utcNow - endDateTime;
+
+        var adjustment = TimeSpan.FromMinutes(adjustMinutes) - difference;
+
+        var adjustedEnd = endDateTime.Add(-adjustment);
+        var adjustedStart = startDateTime;
+
+        if (adjustedStart >= adjustedEnd)
+        {
+            var originalDuration = endDateTime - startDateTime;
+            adjustedStart = adjustedEnd.Add(-originalDuration);
+        }
+
+        return (adjustedStart, adjustedEnd);
     }
 }

@@ -47,6 +47,31 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             Assert.IsNotNull(brokerage);
         }
 
+        [TestCase(-5, -1, false)]
+        [TestCase(-20, -15, true)]
+        [TestCase(-20, -10, false)]
+        public void GetAdjustedDateRange(int startDiminisher, int endDiminisher, bool isShouldEqual)
+        {
+            var adjustMinuteFromUtcNow = 15;
+            var utcNow = DateTime.UtcNow;
+            var startDateTime = utcNow.AddMinutes(startDiminisher);
+            var endDateTime = utcNow.AddMinutes(endDiminisher);
+
+            var (adjustStart, adjustEnd) = AlpacaBrokerage.GetAdjustedDateRange(startDateTime, endDateTime, adjustMinuteFromUtcNow);
+
+            if (isShouldEqual)
+            {
+                Assert.AreEqual(startDateTime.TimeOfDay, adjustStart.TimeOfDay);
+                Assert.IsTrue(Math.Abs((endDateTime - adjustEnd).TotalSeconds) < 1);                
+            }
+            else
+            {
+                Assert.Less(adjustEnd, endDateTime);
+                Assert.Less(adjustEnd, utcNow);
+                Assert.Less(utcNow.AddMinutes(-adjustMinuteFromUtcNow), adjustEnd);
+            }
+        }
+
         private static IEnumerable<Symbol> QuoteSymbolParameters
         {
             get
