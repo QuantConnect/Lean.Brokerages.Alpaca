@@ -56,6 +56,11 @@ public partial class AlpacaBrokerage
     private bool _unsupportedSecurityTypeWarningLogged;
 
     /// <summary>
+    /// Indicates whether a warning for an invalid start time has been logged, where the start time is greater than or equal to the end time in UTC.
+    /// </summary>
+    private volatile bool _invalidStartTimeWarningLogged;
+
+    /// <summary>
     /// Gets the history for the requested symbols
     /// <see cref="IBrokerage.GetHistory(HistoryRequest)"/>
     /// </summary>
@@ -75,6 +80,22 @@ public partial class AlpacaBrokerage
         }
 
         var brokerageSymbol = _symbolMapper.GetBrokerageSymbol(request.Symbol);
+
+        if (request.Symbol.SecurityType != SecurityType.Crypto && _isSipDataRestricted)
+        {
+            request = new HistoryRequest(request, request.Symbol, request.StartTimeUtc, request.EndTimeUtc.AddMinutes(-15));
+        }
+
+        if (request.StartTimeUtc >= request.EndTimeUtc)
+        {
+            if (!_invalidStartTimeWarningLogged)
+            {
+                _invalidStartTimeWarningLogged = true;
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "InvalidStarTimeUtc",
+                    "The history request's start time must be earlier than the end time. No data will be returned."));
+            }
+            return null;
+        }
 
         IEnumerable<BaseData> data;
         switch (request.Symbol.SecurityType)

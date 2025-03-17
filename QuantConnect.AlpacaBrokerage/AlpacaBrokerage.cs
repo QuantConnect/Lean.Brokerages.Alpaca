@@ -71,6 +71,12 @@ namespace QuantConnect.Brokerages.Alpaca
         private bool _connected;
 
         /// <summary>
+        /// Indicates whether querying recent SIP (Securities Information Processor) data  
+        /// is restricted due to subscription limitations.
+        /// </summary>
+        private bool _isSipDataRestricted;
+
+        /// <summary>
         /// Returns true if we're currently connected to the broker
         /// </summary>
         public override bool IsConnected => _connected;
@@ -160,7 +166,7 @@ namespace QuantConnect.Brokerages.Alpaca
             _symbolMapper = new AlpacaBrokerageSymbolMapper(_tradingClient);
 
             // historical equity
-            _equityHistoricalDataClient = EnvironmentExtensions.GetAlpacaDataClient(environment, tradingSecretKey ?? secretKey);
+            _equityHistoricalDataClient = GetAlpacaDataClient(environment, tradingSecretKey ?? secretKey);
 
             // historical options
             _optionsHistoricalDataClient = EnvironmentExtensions.GetAlpacaOptionsDataClient(environment, tradingSecretKey ?? secretKey);
@@ -729,6 +735,30 @@ namespace QuantConnect.Brokerages.Alpaca
             return _symbolMapper.SupportedSecurityType.Contains(symbol.SecurityType);
         }
 
+        /// <summary>
+        /// Creates and returns an instance of <see cref="IAlpacaDataClient"/> configured for the specified environment and security key.
+        /// Attempts to query recent SIP data to determine if the subscription permits access.
+        /// If access is restricted, sets <see cref="_isSipDataRestricted"/> to <c>true</c>.
+        /// </summary>
+        /// <param name="environment">The environment configuration for the Alpaca data client.</param>
+        /// <param name="securityKey">The security key used for authentication.</param>
+        /// <returns>An initialized instance of <see cref="IAlpacaDataClient"/>.</returns>
+        private IAlpacaDataClient GetAlpacaDataClient(IEnvironment environment, SecurityKey securityKey)
+        {
+            var alpacaDataClient = EnvironmentExtensions.GetAlpacaDataClient(environment, securityKey);
+
+            try
+            {
+                alpacaDataClient.GetHistoricalTradesAsync(new("AAPL", DateTime.UtcNow.AddMinutes(-15), DateTime.UtcNow)).SynchronouslyAwaitTask();
+            }
+            catch (RestClientErrorException ex) when (ex.Message.Equals("subscription does not permit querying recent SIP data", StringComparison.InvariantCultureIgnoreCase))
+            {
+                _isSipDataRestricted = true;
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "SIPDataRestriction", "Real-time SIP data is restricted for free subscriptions. Historical data will have a 15-minute delay."));
+            }
+
+            return alpacaDataClient;
+        }
 
         private class SubscriptionEntry
         {

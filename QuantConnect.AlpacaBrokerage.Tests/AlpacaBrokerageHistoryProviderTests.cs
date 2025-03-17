@@ -124,6 +124,38 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             Assert.IsTrue(histories.All(x => x is not Data.Market.Tick tick || tick.TickType == tickType));
         }
 
+        [TestCase(SecurityType.Equity, Resolution.Tick, TickType.Quote)]
+        [TestCase(SecurityType.Equity, Resolution.Daily, TickType.Quote)]
+        [TestCase(SecurityType.Option, Resolution.Hour, TickType.Trade)]
+        [TestCase(SecurityType.Option, Resolution.Daily, TickType.Trade)]
+        [TestCase(SecurityType.Equity, Resolution.Daily, TickType.Trade)]
+        [TestCase(SecurityType.Crypto, Resolution.Daily, TickType.Trade)]
+        public void ValidateMaxAvailableHistoricalDataInFreeSubscription(SecurityType securityType, Resolution resolution, TickType tickType)
+        {
+            var symbol = securityType switch
+            {
+                SecurityType.Equity => Symbols.AAPL,
+                SecurityType.Crypto => Symbols.BTCUSD,
+                SecurityType.Option => Symbol.CreateOption(Symbols.AAPL, Market.USA, SecurityType.Option.DefaultOptionStyle(), OptionRight.Call, 212.5m, new DateTime(2025, 03, 21)),
+                _ => throw new NotImplementedException("")
+            };
+            var utcNow = DateTime.UtcNow;
+            var startDate = utcNow.AddDays(-1);
+            var endDate = utcNow;
+
+            var historyRequest = CreateHistoryRequest(symbol, resolution, tickType, startDate, endDate);
+
+            Logging.Log.Trace($"[ValidateMaxAvailableHistoricalDataInFreeSubscription] Symbol: {symbol}, Resolution: {resolution}, TickType: {tickType}, " +
+                  $"UtcNow: {utcNow:O}, StartDate: {startDate:O}, EndDate: {endDate:O}");
+
+            var histories = _alpacaBrokerage.GetHistory(historyRequest).ToList();
+            Assert.Greater(histories.Count, 0);
+
+            var resolutionInTimeSpan = resolution.ToTimeSpan();
+            Assert.IsTrue(histories.All(x => x.EndTime - x.Time == resolutionInTimeSpan));
+
+        }
+
         internal static HistoryRequest CreateHistoryRequest(Symbol symbol, Resolution resolution, TickType tickType, DateTime startDateTime,
             DateTime endDateTime, SecurityExchangeHours exchangeHours = null, DateTimeZone dataTimeZone = null)
         {
