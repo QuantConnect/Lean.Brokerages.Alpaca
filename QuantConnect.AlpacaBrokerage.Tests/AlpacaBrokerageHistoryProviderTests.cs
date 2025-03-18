@@ -126,7 +126,9 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
 
         [TestCase(SecurityType.Equity, Resolution.Tick, TickType.Quote)]
         [TestCase(SecurityType.Equity, Resolution.Daily, TickType.Quote)]
+        [TestCase(SecurityType.Equity, Resolution.Second, TickType.Quote)]
         [TestCase(SecurityType.Option, Resolution.Hour, TickType.Trade)]
+        [TestCase(SecurityType.Option, Resolution.Second, TickType.Trade)]
         [TestCase(SecurityType.Option, Resolution.Daily, TickType.Trade)]
         [TestCase(SecurityType.Equity, Resolution.Daily, TickType.Trade)]
         [TestCase(SecurityType.Crypto, Resolution.Daily, TickType.Trade)]
@@ -154,6 +156,47 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             var resolutionInTimeSpan = resolution.ToTimeSpan();
             Assert.IsTrue(histories.All(x => x.EndTime - x.Time == resolutionInTimeSpan));
 
+            if (resolution < Resolution.Hour)
+            {
+                var lastBaseDataTimeUtc = histories.Last().Time.ConvertToUtc(TimeZones.NewYork);
+                var utcMinusSipAllowed = utcNow.AddMinutes(-15);
+                var differenceBetweenLastBaseDataAndUtcRequested = Math.Abs((lastBaseDataTimeUtc - utcMinusSipAllowed).TotalSeconds);
+
+                switch (securityType)
+                {
+                    case SecurityType.Equity:
+                        Assert.IsTrue(differenceBetweenLastBaseDataAndUtcRequested < 1);
+                        break;
+                    case SecurityType.Option: // less volatility, acceptable value 30 seconds
+                        Assert.IsTrue(differenceBetweenLastBaseDataAndUtcRequested <= 30);
+                        break;
+                }
+            }
+        }
+
+        [TestCase(SecurityType.Equity, Resolution.Tick, TickType.Quote)]
+        [TestCase(SecurityType.Equity, Resolution.Second, TickType.Quote)]
+        [TestCase(SecurityType.Option, Resolution.Second, TickType.Trade)]
+        public void ValidateLast10minutesAvailableHistoricalDataInFreeSubscription(SecurityType securityType, Resolution resolution, TickType tickType)
+        {
+            var symbol = securityType switch
+            {
+                SecurityType.Equity => Symbols.AAPL,
+                SecurityType.Option => Symbol.CreateOption(Symbols.AAPL, Market.USA, SecurityType.Option.DefaultOptionStyle(), OptionRight.Call, 212.5m, new DateTime(2025, 03, 21)),
+                _ => throw new NotImplementedException("")
+            };
+
+            var utcNow = DateTime.UtcNow;
+            var startDate = utcNow.AddMinutes(-10);
+            var endDate = utcNow;
+
+            var historyRequest = CreateHistoryRequest(symbol, resolution, tickType, startDate, endDate);
+
+            Logging.Log.Trace($"[ValidateMaxAvailableHistoricalDataInFreeSubscription] Symbol: {symbol}, Resolution: {resolution}, TickType: {tickType}, " +
+                  $"UtcNow: {utcNow:O}, StartDate: {startDate:O}, EndDate: {endDate:O}");
+
+            var histories = _alpacaBrokerage.GetHistory(historyRequest).ToList();
+            Assert.AreEqual(histories.Count, 0);
         }
 
         internal static HistoryRequest CreateHistoryRequest(Symbol symbol, Resolution resolution, TickType tickType, DateTime startDateTime,
