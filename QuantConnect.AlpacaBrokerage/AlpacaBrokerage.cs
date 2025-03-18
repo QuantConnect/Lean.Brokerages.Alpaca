@@ -472,7 +472,7 @@ namespace QuantConnect.Brokerages.Alpaca
             }
             catch (Exception ex)
             {
-                Log.Error(ex, $"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}.TradeUpdate: {obj}");
+                Log.Error(ex, $"TradeUpdate: {obj}");
                 throw;
             }
         }
