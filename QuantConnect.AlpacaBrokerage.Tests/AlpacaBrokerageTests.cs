@@ -139,6 +139,43 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             base.LongFromZero(parameters);
         }
 
+        [TestCase(100)]
+        public void PlaceLongThenShortMarketOrderMultipleTime(int amountOfTrade)
+        {
+            var GLD = Symbol.Create("GLD", SecurityType.Equity, Market.USA);
+            var parameters = new MarketOrderTestParameters(GLD);
+            var resetEvent = new ManualResetEvent(false);
+
+            Brokerage.OrdersStatusChanged += (object _, List<OrderEvent> orderEvents) =>
+            {
+                var orderEvent = orderEvents[0];
+
+                if (orderEvent.Status == OrderStatus.Filled)
+                {
+                    resetEvent.Set();
+                }
+            };
+
+            var switcher = default(bool);
+            do
+            {
+                if (!switcher)
+                {
+                    switcher = true;
+                    PlaceOrderWaitForStatus(parameters.CreateLongOrder(100), parameters.ExpectedStatus);
+                }
+                else
+                {
+                    switcher = false;
+                    PlaceOrderWaitForStatus(parameters.CreateShortMarketOrder(100), parameters.ExpectedStatus);
+                }
+
+                resetEvent.WaitOne(TimeSpan.FromSeconds(60));
+                resetEvent.Reset();
+
+            } while (amountOfTrade-- > 0);
+        }
+
         [Test, TestCaseSource(nameof(EquityOrderParameters))]
         public override void CloseFromLong(OrderTestParameters parameters)
         {
@@ -272,7 +309,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 }
             };
 
-            
+
 
             if (marketIsOpen)
             {

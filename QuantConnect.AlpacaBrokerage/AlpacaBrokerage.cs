@@ -426,6 +426,7 @@ namespace QuantConnect.Brokerages.Alpaca
                 case TradeEvent.PartialFill:
                     break;
                 default:
+                    Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}.Event: {obj.Event}. TradeUpdate: {obj}");
                     return;
             }
 
