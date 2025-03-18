@@ -35,6 +35,12 @@ public partial class AlpacaBrokerage
     private bool _isSipDataRestricted;
 
     /// <summary>
+    /// Indicates whether OPRA (Options Price Reporting Authority) data is restricted  
+    /// due to the OPRA agreement not being signed, leading to a 15-minute delay.
+    /// </summary>
+    private bool _isOpraDataRestricted;
+
+    /// <summary>
     /// Flag to ensure the warning message of <see cref="SecurityType.Equity"/> symbol for unsupported <see cref="TickType.Trade"/>
     /// <seealso cref="Resolution.Tick"/> and <seealso cref="Resolution.Second"/> is only logged once.
     /// </summary>
@@ -294,12 +300,12 @@ public partial class AlpacaBrokerage
     where T : IHistoricalRequest
     {
         var response = default(IMultiPage<U>);
-        var repeatBySipException = default(bool);
+        var repeatByRestrictException = default(bool);
         do
         {
-            repeatBySipException = false;
+            repeatByRestrictException = false;
             // If the token is null, it indicates the first request; otherwise, it's a subsequent page.
-            if (_isSipDataRestricted && !IsCryptoRequest(request) && string.IsNullOrEmpty(request.Pagination.Token))
+            if ((_isSipDataRestricted || _isOpraDataRestricted) && !IsCryptoRequest(request) && string.IsNullOrEmpty(request.Pagination.Token))
             {
                 try
                 {
@@ -316,14 +322,10 @@ public partial class AlpacaBrokerage
                 request.Pagination.Size ??= paginationSize;
                 response = callback(request).SynchronouslyAwaitTaskResult();
             }
-            catch (RestClientErrorException ex)
-                when (ex.Message.Equals("subscription does not permit querying recent SIP data", StringComparison.InvariantCultureIgnoreCase) // SecurityType.Equity
-                || ex.Message.Equals("OPRA agreement is not signed", StringComparison.InvariantCultureIgnoreCase)) // SecurityType.Option
+            catch (RestClientErrorException ex) when (HandleHistoricalFreeRestrictionException(ex.Message, out var messageType, out var messageText))
             {
-                repeatBySipException = true;
-                _isSipDataRestricted = true;
-                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "DataRestriction",
-                    $"{ex.Message} for free subscriptions. Historical data will have a 15-minute delay."));
+                repeatByRestrictException = true;
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, messageType, messageText));
                 continue;
             }
 
@@ -334,7 +336,33 @@ public partial class AlpacaBrokerage
 
             yield return response;
             request.Pagination.Token = response.NextPageToken;
-        } while (!string.IsNullOrEmpty(request.Pagination.Token) || repeatBySipException);
+        } while (!string.IsNullOrEmpty(request.Pagination.Token) || repeatByRestrictException);
+    }
+
+    /// <summary>
+    /// Handles specific SIP restriction exceptions and returns appropriate warning messages.
+    /// </summary>
+    private bool HandleHistoricalFreeRestrictionException(string message, out string messageType, out string messageText)
+    {
+        switch (message.ToLowerInvariant())
+        {
+            case "opra agreement is not signed":
+                _isOpraDataRestricted = true;
+                messageType = "OPRADataRestriction";
+                messageText = "OPRA agreement is not signed for free subscriptions. Historical data will have a 15-minute delay.";
+                return true;
+
+            case "subscription does not permit querying recent sip data":
+                _isSipDataRestricted = true;
+                messageType = "SIPDataRestriction";
+                messageText = "Real-time SIP data is restricted for free subscriptions. Historical data will have a 15-minute delay.";
+                return true;
+
+            default:
+                messageType = null;
+                messageText = null;
+                return false;
+        }
     }
 
     /// <summary>
@@ -364,10 +392,11 @@ public partial class AlpacaBrokerage
 
         return historicalRequest switch
         {
-            HistoricalBarsRequest hbr => new HistoricalBarsRequest(hbr.Symbols, start, end, hbr.TimeFrame),
-            HistoricalQuotesRequest hqr => new HistoricalQuotesRequest(hqr.Symbols, start, end),
-            HistoricalOptionTradesRequest hor => new HistoricalOptionTradesRequest(hor.Symbols, start, end),
-            HistoricalOptionBarsRequest hobr => new HistoricalOptionBarsRequest(hobr.Symbols, start, end, hobr.TimeFrame),
+            HistoricalBarsRequest hbr when _isSipDataRestricted => new HistoricalBarsRequest(hbr.Symbols, start, end, hbr.TimeFrame),
+            HistoricalQuotesRequest hqr when _isSipDataRestricted => new HistoricalQuotesRequest(hqr.Symbols, start, end),
+            HistoricalOptionTradesRequest hor when _isOpraDataRestricted => new HistoricalOptionTradesRequest(hor.Symbols, start, end),
+            HistoricalOptionBarsRequest hobr when _isOpraDataRestricted => new HistoricalOptionBarsRequest(hobr.Symbols, start, end, hobr.TimeFrame),
+            _ when _isOpraDataRestricted || _isSipDataRestricted => historicalRequest,
             _ => throw new NotImplementedException($"{nameof(AlpacaBrokerage)}.{nameof(ChangeIntoTimeIntervalInHistoricalRequest)}: The historical request type '{historicalRequest.GetType().FullName}' is not implemented."),
         };
     }

@@ -138,7 +138,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             {
                 SecurityType.Equity => Symbols.AAPL,
                 SecurityType.Crypto => Symbols.BTCUSD,
-                SecurityType.Option => Symbol.CreateOption(Symbols.AAPL, Market.USA, SecurityType.Option.DefaultOptionStyle(), OptionRight.Call, 212.5m, new DateTime(2025, 03, 21)),
+                SecurityType.Option => Symbol.CreateOption(Symbols.AAPL, Market.USA, SecurityType.Option.DefaultOptionStyle(), OptionRight.Call, 215m, new DateTime(2025, 03, 21)),
                 _ => throw new NotImplementedException("")
             };
             var utcNow = DateTime.UtcNow;
@@ -168,7 +168,8 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                         Assert.IsTrue(differenceBetweenLastBaseDataAndUtcRequested < 1);
                         break;
                     case SecurityType.Option: // less volatility, acceptable value 30 seconds
-                        Assert.IsTrue(differenceBetweenLastBaseDataAndUtcRequested <= 30);
+                        Assert.IsTrue(differenceBetweenLastBaseDataAndUtcRequested <= 30,
+                            $"Difference Between Last Base Data and Utc Requested: {differenceBetweenLastBaseDataAndUtcRequested} seconds");
                         break;
                 }
             }
@@ -197,6 +198,43 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
 
             var histories = _alpacaBrokerage.GetHistory(historyRequest).ToList();
             Assert.AreEqual(histories.Count, 0);
+        }
+
+        [Test]
+        public void ValidateAmountBrokerageMessagesInHistoricalDataRequests()
+        {
+            var actualExceptionMessages = new List<string>();
+            _alpacaBrokerage.Message += (object _, BrokerageMessageEvent messageEvent) =>
+            {
+                actualExceptionMessages.Add(messageEvent.Message);
+            };
+
+            var AAPL = Symbols.AAPL;
+            var AAPL_Option = Symbol.CreateOption(Symbols.AAPL, Market.USA, SecurityType.Option.DefaultOptionStyle(), OptionRight.Call, 212.5m, new DateTime(2025, 03, 21));
+
+            var utcNow = DateTime.UtcNow;
+            var startDate = utcNow.AddMinutes(-20);
+            var endDate = utcNow;
+
+            var historyRequests = new[]
+            {
+                CreateHistoryRequest(AAPL, Resolution.Second, TickType.Quote, startDate, endDate),
+                CreateHistoryRequest(AAPL_Option, Resolution.Second, TickType.Trade, startDate, endDate)
+            };
+
+            var historyRequestCounter = default(int);
+            foreach (var historyRequest in historyRequests.Concat(historyRequests))
+            {
+                var histories = _alpacaBrokerage.GetHistory(historyRequest).ToList();
+                Assert.Greater(histories.Count, 0);
+                historyRequestCounter++;
+            }
+
+            Assert.AreEqual(4, historyRequestCounter);
+            Assert.AreEqual(2, actualExceptionMessages.Count);
+            Assert.That(actualExceptionMessages, Has.Some.Matches<string>(msg =>
+                msg.Contains("OPRA agreement is not signed for free subscriptions.")
+                || msg.Contains("Real-time SIP data is restricted for free subscriptions.")));
         }
 
         internal static HistoryRequest CreateHistoryRequest(Symbol symbol, Resolution resolution, TickType tickType, DateTime startDateTime,
