@@ -425,6 +425,11 @@ namespace QuantConnect.Brokerages.Alpaca
                 case TradeEvent.Fill:
                 case TradeEvent.PartialFill:
                     break;
+                case TradeEvent.Accepted:
+                case TradeEvent.PendingReplace:
+                case TradeEvent.PendingCancel:
+                    // Skip this event to avoid flooding logs
+                    return;
                 default:
                     Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}.Event: {obj.Event}. TradeUpdate: {obj}");
                     return;
