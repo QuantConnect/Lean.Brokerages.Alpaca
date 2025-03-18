@@ -394,78 +394,86 @@ namespace QuantConnect.Brokerages.Alpaca
 
         private void HandleTradeUpdate(ITradeUpdate obj)
         {
-            if (Log.DebuggingEnabled)
+            try
             {
-                Log.Debug($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}: {obj}");
-            }
+                if (Log.DebuggingEnabled)
+                {
+                    Log.Debug($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}: {obj}");
+                }
 
-            var brokerageOrderId = obj.Order.OrderId.ToString();
-            var newLeanOrderStatus = GetOrderStatus(obj.Event);
-            if (!TryGetOrRemoveCrossZeroOrder(brokerageOrderId, newLeanOrderStatus, out var leanOrder))
-            {
-                leanOrder = _orderProvider.GetOrdersByBrokerageId(brokerageOrderId)?.SingleOrDefault();
-            }
-            if (leanOrder == null)
-            {
-                Log.Error($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}: order id not found: {obj.Order.OrderId}");
-                return;
-            }
-
-            switch (obj.Event)
-            {
-                case TradeEvent.New:
-                case TradeEvent.PendingNew:
-                    // we don't send anything for this event
+                var brokerageOrderId = obj.Order.OrderId.ToString();
+                var newLeanOrderStatus = GetOrderStatus(obj.Event);
+                if (!TryGetOrRemoveCrossZeroOrder(brokerageOrderId, newLeanOrderStatus, out var leanOrder))
+                {
+                    leanOrder = _orderProvider.GetOrdersByBrokerageId(brokerageOrderId)?.SingleOrDefault();
+                }
+                if (leanOrder == null)
+                {
+                    Log.Error($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}: order id not found: {obj.Order.OrderId}");
                     return;
-                case TradeEvent.Rejected:
-                case TradeEvent.Canceled:
-                case TradeEvent.Replaced:
-                    OnOrderEvent(new OrderEvent(leanOrder, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event") { Status = newLeanOrderStatus });
-                    return;
-                case TradeEvent.Fill:
-                case TradeEvent.PartialFill:
-                    break;
-                case TradeEvent.Accepted:
-                case TradeEvent.PendingReplace:
-                case TradeEvent.PendingCancel:
-                    // Skip this event to avoid flooding logs
-                    return;
-                default:
-                    Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}.Event: {obj.Event}. TradeUpdate: {obj}");
-                    return;
+                }
+
+                switch (obj.Event)
+                {
+                    case TradeEvent.New:
+                    case TradeEvent.PendingNew:
+                        // we don't send anything for this event
+                        return;
+                    case TradeEvent.Rejected:
+                    case TradeEvent.Canceled:
+                    case TradeEvent.Replaced:
+                        OnOrderEvent(new OrderEvent(leanOrder, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event") { Status = newLeanOrderStatus });
+                        return;
+                    case TradeEvent.Fill:
+                    case TradeEvent.PartialFill:
+                        break;
+                    case TradeEvent.Accepted:
+                    case TradeEvent.PendingReplace:
+                    case TradeEvent.PendingCancel:
+                        // Skip this event to avoid flooding logs 
+                        return;
+                    default:
+                        Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}.Event: {obj.Event}. TradeUpdate: {obj}");
+                        return;
+                }
+
+                var leanSymbol = _symbolMapper.GetLeanSymbol(obj.Order.AssetClass, obj.Order.Symbol);
+
+                // alpaca sends the accumulative filled quantity but we need the partial amount for our event
+                _orderIdToFillQuantity.TryGetValue(leanOrder.Id, out var previouslyFilledAmount);
+                var accumulativeFilledQuantity = _orderIdToFillQuantity[leanOrder.Id] =
+                    obj.Order.OrderSide == OrderSide.Buy ? obj.Order.FilledQuantity : decimal.Negate(obj.Order.FilledQuantity);
+
+                if (newLeanOrderStatus.IsClosed())
+                {
+                    // cleanup
+                    _orderIdToFillQuantity.TryRemove(leanOrder.Id, out _);
+                }
+
+                var fee = new OrderFee(new CashAmount(0, Currencies.USD));
+                if (newLeanOrderStatus == Orders.OrderStatus.Filled)
+                {
+                    var security = _securityProvider.GetSecurity(leanOrder.Symbol);
+                    fee = security.FeeModel.GetOrderFee(new OrderFeeParameters(security, leanOrder));
+                }
+
+                var orderEvent = new OrderEvent(leanOrder, obj.TimestampUtc.HasValue ? obj.TimestampUtc.Value : DateTime.UtcNow, fee)
+                {
+                    Status = newLeanOrderStatus,
+                    FillPrice = obj.Price ?? 0m,
+                    FillQuantity = accumulativeFilledQuantity - previouslyFilledAmount,
+                };
+
+                // if we filled the order and have another contingent order waiting, submit it
+                if (!TryHandleRemainingCrossZeroOrder(leanOrder, orderEvent))
+                {
+                    OnOrderEvent(orderEvent);
+                }
             }
-
-            var leanSymbol = _symbolMapper.GetLeanSymbol(obj.Order.AssetClass, obj.Order.Symbol);
-
-            // alpaca sends the accumulative filled quantity but we need the partial amount for our event
-            _orderIdToFillQuantity.TryGetValue(leanOrder.Id, out var previouslyFilledAmount);
-            var accumulativeFilledQuantity = _orderIdToFillQuantity[leanOrder.Id] =
-                obj.Order.OrderSide == OrderSide.Buy ? obj.Order.FilledQuantity : decimal.Negate(obj.Order.FilledQuantity);
-
-            if (newLeanOrderStatus.IsClosed())
+            catch (Exception ex)
             {
-                // cleanup
-                _orderIdToFillQuantity.TryRemove(leanOrder.Id, out _);
-            }
-
-            var fee = new OrderFee(new CashAmount(0, Currencies.USD));
-            if (newLeanOrderStatus == Orders.OrderStatus.Filled)
-            {
-                var security = _securityProvider.GetSecurity(leanOrder.Symbol);
-                fee = security.FeeModel.GetOrderFee(new OrderFeeParameters(security, leanOrder));
-            }
-
-            var orderEvent = new OrderEvent(leanOrder, obj.TimestampUtc.HasValue ? obj.TimestampUtc.Value : DateTime.UtcNow, fee)
-            {
-                Status = newLeanOrderStatus,
-                FillPrice = obj.Price ?? 0m,
-                FillQuantity = accumulativeFilledQuantity - previouslyFilledAmount,
-            };
-
-            // if we filled the order and have another contingent order waiting, submit it
-            if (!TryHandleRemainingCrossZeroOrder(leanOrder, orderEvent))
-            {
-                OnOrderEvent(orderEvent);
+                Log.Error(ex, $"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}.TradeUpdate: {obj}");
+                throw;
             }
         }
 
