@@ -41,12 +41,6 @@ public partial class AlpacaBrokerage
     private bool _unsupportedEquityTradeTickAndSecondResolution;
 
     /// <summary>
-    /// Flag to ensure the warning message for unsupported <see cref="TickType.OpenInterest"/> resolutions
-    /// other than <seealso cref="Resolution.Tick"/> is only logged once.
-    /// </summary>
-    private bool _unsupportedOpenInterestNonTickResolution;
-
-    /// <summary>
     /// Flag to ensure the warning message for unsupported <see cref="SecurityType.Option"/> <seealso cref="TickType"/> is only logged once.
     /// </summary>
     private bool _unsupportedOptionTickType;
