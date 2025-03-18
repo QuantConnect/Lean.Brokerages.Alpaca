@@ -322,12 +322,14 @@ public partial class AlpacaBrokerage
                 request.Pagination.Size ??= paginationSize;
                 response = callback(request).SynchronouslyAwaitTaskResult();
             }
-            catch (RestClientErrorException ex) when (ex.Message.Equals("subscription does not permit querying recent SIP data", StringComparison.InvariantCultureIgnoreCase))
+            catch (RestClientErrorException ex)
+                when (ex.Message.Equals("subscription does not permit querying recent SIP data", StringComparison.InvariantCultureIgnoreCase) // SecurityType.Equity
+                || ex.Message.Equals("OPRA agreement is not signed", StringComparison.InvariantCultureIgnoreCase)) // SecurityType.Option
             {
                 repeatBySipException = true;
                 _isSipDataRestricted = true;
-                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "SIPDataRestriction",
-                    "Real-time SIP data is restricted for free subscriptions. Historical data will have a 15-minute delay."));
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "DataRestriction",
+                    $"{ex.Message} for free subscriptions. Historical data will have a 15-minute delay."));
                 continue;
             }
 
