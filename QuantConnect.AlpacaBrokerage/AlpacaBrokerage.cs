@@ -155,6 +155,7 @@ namespace QuantConnect.Brokerages.Alpaca
             if (_orderProvider != null)
             {
                 _orderStreamingClient.OnTradeUpdate += (message) => _messageHandler.HandleNewMessage(message);
+                WireStreamingClientEvents(_orderStreamingClient);
             }
             _messageHandler = new(HandleTradeUpdate);
             _symbolMapper = new AlpacaBrokerageSymbolMapper(_tradingClient);
@@ -179,18 +180,9 @@ namespace QuantConnect.Brokerages.Alpaca
                 // streaming options
                 _optionsStreamingClient = new AlpacaStreamingClientWrapper(secretKey, SecurityType.Option);
 
-                foreach (var streamingClient in new IStreamingClient[] { _cryptoStreamingClient, _optionsStreamingClient, _equityStreamingClient, _orderStreamingClient })
+                foreach (var streamingClient in new IStreamingClient[] { _cryptoStreamingClient, _optionsStreamingClient, _equityStreamingClient })
                 {
-                    streamingClient.Connected += (obj) => StreamingClient_Connected(streamingClient, obj);
-                    streamingClient.OnWarning += (obj) => StreamingClient_OnWarning(streamingClient, obj);
-                    streamingClient.SocketOpened += () => StreamingClient_SocketOpened(streamingClient);
-                    streamingClient.SocketClosed += () => StreamingClient_SocketClosed(streamingClient);
-                    streamingClient.OnError += (obj) => StreamingClient_OnError(streamingClient, obj);
-
-                    if (streamingClient is AlpacaStreamingClientWrapper wrapper)
-                    {
-                        wrapper.EnviromentFailure += (message) => Log.Trace($"AlpacaBrokerage.Initialize(): {message}");
-                    }
+                    WireStreamingClientEvents(streamingClient);
                 }
 
                 _subscriptionManager = new EventBasedDataQueueHandlerSubscriptionManager();
@@ -205,6 +197,20 @@ namespace QuantConnect.Brokerages.Alpaca
                     Log.Trace($"AlpacaBrokerage.AlpacaBrokerage(): found no data aggregator instance, creating {aggregatorName}");
                     _aggregator = Composer.Instance.GetExportedValueByTypeName<IDataAggregator>(aggregatorName);
                 }
+            }
+        }
+
+        private void WireStreamingClientEvents(IStreamingClient streamingClient)
+        {
+            streamingClient.Connected += (obj) => StreamingClient_Connected(streamingClient, obj);
+            streamingClient.OnWarning += (obj) => StreamingClient_OnWarning(streamingClient, obj);
+            streamingClient.SocketOpened += () => StreamingClient_SocketOpened(streamingClient);
+            streamingClient.SocketClosed += () => StreamingClient_SocketClosed(streamingClient);
+            streamingClient.OnError += (obj) => StreamingClient_OnError(streamingClient, obj);
+
+            if (streamingClient is AlpacaStreamingClientWrapper wrapper)
+            {
+                wrapper.EnviromentFailure += (message) => Log.Trace($"AlpacaBrokerage.Initialize(): {message}");
             }
         }
 
