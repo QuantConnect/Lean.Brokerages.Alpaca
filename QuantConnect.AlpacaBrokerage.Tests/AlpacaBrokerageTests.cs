@@ -17,6 +17,7 @@ using NUnit.Framework;
 using QuantConnect.Interfaces;
 using QuantConnect.Logging;
 using QuantConnect.Orders;
+using QuantConnect.Orders.TimeInForces;
 using QuantConnect.Securities;
 using QuantConnect.Tests;
 using QuantConnect.Tests.Brokerages;
@@ -336,6 +337,86 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                     Assert.Fail($"{nameof(PlaceMarketOpenCloseOrder)}: the brokerage doesn't return {OrderStatus.Invalid}");
                 }
             }
+        }
+
+
+        private static IEnumerable<OrderTestParameters> OrdersParameters
+        {
+            get
+            {
+                var symbol = Symbol.Create("AAPL", SecurityType.Equity, Market.USA);
+                var orderProperties = new AlpacaOrderProperties() { OutsideRegularTradingHours = true };
+
+                yield return new MarketOrderTestParameters(symbol, properties: orderProperties);
+                yield return new LimitOrderTestParameters(symbol, 250m, 150m, properties: orderProperties);
+                yield return new StopMarketOrderTestParameters(symbol, 250m, 150m, properties: orderProperties);
+                yield return new StopLimitOrderTestParameters(symbol, 250m, 150m, properties: orderProperties);
+            }
+        }
+
+        private static IEnumerable<TimeInForce> TimeInForceCases
+        {
+            get
+            {
+                yield return TimeInForce.Day;
+                yield return TimeInForce.GoodTilCanceled;
+                yield return TimeInForce.GoodTilDate(DateTime.UtcNow.AddDays(7)); // Not supported whatsoever
+            }
+        }
+
+        [Test]
+        public void CannotPlaceOutsideRegularHoursOrder(
+            [ValueSource(nameof(OrdersParameters))] OrderTestParameters ordersParameters,
+            [ValueSource(nameof(TimeInForceCases))] TimeInForce timeInForce)
+        {
+            if (ordersParameters is LimitOrderTestParameters && timeInForce is DayTimeInForce)
+            {
+                Assert.Ignore("Limit orders with Day time in force are allowed outside regular trading hours.");
+            }
+
+            var order = ordersParameters.CreateLongOrder(GetDefaultQuantity());
+            order.Properties.TimeInForce = timeInForce;
+
+            var invalidOrderEvent = new AutoResetEvent(false);
+            Brokerage.OrdersStatusChanged += (_, orderEvents) =>
+            {
+                var orderEvent = orderEvents[0];
+                if (orderEvent.Status == OrderStatus.Invalid)
+                {
+                    Console.WriteLine(orderEvent.ToString());
+                    invalidOrderEvent.Set();
+                }
+            };
+
+            OrderProvider.Add(order);
+            Assert.IsTrue(Brokerage.PlaceOrder(order));
+            Assert.IsTrue(invalidOrderEvent.WaitOne(TimeSpan.FromSeconds(5)));
+        }
+
+        [Test]
+        public void PlaceOutsideRegularHoursLimitOrders()
+        {
+            var symbol = Symbol.Create("AAPL", SecurityType.Equity, Market.USA);
+            var orderProperties = new AlpacaOrderProperties()
+            {
+                OutsideRegularTradingHours = true,
+                TimeInForce = TimeInForce.Day
+            };
+            var limitOrder = new LimitOrder(symbol, 1, 190m, DateTime.UtcNow, properties: orderProperties);
+
+            var submittedOrderEvent = new AutoResetEvent(false);
+            Brokerage.OrdersStatusChanged += (_, orderEvents) =>
+            {
+                var orderEvent = orderEvents[0];
+                if (orderEvent.Status == OrderStatus.Submitted)
+                {
+                    Console.WriteLine(orderEvent.ToString());
+                    submittedOrderEvent.Set();
+                }
+            };
+
+            Assert.IsTrue(Brokerage.PlaceOrder(limitOrder));
+            Assert.IsTrue(submittedOrderEvent.WaitOne(TimeSpan.FromSeconds(5)));
         }
     }
 }

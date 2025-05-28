@@ -673,10 +673,10 @@ namespace QuantConnect.Brokerages.Alpaca
         /// </summary>
         public override void Disconnect()
         {
-            _orderStreamingClient?.DisconnectAsync().SynchronouslyAwaitTask();
-            _equityStreamingClient?.DisconnectAsync().SynchronouslyAwaitTask();
-            _cryptoStreamingClient?.DisconnectAsync().SynchronouslyAwaitTask();
-            _optionsStreamingClient?.DisconnectAsync().SynchronouslyAwaitTask();
+            _orderStreamingClient?.DisconnectAsync()?.SynchronouslyAwaitTask();
+            _equityStreamingClient?.DisconnectAsync()?.SynchronouslyAwaitTask();
+            _cryptoStreamingClient?.DisconnectAsync()?.SynchronouslyAwaitTask();
+            _optionsStreamingClient?.DisconnectAsync()?.SynchronouslyAwaitTask();
         }
 
         public override void Dispose()

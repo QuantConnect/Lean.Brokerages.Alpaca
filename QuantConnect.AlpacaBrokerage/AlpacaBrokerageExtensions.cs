@@ -19,6 +19,8 @@ using QuantConnect.Logging;
 using AlpacaMarket = Alpaca.Markets;
 using QuantConnect.Orders.TimeInForces;
 
+using static Alpaca.Markets.OrderBaseExtensions;
+
 namespace QuantConnect.Brokerages.Alpaca;
 
 public static class AlpacaBrokerageExtensions
@@ -48,9 +50,9 @@ public static class AlpacaBrokerageExtensions
         {
             throw new InvalidOperationException($"Can't create order for direction {order.Direction}");
         }
-        var alpacaTimeInForce = order.TimeInForce.ConvertLeanTimeInForceToBrokerage(order.SecurityType, order.Type);
-        AlpacaMarket.OrderBaseExtensions.WithDuration(orderRequest, alpacaTimeInForce);
-        return orderRequest;
+        return orderRequest
+            .WithDuration(order.TimeInForce.ConvertLeanTimeInForceToBrokerage(order.SecurityType, order.Type))
+            .WithExtendedHours((order.Properties as AlpacaOrderProperties)?.OutsideRegularTradingHours ?? false);
     }
 
     /// <summary>
@@ -213,7 +215,7 @@ public static class AlpacaBrokerageExtensions
     };
 
     /// <summary>
-    /// Gets the specific name of the underlying streaming client type, 
+    /// Gets the specific name of the underlying streaming client type,
     /// providing a more descriptive type name when wrapped.
     /// </summary>
     /// <param name="streamingClient">The streaming client instance.</param>
