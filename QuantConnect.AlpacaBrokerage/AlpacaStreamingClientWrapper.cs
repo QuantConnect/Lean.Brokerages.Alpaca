@@ -126,12 +126,6 @@ namespace QuantConnect.Brokerages.Alpaca
             return result;
         }
 
-        private void HandleOnError(Exception exception)
-        {
-            IsOpenAndAuthorized = exception is SocketException { SocketErrorCode: SocketError.IsConnected };
-            OnError?.Invoke(exception);
-        }
-
         private void HandleSocketClosed()
         {
             IsOpenAndAuthorized = false;
