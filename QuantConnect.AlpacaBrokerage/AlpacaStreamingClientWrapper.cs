@@ -17,6 +17,7 @@ using System;
 using Alpaca.Markets;
 using System.Threading;
 using QuantConnect.Util;
+using System.Net.Sockets;
 using System.Threading.Tasks;
 
 namespace QuantConnect.Brokerages.Alpaca
@@ -123,6 +124,24 @@ namespace QuantConnect.Brokerages.Alpaca
                 }
             }
             return result;
+        }
+
+        private void HandleOnError(Exception exception)
+        {
+            IsOpenAndAuthorized = exception is SocketException { SocketErrorCode: SocketError.IsConnected };
+            OnError?.Invoke(exception);
+        }
+
+        private void HandleSocketClosed()
+        {
+            IsOpenAndAuthorized = false;
+            SocketClosed?.Invoke();
+        }
+
+        private void HandleConnected(AuthStatus authStatus)
+        {
+            IsOpenAndAuthorized = authStatus == AuthStatus.Authorized;
+            Connected?.Invoke(authStatus);
         }
 
         public Task DisconnectAsync(CancellationToken cancellationToken = default)

@@ -42,7 +42,7 @@ public partial class AlpacaBrokerage
             var exchangeTimeZone = MarketHoursDatabase.FromDataFolder().GetExchangeHours(symbol.ID.Market, symbol, symbol.SecurityType).TimeZone;
             _dataSubscriptionByBrokerageSymbol[brokerageSymbol] = new() { Symbol = symbol, ExchangeTimeZone = exchangeTimeZone };
 
-            var streamingClient = GetStreamingDataClient(symbol);
+            var streamingClient = GetStreamingDataClient(symbol.SecurityType);
             var tradeSubscription = streamingClient.GetTradeSubscription(brokerageSymbol);
             tradeSubscription.Received += HandleTradeReceived;
 
@@ -67,7 +67,7 @@ public partial class AlpacaBrokerage
         {
             if (_dataSubscriptionByLeanSymbol.TryRemove(symbol, out var subscriptions))
             {
-                var streamingClient = GetStreamingDataClient(symbol);
+                var streamingClient = GetStreamingDataClient(symbol.SecurityType);
                 foreach (var subscription in subscriptions)
                 {
                     if (subscription is IAlpacaDataSubscription<IQuote> quoteSubscription)
@@ -86,26 +86,25 @@ public partial class AlpacaBrokerage
         return true;
     }
 
-    private IStreamingDataClient GetStreamingDataClient(Symbol symbol)
+    /// <summary>
+    /// Returns the streaming client wrapper for the specified <see cref="SecurityType"/>.
+    /// </summary>
+    /// <param name="securityType">The type of security (e.g., Equity, Option, Crypto).</param>
+    /// <returns>An <see cref="AlpacaStreamingClientWrapper"/> corresponding to the security type.</returns>
+    /// <exception cref="NotSupportedException">Thrown if the security type is not recognized.</exception>
+    private IStreamingDataClient GetStreamingDataClient(SecurityType securityType)
     {
-        IStreamingDataClient streamingClient;
-        if (symbol.SecurityType == SecurityType.Crypto)
+        var streamingClient = securityType switch
         {
-            streamingClient = _cryptoStreamingClient.StreamingClient;
-        }
-        else if (symbol.SecurityType == SecurityType.Equity)
-        {
-            streamingClient = _equityStreamingClient.StreamingClient;
-        }
-        else if (symbol.SecurityType.IsOption())
-        {
-            streamingClient = _optionsStreamingClient.StreamingClient;
-        }
-        else
-        {
-            throw new Exception($"Symbol not expected {symbol}!");
-        }
-        return streamingClient;
+            SecurityType.Crypto => _cryptoStreamingClient,
+            SecurityType.Equity => _equityStreamingClient,
+            SecurityType.Option => _optionsStreamingClient,
+            _ => throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetStreamingDataClient)}: Security type '{securityType}' is not supported.")
+        };
+
+        ConnectAndAuthenticate(streamingClient);
+
+        return streamingClient.StreamingClient;
     }
 
     private void HandleTradeReceived(ITrade obj)

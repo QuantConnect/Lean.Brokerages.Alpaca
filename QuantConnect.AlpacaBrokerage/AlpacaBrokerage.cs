@@ -623,26 +623,27 @@ namespace QuantConnect.Brokerages.Alpaca
                 return;
             }
 
-            foreach (var streamingClient in new IStreamingClient[] { _optionsStreamingClient, _orderStreamingClient, _equityStreamingClient, _cryptoStreamingClient })
-            {
-                if (streamingClient == null)
-                {
-                    // expected if we are working as a brokerage only
-                    continue;
-                }
-
-                if (streamingClient is AlpacaStreamingClientWrapper clientWrapper && clientWrapper.IsOpenAndAuthorized)
-                {
-                    continue;
-                }
-
-                var authorizedStatus = streamingClient.ConnectAndAuthenticateAsync().SynchronouslyAwaitTaskResult();
-                if (authorizedStatus != AuthStatus.Authorized)
-                {
-                    throw new InvalidOperationException($"Connect(): Failed to connect to {streamingClient.GetStreamingClientName()}");
-                }
-            }
+            ConnectAndAuthenticate(_orderStreamingClient);
             _connected = true;
+        }
+
+        /// <summary>
+        /// Connects to the specified streaming client and authenticates synchronously.
+        /// Throws <see cref="InvalidOperationException"/> if authentication fails.
+        /// </summary>
+        /// <param name="client">The streaming client to connect and authenticate.</param>
+        private static void ConnectAndAuthenticate(IStreamingClient streamingClient)
+        {
+            if (streamingClient is AlpacaStreamingClientWrapper s && s.IsOpenAndAuthorized)
+            {
+                return;
+            }
+
+            var authorizedStatus = streamingClient.ConnectAndAuthenticateAsync().SynchronouslyAwaitTaskResult();
+            if (authorizedStatus != AuthStatus.Authorized)
+            {
+                throw new InvalidOperationException($"Connect(): Failed to connect to {streamingClient.GetStreamingClientName()}");
+            }
         }
 
         private void ReconnectionLogic()
