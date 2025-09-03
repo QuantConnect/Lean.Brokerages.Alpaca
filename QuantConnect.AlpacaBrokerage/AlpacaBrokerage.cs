@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -39,7 +39,6 @@ using System.Threading.Tasks;
 using QuantConnect.Configuration;
 using QuantConnect.Brokerages.CrossZero;
 using System.Collections.Concurrent;
-using QuantConnect.Brokerages.Alpaca.Models;
 
 namespace QuantConnect.Brokerages.Alpaca
 {
@@ -57,7 +56,7 @@ namespace QuantConnect.Brokerages.Alpaca
         private BrokerageConcurrentMessageHandler<ITradeUpdate> _messageHandler;
         private AlpacaBrokerageSymbolMapper _symbolMapper;
 
-        private RateLimitedTradingClient _tradingClient;
+        private IAlpacaTradingClient _tradingClient;
 
         private IAlpacaDataClient _equityHistoricalDataClient;
         private IAlpacaCryptoDataClient _cryptoHistoricalDataClient;
@@ -148,7 +147,7 @@ namespace QuantConnect.Brokerages.Alpaca
 
             var environment = isPaperTrading ? Environments.Paper : Environments.Live;
             // trading api client
-            _tradingClient = new(environment, tradingSecretKey ?? secretKey);
+            _tradingClient = EnvironmentExtensions.GetAlpacaTradingClient(environment, tradingSecretKey ?? secretKey);
             // order updates
             _orderStreamingClient = EnvironmentExtensions.GetAlpacaStreamingClient(environment, tradingSecretKey ?? secretKey);
 

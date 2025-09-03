@@ -18,7 +18,6 @@ using System.Linq;
 using Alpaca.Markets;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
-using QuantConnect.Brokerages.Alpaca.Models;
 
 namespace QuantConnect.Brokerages.Alpaca;
 
@@ -76,7 +75,7 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
     /// <remarks>
     /// The constructor initializes a lazy-loaded dictionary that maps Lean symbols to brokerage symbols for crypto assets.
     /// </remarks>
-    public AlpacaBrokerageSymbolMapper(RateLimitedTradingClient alpacaTradingClient)
+    public AlpacaBrokerageSymbolMapper(IAlpacaTradingClient alpacaTradingClient)
     {
         _brokerageSymbolByLeanSymbol = new Lazy<Dictionary<string, string>>(() =>
         {
