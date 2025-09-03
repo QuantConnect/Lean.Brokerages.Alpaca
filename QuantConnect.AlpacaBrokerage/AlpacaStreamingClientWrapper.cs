@@ -32,6 +32,7 @@ namespace QuantConnect.Brokerages.Alpaca
 
         public IStreamingDataClient StreamingClient { get; set; }
 
+        public bool IsOpenAndAuthorized { get; private set; }
         public event Action<AuthStatus> Connected;
         public event Action SocketOpened;
         public event Action SocketClosed;
@@ -59,10 +60,10 @@ namespace QuantConnect.Brokerages.Alpaca
             {
                 if (StreamingClient != null)
                 {
-                    StreamingClient.Connected -= Connected;
+                    StreamingClient.Connected -= HandleConnected;
                     StreamingClient.OnWarning -= OnWarning;
                     StreamingClient.SocketOpened -= SocketOpened;
-                    StreamingClient.SocketClosed -= SocketClosed;
+                    StreamingClient.SocketClosed -= HandleSocketClosed;
                     StreamingClient.OnError -= OnError;
                     StreamingClient.DisposeSafely();
                 }
@@ -98,10 +99,10 @@ namespace QuantConnect.Brokerages.Alpaca
                     throw new NotImplementedException();
                 }
 
-                StreamingClient.Connected += Connected;
+                StreamingClient.Connected += HandleConnected;
                 StreamingClient.OnWarning += OnWarning;
                 StreamingClient.SocketOpened += SocketOpened;
-                StreamingClient.SocketClosed += SocketClosed;
+                StreamingClient.SocketClosed += HandleSocketClosed;
                 StreamingClient.OnError += OnError;
 
                 result = await StreamingClient.ConnectAndAuthenticateAsync();
@@ -137,6 +138,18 @@ namespace QuantConnect.Brokerages.Alpaca
         public Task ConnectAsync(CancellationToken cancellationToken = default)
         {
             throw new NotImplementedException();
+        }
+
+        private void HandleSocketClosed()
+        {
+            IsOpenAndAuthorized = false;
+            SocketClosed?.Invoke();
+        }
+
+        private void HandleConnected(AuthStatus authStatus)
+        {
+            IsOpenAndAuthorized = authStatus == AuthStatus.Authorized;
+            Connected?.Invoke(authStatus);
         }
     }
 }

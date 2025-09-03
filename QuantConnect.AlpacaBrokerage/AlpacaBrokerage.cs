@@ -1,4 +1,4 @@
-/*
+﻿/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -39,6 +39,7 @@ using System.Threading.Tasks;
 using QuantConnect.Configuration;
 using QuantConnect.Brokerages.CrossZero;
 using System.Collections.Concurrent;
+using System.Threading;
 
 namespace QuantConnect.Brokerages.Alpaca
 {
@@ -69,6 +70,9 @@ namespace QuantConnect.Brokerages.Alpaca
 
         private bool _isInitialized;
         private bool _connected;
+
+        private readonly ManualResetEvent _reconnectionResetEvent = new(false);
+        private readonly CancellationTokenSource _cancellationTokenSource = new();
 
         /// <summary>
         /// Returns true if we're currently connected to the broker
@@ -198,6 +202,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     _aggregator = Composer.Instance.GetExportedValueByTypeName<IDataAggregator>(aggregatorName);
                 }
             }
+            ReconnectionLogic();
         }
 
         private void WireStreamingClientEvents(IStreamingClient streamingClient)
@@ -227,7 +232,7 @@ namespace QuantConnect.Brokerages.Alpaca
                 _connected = false;
                 // let consumers know, we will try to reconnect internally, if we can't lean will kill us
                 OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Disconnect, "Disconnected", "Brokerage Disconnected"));
-                RunReconnectionLogic(5);
+                _reconnectionResetEvent.Set();
             }
         }
 
@@ -626,6 +631,11 @@ namespace QuantConnect.Brokerages.Alpaca
                     continue;
                 }
 
+                if (streamingClient is AlpacaStreamingClientWrapper clientWrapper && clientWrapper.IsOpenAndAuthorized)
+                {
+                    continue;
+                }
+
                 var authorizedStatus = streamingClient.ConnectAndAuthenticateAsync().SynchronouslyAwaitTaskResult();
                 if (authorizedStatus != AuthStatus.Authorized)
                 {
@@ -635,37 +645,49 @@ namespace QuantConnect.Brokerages.Alpaca
             _connected = true;
         }
 
-        private void RunReconnectionLogic(int secondsDelay)
+        private void ReconnectionLogic()
         {
-            Task.Delay(TimeSpan.FromSeconds(secondsDelay)).ContinueWith(_ =>
+            Task.Factory.StartNew(() =>
             {
-                try
+                while (!_cancellationTokenSource.IsCancellationRequested
+                && _reconnectionResetEvent.WaitOne(_cancellationTokenSource.Token))
                 {
-                    Connect();
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex);
-                }
-
-                if (!IsConnected)
-                {
-                    RunReconnectionLogic(30);
-                }
-                else
-                {
-                    // if we are used as a brokerage ignore data queue handler updates
-                    if (_subscriptionManager != null)
+                    if (_cancellationTokenSource.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(10)))
                     {
-                        // resubscribe
-                        var symbols = _subscriptionManager.GetSubscribedSymbols();
-                        Unsubscribe(symbols);
-                        Subscribe(symbols);
+
                     }
-                    // let consumers know we are reconnected, avoid lean killing us
-                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Reconnect, "Reconnected", "Brokerage Reconnected"));
+
+                    _reconnectionResetEvent.Reset();
+
+                    try
+                    {
+                        Connect();
+
+                        if (!IsConnected)
+                        {
+                            _reconnectionResetEvent.Set();
+                        }
+                        else
+                        {
+                            // if we are used as a brokerage ignore data queue handler updates
+                            if (_subscriptionManager != null)
+                            {
+                                // resubscribe
+                                var symbols = _subscriptionManager.GetSubscribedSymbols();
+                                Unsubscribe(symbols);
+                                Subscribe(symbols);
+                            }
+                            // let consumers know we are reconnected, avoid lean killing us
+                            OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Reconnect, "Reconnected", "Brokerage Reconnected"));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _reconnectionResetEvent.Set();
+                        Log.Error(ex);
+                    }
                 }
-            });
+            }, _cancellationTokenSource.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
 
         /// <summary>
@@ -681,6 +703,10 @@ namespace QuantConnect.Brokerages.Alpaca
 
         public override void Dispose()
         {
+            _cancellationTokenSource?.Cancel();
+            _cancellationTokenSource?.DisposeSafely();
+            _reconnectionResetEvent.DisposeSafely();
+
             _tradingClient.DisposeSafely();
 
             _equityHistoricalDataClient.DisposeSafely();
