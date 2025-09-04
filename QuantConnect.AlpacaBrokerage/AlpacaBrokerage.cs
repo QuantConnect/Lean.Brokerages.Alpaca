@@ -649,6 +649,7 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             Task.Factory.StartNew(() =>
             {
+                Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(ReconnectionLogic)}: Starting reconnection loop.");
                 while (!_cancellationTokenSource.IsCancellationRequested)
                 {
                     _reconnectionResetEvent.WaitOne(_cancellationTokenSource.Token);
@@ -660,8 +661,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     // attempts that would conflict with the server's timeout window.
                     if (_cancellationTokenSource.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(90)))
                     {
-                        Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(ReconnectionLogic)}: Reconnection loop exited due to cancellation.");
-                        return;
+                        break;
                     }
 
                     _reconnectionResetEvent.Reset();
@@ -694,6 +694,8 @@ namespace QuantConnect.Brokerages.Alpaca
                         Log.Error(ex);
                     }
                 }
+                Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(ReconnectionLogic)}: Reconnection loop ended.");
+                _reconnectionResetEvent?.DisposeSafely();
             }, _cancellationTokenSource.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
 
@@ -712,7 +714,6 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             _cancellationTokenSource?.Cancel();
             _cancellationTokenSource?.DisposeSafely();
-            _reconnectionResetEvent?.DisposeSafely();
 
             _tradingClient.DisposeSafely();
 
