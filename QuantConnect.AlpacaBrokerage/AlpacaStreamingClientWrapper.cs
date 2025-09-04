@@ -17,7 +17,6 @@ using System;
 using Alpaca.Markets;
 using System.Threading;
 using QuantConnect.Util;
-using System.Net.Sockets;
 using System.Threading.Tasks;
 
 namespace QuantConnect.Brokerages.Alpaca
