@@ -653,6 +653,11 @@ namespace QuantConnect.Brokerages.Alpaca
                 {
                     _reconnectionResetEvent.WaitOne(_cancellationTokenSource.Token);
 
+                    // The server enforces a 90-second timeout for "partially dead" connections.
+                    // If another WebSocket connection is opened with the same API key/secret
+                    // before the old one is fully closed, this may trigger the
+                    // "Too many connections" error. Waiting here prevents premature reconnection
+                    // attempts that would conflict with the server's timeout window.
                     if (_cancellationTokenSource.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(90)))
                     {
                         Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(ReconnectionLogic)}: Reconnection loop exited due to cancellation.");
