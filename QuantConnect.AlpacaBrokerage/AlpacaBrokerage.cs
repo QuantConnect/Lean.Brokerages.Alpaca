@@ -649,12 +649,14 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             Task.Factory.StartNew(() =>
             {
-                while (!_cancellationTokenSource.IsCancellationRequested
-                && _reconnectionResetEvent.WaitOne(_cancellationTokenSource.Token))
+                while (!_cancellationTokenSource.IsCancellationRequested)
                 {
-                    if (_cancellationTokenSource.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(10)))
-                    {
+                    _reconnectionResetEvent.WaitOne(_cancellationTokenSource.Token);
 
+                    if (_cancellationTokenSource.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(90)))
+                    {
+                        Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(ReconnectionLogic)}: Reconnection loop exited due to cancellation.");
+                        return;
                     }
 
                     _reconnectionResetEvent.Reset();
