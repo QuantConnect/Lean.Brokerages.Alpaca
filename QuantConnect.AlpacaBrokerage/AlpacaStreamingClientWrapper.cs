@@ -126,18 +126,6 @@ namespace QuantConnect.Brokerages.Alpaca
             return result;
         }
 
-        private void HandleSocketClosed()
-        {
-            IsOpenAndAuthorized = false;
-            SocketClosed?.Invoke();
-        }
-
-        private void HandleConnected(AuthStatus authStatus)
-        {
-            IsOpenAndAuthorized = authStatus == AuthStatus.Authorized;
-            Connected?.Invoke(authStatus);
-        }
-
         public Task DisconnectAsync(CancellationToken cancellationToken = default)
         {
             return StreamingClient?.DisconnectAsync();
