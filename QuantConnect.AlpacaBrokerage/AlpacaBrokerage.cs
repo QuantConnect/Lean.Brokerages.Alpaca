@@ -712,7 +712,7 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             _cancellationTokenSource?.Cancel();
             _cancellationTokenSource?.DisposeSafely();
-            _reconnectionResetEvent.DisposeSafely();
+            _reconnectionResetEvent?.DisposeSafely();
 
             _tradingClient.DisposeSafely();
 
