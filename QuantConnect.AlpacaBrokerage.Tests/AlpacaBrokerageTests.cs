@@ -25,6 +25,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using TradeEvent = Alpaca.Markets.TradeEvent;
+using QuantConnect.Brokerages.Alpaca.Tests.Models;
 using static QuantConnect.Brokerages.Alpaca.Tests.AlpacaBrokerageAdditionalTests;
 
 namespace QuantConnect.Brokerages.Alpaca.Tests
@@ -32,6 +34,8 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
     [TestFixture]
     public partial class AlpacaBrokerageTests : BrokerageTests
     {
+        private TestAlpacaBrokerage AlpacaBrokerage => Brokerage as TestAlpacaBrokerage;
+
         protected override Symbol Symbol { get; } = Symbols.AAPL;
         protected override SecurityType SecurityType { get; }
 
@@ -46,7 +50,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         protected override bool IsAsync() => false;
         protected override decimal GetAskPrice(Symbol symbol)
         {
-            return (Brokerage as TestAlpacaBrokerage).GetLatestQuotePublic(symbol).AskPrice;
+            return AlpacaBrokerage.GetLatestQuotePublic(symbol).AskPrice;
         }
 
         /// <summary>
@@ -417,6 +421,158 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
 
             Assert.IsTrue(Brokerage.PlaceOrder(limitOrder));
             Assert.IsTrue(submittedOrderEvent.WaitOne(TimeSpan.FromSeconds(5)));
+        }
+
+        [Test]
+        public void HandleTradeUpdateNormalCase()
+        {
+            // pending_new -> new -> partial_fill -> fill
+            // the same to all trade updates
+            var orderId = Guid.NewGuid();
+
+            var order = new LimitOrder(Symbols.AAPL, 3m, 1m, default);
+            order.BrokerId.Add(orderId.ToString());
+            OrderProvider.Add(order);
+
+            var tradeUpdates = new List<TestTradeUpdate>(4)
+            {
+                new(TradeEvent.PendingNew, null, new TestOrder(orderId)),
+                new(TradeEvent.New, Guid.NewGuid(), new TestOrder(orderId)),
+                new(TradeEvent.PartialFill, Guid.NewGuid(), new TestOrder(orderId, 1)),
+                new(TradeEvent.Fill, Guid.NewGuid(), new TestOrder(orderId, 3))
+            };
+
+            foreach (var tradeUpdate in tradeUpdates)
+            {
+                AlpacaBrokerage.HandleTradeUpdate(tradeUpdate);
+
+                switch (tradeUpdate.Event)
+                {
+                    case TradeEvent.PendingNew:
+                    case TradeEvent.New:
+                        Assert.AreEqual(1, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId.Count);
+                        break;
+                    case TradeEvent.PartialFill:
+                        Assert.AreEqual(1, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId.Count);
+                        Assert.AreEqual(1, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId[orderId].Count);
+                        break;
+                    case TradeEvent.Fill:
+                        Assert.AreEqual(0, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId.Count);
+                        break;
+                }
+            }            
+        }
+
+        [Test]
+        public void HandleTradeUpdateShouldSkipDuplication()
+        {
+            // pending_new -> new -> partial_fill -> fill
+            // the same to all trade updates
+            var orderId = Guid.NewGuid();
+
+            var order = new LimitOrder(Symbols.AAPL, 3m, 1m, default);
+            order.BrokerId.Add(orderId.ToString());
+
+            OrderProvider.Add(order);
+
+            var tradeUpdates = new List<TestTradeUpdate>()
+            {
+                new(TradeEvent.PendingNew, null, new TestOrder(orderId)),
+                new(TradeEvent.New, Guid.NewGuid(), new TestOrder(orderId))
+            };
+
+            var partialFillExecutionId_1 = Guid.NewGuid();
+            var partialFill_1 = new TestTradeUpdate(TradeEvent.PartialFill, partialFillExecutionId_1, new TestOrder(orderId, 1));
+
+            tradeUpdates.Add(partialFill_1);
+            tradeUpdates.Add(partialFill_1);
+
+            var partialFillExecutionId_2 = Guid.NewGuid();
+            var partialFill_2 = new TestTradeUpdate(TradeEvent.PartialFill, partialFillExecutionId_2, new TestOrder(orderId, 2));
+
+            tradeUpdates.Add(partialFill_2);
+            tradeUpdates.Add(partialFill_2);
+
+            var fillExecutionId = Guid.NewGuid();
+            var fill = new TestTradeUpdate(TradeEvent.Fill, fillExecutionId, new TestOrder(orderId, 3));
+
+            tradeUpdates.Add(fill);
+            tradeUpdates.Add(fill);
+
+            foreach (var tradeUpdate in tradeUpdates)
+            {
+                AlpacaBrokerage.HandleTradeUpdate(tradeUpdate);
+
+                switch (tradeUpdate.Event)
+                {
+                    case TradeEvent.PendingNew:
+                    case TradeEvent.New:
+                        Assert.AreEqual(1, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId.Count);
+                        break;
+                    case TradeEvent.PartialFill when tradeUpdate.ExecutionId.Equals(partialFillExecutionId_1):
+                        Assert.AreEqual(1, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId.Count);
+                        Assert.AreEqual(1, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId[orderId].Count);
+                        break;
+                    case TradeEvent.PartialFill when tradeUpdate.ExecutionId.Equals(partialFillExecutionId_2):
+                        Assert.AreEqual(1, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId.Count);
+                        Assert.AreEqual(2, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId[orderId].Count);
+                        break;
+                    case TradeEvent.Fill when tradeUpdate.ExecutionId.Equals(fillExecutionId):
+                        Assert.AreEqual(0, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId.Count);
+                        break;
+                }
+            }
+        }
+
+        [Test]
+        public void HandleTradeUpdateShouldSkipCanceledDuplication()
+        {
+            // pending_new -> new -> partial_fill -> fill
+            // the same to all trade updates
+            var orderId = Guid.NewGuid();
+
+            var order = new LimitOrder(Symbols.AAPL, 3m, 1m, default);
+            order.BrokerId.Add(orderId.ToString());
+            OrderProvider.Add(order);
+
+            var tradeUpdates = new List<TestTradeUpdate>()
+            {
+                new(TradeEvent.PendingNew, null, new TestOrder(orderId)),
+                new(TradeEvent.New, Guid.NewGuid(), new TestOrder(orderId))
+            };
+
+            var pendingCancelExecutionId = Guid.NewGuid();
+            var pendingCancel = new TestTradeUpdate(TradeEvent.PendingCancel, pendingCancelExecutionId, new TestOrder(orderId, 1));
+
+            tradeUpdates.Add(pendingCancel);
+            tradeUpdates.Add(pendingCancel);
+
+            var cancelExecutionId = Guid.NewGuid();
+            var cancel = new TestTradeUpdate(TradeEvent.Canceled, cancelExecutionId, new TestOrder(orderId, 1));
+
+            tradeUpdates.Add(cancel);
+            tradeUpdates.Add(cancel);
+
+            foreach (var tradeUpdate in tradeUpdates)
+            {
+                AlpacaBrokerage.HandleTradeUpdate(tradeUpdate);
+
+                switch (tradeUpdate.Event)
+                {
+                    case TradeEvent.PendingNew:
+                    case TradeEvent.New:
+                        Assert.AreEqual(1, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId.Count);
+                        Assert.AreEqual(0, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId[orderId].Count);
+                        break;
+                    case TradeEvent.PendingCancel:
+                        Assert.AreEqual(1, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId.Count);
+                        Assert.AreEqual(0, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId[orderId].Count);
+                        break;
+                    case TradeEvent.Canceled:
+                        Assert.AreEqual(0, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId.Count);
+                        break;
+                }
+            }
         }
     }
 }
