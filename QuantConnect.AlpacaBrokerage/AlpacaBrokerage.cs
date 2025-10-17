@@ -327,7 +327,9 @@ namespace QuantConnect.Brokerages.Alpaca
                     leanOrder.Status = Orders.OrderStatus.PartiallyFilled;
                 }
 
-                leanOrder.BrokerId.Add(brokerageOrder.OrderId.ToString());
+                var brokerageOrderId = brokerageOrder.OrderId;
+                _duplicationExecutionOrderIdByBrokerageOrderId[brokerageOrderId] = [];
+                leanOrder.BrokerId.Add(brokerageOrderId.ToString());
                 leanOrders.Add(leanOrder);
             }
 
@@ -442,6 +444,10 @@ namespace QuantConnect.Brokerages.Alpaca
                     case TradeEvent.Replaced:
                         if (_duplicationExecutionOrderIdByBrokerageOrderId.Remove(obj.Order.OrderId))
                         {
+                            if (newLeanOrderStatus == Orders.OrderStatus.UpdateSubmitted)
+                            { 
+                                _duplicationExecutionOrderIdByBrokerageOrderId[obj.Order.ReplacedByOrderId.Value] = [];
+                            }
                             OnOrderEvent(new OrderEvent(leanOrder, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event") { Status = newLeanOrderStatus });
                         }
                         return;
