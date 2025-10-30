@@ -266,6 +266,13 @@ namespace QuantConnect.Brokerages.Alpaca
             var unsupportedTimeInForce = new HashSet<AlpacaMarket.TimeInForce>();
             foreach (var brokerageOrder in orders)
             {
+                if (brokerageOrder.Legs.Count > 1)
+                {
+                    // TODO: Implement OrderType.ComboMarket and OrderType.ComboLimit
+                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "NotSupportedOrderType", "Multi-leg orders are not currently supported."));
+                    continue;
+                }
+
                 var orderProperties = new AlpacaOrderProperties();
                 if (!orderProperties.TryGetLeanTimeInForceByAlpacaTimeInForce(brokerageOrder.TimeInForce))
                 {
