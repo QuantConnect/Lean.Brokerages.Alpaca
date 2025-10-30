@@ -76,20 +76,20 @@ namespace QuantConnect.Brokerages.Alpaca
                 }
                 else if (_securityType == SecurityType.Equity)
                 {
-                    var feed = "'iex'";
+                    var feed = $"'{MarketDataFeed.Iex}'";
                     if (environment == Environments.Live)
                     {
-                        feed = "'sip', will retry with free feed";
+                        feed = $"'{MarketDataFeed.Sip}', will retry with free feed";
                     }
                     failureMessage = $"{_securityType} failed to connect to live feed {feed}";
                     StreamingClient = EnvironmentExtensions.GetAlpacaDataStreamingClient(environment, _securityKey);
                 }
                 else if (_securityType.IsOption())
                 {
-                    var feed = "'indicative'";
+                    var feed = $"'{OptionsFeed.Indicative}'";
                     if (environment == Environments.Live)
                     {
-                        feed = "'opra', will retry with free feed";
+                        feed = $"'{OptionsFeed.Opra}', will retry with free feed";
                     }
                     failureMessage = $"{_securityType} failed to connect to live feed {feed}";
                     StreamingClient = EnvironmentExtensions.GetAlpacaOptionsStreamingClient(environment, _securityKey);
