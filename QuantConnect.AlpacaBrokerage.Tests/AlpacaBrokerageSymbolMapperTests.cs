@@ -51,6 +51,12 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             Assert.That(leanSymbol.ID.Symbol, Is.EqualTo(expectedSymbol));
         }
 
+        [Test]
+        public void CallGetLeanSymbolWithNullAssetClassShouldThrowException()
+        {
+            Assert.Throws<NotSupportedException>(() => _symbolMapper.GetLeanSymbol(null, "AAPL"));
+        }
+
         [TestCase("AAPL", SecurityType.Equity, null, null, null, "AAPL")]
         [TestCase("INTL", SecurityType.Equity, null, null, null, "INTL")]
         [TestCase("AAPL", SecurityType.Option, OptionRight.Call, 100, "2024/06/14", "AAPL240614C00100000")]

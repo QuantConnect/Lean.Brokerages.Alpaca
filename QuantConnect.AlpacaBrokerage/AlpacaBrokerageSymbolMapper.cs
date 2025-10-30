@@ -102,7 +102,7 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
     /// <param name="brokerageSymbol">The symbol used by the brokerage.</param>
     /// <returns>The Lean <see cref="Symbol"/> corresponding to the given brokerage asset class and symbol.</returns>
     /// <exception cref="NotSupportedException">Thrown when the asset class is not supported.</exception>
-    public Symbol GetLeanSymbol(AssetClass brokerageAssetClass, string brokerageSymbol)
+    public Symbol GetLeanSymbol(AssetClass? brokerageAssetClass, string brokerageSymbol)
     {
         switch (brokerageAssetClass)
         {

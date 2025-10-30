@@ -17,6 +17,20 @@
         <member name="E:Alpaca.Markets.AlpacaStreamingClient.OnTradeUpdate">
             <inheritdoc cref="E:Alpaca.Markets.IAlpacaStreamingClient.OnTradeUpdate"/>
         </member>
+        <member name="T:Alpaca.Markets.BasicKey">
+            <summary>
+            Basie key for Alpaca Broker API authentication.
+            </summary>
+        </member>
+        <member name="M:Alpaca.Markets.BasicKey.#ctor(System.Net.NetworkCredential)">
+            <summary>
+            Creates new instance of <see cref="T:Alpaca.Markets.BasicKey"/> object.
+            </summary>
+            <param name="credential">User credentials (name and password).</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="credential"/> argument is <c>null</c>.
+            </exception>
+        </member>
         <member name="T:Alpaca.Markets.OAuthKey">
             <summary>
             OAuth key for Alpaca API authentication.
@@ -67,7 +81,7 @@
         </member>
         <member name="F:Alpaca.Markets.AccountActivityType.Fill">
             <summary>
-            Order fills (both partial and full fills)
+            Order fills (both partial and complete fills)
             </summary>
         </member>
         <member name="F:Alpaca.Markets.AccountActivityType.Transaction">
@@ -188,12 +202,12 @@
         </member>
         <member name="F:Alpaca.Markets.AccountActivityType.PassThruCharge">
             <summary>
-            Pass Thru Charge
+            Pass-through charge
             </summary>
         </member>
         <member name="F:Alpaca.Markets.AccountActivityType.PassThruRebate">
             <summary>
-            Pass Thru Rebate
+            Pass-through rebate
             </summary>
         </member>
         <member name="F:Alpaca.Markets.AccountActivityType.Reorg">
@@ -216,11 +230,6 @@
             Stock split
             </summary>
         </member>
-        <member name="F:Alpaca.Markets.AccountActivityType.RefTafFee">
-            <summary>
-            REG/TAF fees
-            </summary>
-        </member>
         <member name="F:Alpaca.Markets.AccountActivityType.OptionAssignment">
             <summary>
             Option assignment
@@ -236,6 +245,11 @@
             Option exercise
             </summary>
         </member>
+        <member name="F:Alpaca.Markets.AccountActivityType.OptionTrade">
+            <summary>
+            Option trade
+            </summary>
+        </member>
         <member name="F:Alpaca.Markets.AccountActivityType.FeeInUsd">
             <summary>
             Fee denominated in USD
@@ -244,6 +258,11 @@
         <member name="F:Alpaca.Markets.AccountActivityType.CryptoFee">
             <summary>
             Crypto Fee
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.AccountActivityType.Unknown">
+            <summary>
+            Unknown account activity type (i.e. one not supported by this version of SDK).
             </summary>
         </member>
         <member name="T:Alpaca.Markets.AccountStatus">
@@ -404,6 +423,14 @@
         <member name="F:Alpaca.Markets.AssetClass.UsOption">
             <summary>
             US option asset class.
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.AssetClass.CryptoPerpetual">
+            <summary>
+            Perpetual cryptocurrency asset class.
+            NOTE: This is preparatory infrastructure. Alpaca Markets does not currently
+            offer crypto perpetual futures trading. This enum value is reserved for
+            potential future functionality.
             </summary>
         </member>
         <member name="T:Alpaca.Markets.AssetStatus">
@@ -619,54 +646,124 @@
             stock and cash balances are expected to be processed accordingly.
             </summary>
         </member>
+        <member name="T:Alpaca.Markets.CorporateActionFilterType">
+            <summary>
+            Supported bar corporate action adjustment types for Alpaca Data API.
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.CorporateActionFilterType.ReverseSplit">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.CorporateActionFilterType.ForwardSplit">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.CorporateActionFilterType.UnitSplit">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.CorporateActionFilterType.CashDividend">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.CorporateActionFilterType.StockDividend">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.CorporateActionFilterType.SpinOff">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.CorporateActionFilterType.CashMerger">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.CorporateActionFilterType.StockMerger">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.CorporateActionFilterType.StockAndCashMerger">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.CorporateActionFilterType.Redemption">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.CorporateActionFilterType.NameChange">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.CorporateActionFilterType.WorthlessRemoval">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.CorporateActionFilterType.RightsDistribution">
+            <summary>
+            
+            </summary>
+        </member>
         <member name="T:Alpaca.Markets.CorporateActionSubType">
             <summary>
-            Corporate action sub type in Alpaca REST API.
+            Corporate action subtype in Alpaca REST API.
             </summary>
         </member>
         <member name="F:Alpaca.Markets.CorporateActionSubType.DividendCash">
             <summary>
-            Sub type for the <see cref="F:Alpaca.Markets.CorporateActionType.Dividend"/> type.
+            Subtype for the <see cref="F:Alpaca.Markets.CorporateActionType.Dividend"/> type.
             </summary>
         </member>
         <member name="F:Alpaca.Markets.CorporateActionSubType.DividendStock">
             <summary>
-            Sub type for the <see cref="F:Alpaca.Markets.CorporateActionType.Dividend"/> type.
+            Subtype for the <see cref="F:Alpaca.Markets.CorporateActionType.Dividend"/> type.
             </summary>
         </member>
         <member name="F:Alpaca.Markets.CorporateActionSubType.MergerUpdate">
             <summary>
-            Sub type for the <see cref="F:Alpaca.Markets.CorporateActionType.Merger"/> type.
+            Subtype for the <see cref="F:Alpaca.Markets.CorporateActionType.Merger"/> type.
             </summary>
         </member>
         <member name="F:Alpaca.Markets.CorporateActionSubType.MergerCompletion">
             <summary>
-            Sub type for the <see cref="F:Alpaca.Markets.CorporateActionType.Merger"/> type.
+            Subtype for the <see cref="F:Alpaca.Markets.CorporateActionType.Merger"/> type.
             </summary>
         </member>
         <member name="F:Alpaca.Markets.CorporateActionSubType.SpinOff">
             <summary>
-            Sub type for the <see cref="F:Alpaca.Markets.CorporateActionType.SpinOff"/> type.
+            Subtype for the <see cref="F:Alpaca.Markets.CorporateActionType.SpinOff"/> type.
             </summary>
         </member>
         <member name="F:Alpaca.Markets.CorporateActionSubType.StockSplit">
             <summary>
-            Sub type for the <see cref="F:Alpaca.Markets.CorporateActionType.Split"/> type.
+            Subtype for the <see cref="F:Alpaca.Markets.CorporateActionType.Split"/> type.
             </summary>
         </member>
         <member name="F:Alpaca.Markets.CorporateActionSubType.UnitSplit">
             <summary>
-            Sub type for the <see cref="F:Alpaca.Markets.CorporateActionType.Split"/> type.
+            Subtype for the <see cref="F:Alpaca.Markets.CorporateActionType.Split"/> type.
             </summary>
         </member>
         <member name="F:Alpaca.Markets.CorporateActionSubType.ReverseSplit">
             <summary>
-            Sub type for the <see cref="F:Alpaca.Markets.CorporateActionType.Split"/> type.
+            Subtype for the <see cref="F:Alpaca.Markets.CorporateActionType.Split"/> type.
             </summary>
         </member>
         <member name="F:Alpaca.Markets.CorporateActionSubType.Recapitalizaiton">
             <summary>
-            Sub type for the <see cref="F:Alpaca.Markets.CorporateActionType.Split"/> type.
+            Subtype for the <see cref="F:Alpaca.Markets.CorporateActionType.Split"/> type.
             </summary>
         </member>
         <member name="T:Alpaca.Markets.CorporateActionType">
@@ -696,7 +793,7 @@
         </member>
         <member name="T:Alpaca.Markets.CryptoExchange">
             <summary>
-            Crypto currency exchanges supported by Alpaca REST API.
+            Cryptocurrency exchanges supported by Alpaca REST API.
             </summary>
         </member>
         <member name="F:Alpaca.Markets.CryptoExchange.Unknown">
@@ -800,6 +897,11 @@
             Alpaca crypto Exchange.
             </summary>
         </member>
+        <member name="F:Alpaca.Markets.Exchange.Ascx">
+            <summary>
+            Alpaca crypto Exchange.
+            </summary>
+        </member>
         <member name="T:Alpaca.Markets.HistoryPeriodUnit">
             <summary>
             Period units for portfolio history in the Alpaca REST API.
@@ -880,6 +982,23 @@
         <member name="F:Alpaca.Markets.MarketDataFeed.Otc">
             <summary>
             OTC feed - option available for the subscribed clients.
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.MarketDataFeed.DelayedSip">
+            <summary>
+            DelayedSIP feed - 15-minute delayed <see cref="F:Alpaca.Markets.MarketDataFeed.Sip"/>. It can only be used
+            in the latest endpoints and on the stream. For historical endpoints you can
+            simply use <see cref="F:Alpaca.Markets.MarketDataFeed.Sip"/> and set the end parameter to 15 minutes ago.
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.MarketDataFeed.Boats">
+            <summary>
+            BOATS feed - Blue Ocean, overnight US trading data.
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.MarketDataFeed.Overnight">
+            <summary>
+            Overnight feed - derived overnight US trading data.
             </summary>
         </member>
         <member name="T:Alpaca.Markets.Multiplier">
@@ -996,6 +1115,11 @@
         <member name="F:Alpaca.Markets.OrderClass.OneTriggersOther">
             <summary>
             One Triggers Other order
+            </summary>
+        </member>
+        <member name="F:Alpaca.Markets.OrderClass.MultiLegOptions">
+            <summary>
+            Multi-leg options order
             </summary>
         </member>
         <member name="T:Alpaca.Markets.OrderSide">
@@ -1291,7 +1415,7 @@
         </member>
         <member name="F:Alpaca.Markets.TimeInForce.Day">
             <summary>
-            The order is good for the day and it will be canceled automatically at the end of market hours.
+            The order is good for the day, and it will be canceled automatically at the end of market hours.
             </summary>
         </member>
         <member name="F:Alpaca.Markets.TimeInForce.Gtc">
@@ -1309,12 +1433,12 @@
         </member>
         <member name="F:Alpaca.Markets.TimeInForce.Ioc">
             <summary>
-            The order is immediately filled or canceled after being placed (may partial fill).
+            The order is immediately filled or canceled after being placed (may partially fill).
             </summary>
         </member>
         <member name="F:Alpaca.Markets.TimeInForce.Fok">
             <summary>
-            The order is immediately filled or canceled after being placed (may not partial fill).
+            The order is immediately filled or canceled after being placed (may not partially fill).
             </summary>
         </member>
         <member name="F:Alpaca.Markets.TimeInForce.Cls">
@@ -1594,30 +1718,6 @@
             </exception>
             <returns>New instance of <see cref="T:Alpaca.Markets.AlpacaCryptoStreamingClientConfiguration"/> object.</returns>
         </member>
-        <member name="M:Alpaca.Markets.EnvironmentExtensions.GetAlpacaOptionsStreamingClient(Alpaca.Markets.IEnvironment,Alpaca.Markets.SecurityKey)">
-            <summary>
-            Creates the new instance of <see cref="T:Alpaca.Markets.IStreamingDataClient"/> interface
-            implementation for specific environment provided as <paramref name="environment"/> argument.
-            </summary>
-            <param name="environment">Target environment for new object.</param>
-            <param name="securityKey">Alpaca API security key.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="environment"/> or <paramref name="securityKey"/> argument is <c>null</c>.
-            </exception>
-            <returns>The new instance of <see cref="T:Alpaca.Markets.IStreamingDataClient"/> interface implementation.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.EnvironmentExtensions.GetAlpacaOptionsStreamingClientConfiguration(Alpaca.Markets.IEnvironment,Alpaca.Markets.SecurityKey)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.AlpacaOptionsStreamingClientConfiguration"/> for specific
-            environment provided as <paramref name="environment"/> argument.
-            </summary>
-            <param name="environment">Target environment for new object.</param>
-            <param name="securityKey">Alpaca API security key.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="environment"/> or <paramref name="securityKey"/> argument is <c>null</c>.
-            </exception>
-            <returns>New instance of <see cref="T:Alpaca.Markets.AlpacaOptionsStreamingClientConfiguration"/> object.</returns>
-        </member>
         <member name="M:Alpaca.Markets.EnvironmentExtensions.GetAlpacaNewsStreamingClient(Alpaca.Markets.IEnvironment,Alpaca.Markets.SecurityKey)">
             <summary>
             Creates the new instance of <see cref="T:Alpaca.Markets.IAlpacaNewsStreamingClient"/> interface
@@ -1666,6 +1766,32 @@
             </exception>
             <returns>New instance of <see cref="T:Alpaca.Markets.AlpacaOptionsDataClientConfiguration"/> object.</returns>
         </member>
+        <member name="M:Alpaca.Markets.EnvironmentExtensions.GetAlpacaOptionsStreamingClient(Alpaca.Markets.IEnvironment,Alpaca.Markets.SecurityKey,Alpaca.Markets.OptionsFeed)">
+            <summary>
+            Creates the new instance of <see cref="T:Alpaca.Markets.IAlpacaOptionsStreamingClient"/> interface
+            implementation for specific environment provided as <paramref name="environment"/> argument.
+            </summary>
+            <param name="environment">Target environment for new object.</param>
+            <param name="securityKey">Alpaca API security key.</param>
+            <param name="feed">Options data feed selection (Indicative or OPRA).</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="environment"/> or <paramref name="securityKey"/> argument is <c>null</c>.
+            </exception>
+            <returns>The new instance of <see cref="T:Alpaca.Markets.IAlpacaOptionsStreamingClient"/> interface implementation.</returns>
+        </member>
+        <member name="M:Alpaca.Markets.EnvironmentExtensions.GetAlpacaOptionsStreamingClientConfiguration(Alpaca.Markets.IEnvironment,Alpaca.Markets.SecurityKey,Alpaca.Markets.OptionsFeed)">
+            <summary>
+            Creates new instance of <see cref="T:Alpaca.Markets.AlpacaOptionsStreamingClientConfiguration"/> for specific
+            environment provided as <paramref name="environment"/> argument.
+            </summary>
+            <param name="environment">Target environment for new object.</param>
+            <param name="securityKey">Alpaca API security key.</param>
+            <param name="feed">Options data feed selection (Indicative or OPRA).</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="environment"/> or <paramref name="securityKey"/> argument is <c>null</c>.
+            </exception>
+            <returns>New instance of <see cref="T:Alpaca.Markets.AlpacaOptionsStreamingClientConfiguration"/> object.</returns>
+        </member>
         <member name="T:Alpaca.Markets.Environments">
             <summary>
             Provides single entry point for obtaining information about different environments.
@@ -1712,14 +1838,14 @@
             Gets Alpaca crypto streaming API base URL for this environment.
             </summary>
         </member>
-        <member name="P:Alpaca.Markets.IEnvironment.AlpacaOptionsStreamingApi">
-            <summary>
-            Gets Alpaca crypto streaming API base URL for this environment.
-            </summary>
-        </member>
         <member name="P:Alpaca.Markets.IEnvironment.AlpacaNewsStreamingApi">
             <summary>
             Gets Alpaca news streaming API base URL for this environment.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IEnvironment.AlpacaOptionsStreamingApi">
+            <summary>
+            Gets Alpaca options streaming API base URL for this environment.
             </summary>
         </member>
         <member name="T:Alpaca.Markets.RequestValidationException">
@@ -1823,6 +1949,17 @@
             The <paramref name="configuration"/> argument is <c>null</c>.
             </exception>
             <returns>A new instance of <see cref="T:Alpaca.Markets.IAlpacaCryptoStreamingClient"/> interface implementation.</returns>
+        </member>
+        <member name="M:Alpaca.Markets.Extensions.ConfigurationExtensions.GetClient(Alpaca.Markets.AlpacaOptionsStreamingClientConfiguration)">
+            <summary>
+            Creates a new instance of <see cref="T:Alpaca.Markets.IAlpacaOptionsStreamingClient"/> interface
+            implementation using the <paramref name="configuration"/> argument.
+            </summary>
+            <param name="configuration">Client configuration parameters.</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="configuration"/> argument is <c>null</c>.
+            </exception>
+            <returns>A new instance of <see cref="T:Alpaca.Markets.IAlpacaOptionsStreamingClient"/> interface implementation.</returns>
         </member>
         <member name="M:Alpaca.Markets.Extensions.ConfigurationExtensions.GetClient(Alpaca.Markets.AlpacaNewsStreamingClientConfiguration)">
             <summary>
@@ -1949,7 +2086,7 @@
         </member>
         <member name="T:Alpaca.Markets.HistoricalRequestBaseExtensions">
             <summary>
-            Set of extension methods for <see cref="T:Alpaca.Markets.HistoricalRequestBase"/> inheritors' initialization.
+            Set of extension methods for <see cref="T:Alpaca.Markets.HistoricalRequestBase"/> inheritors initialization.
             </summary>
         </member>
         <member name="M:Alpaca.Markets.HistoricalRequestBaseExtensions.WithPageSize``1(``0,System.UInt32)">
@@ -2319,7 +2456,7 @@
         </member>
         <member name="P:Alpaca.Markets.IAccount.ShortingEnabled">
             <summary>
-            Flag to denote whether or not the account is permitted to short.
+            Flag to denote whether the account is permitted to short.
             </summary>
         </member>
         <member name="P:Alpaca.Markets.IAccount.Multiplier">
@@ -2586,33 +2723,9 @@
         <member name="T:Alpaca.Markets.IAlpacaCryptoDataClient">
             <summary>
             Provides unified type-safe access for Alpaca Crypto Data API via HTTP/REST.
+            Supports spot cryptocurrency trading only (e.g., BTC/USD, ETH/USD).
+            NOTE: Crypto perpetual futures are not currently supported by Alpaca Markets.
             </summary>
-        </member>
-        <member name="M:Alpaca.Markets.IAlpacaCryptoDataClient.GetLatestBarAsync(Alpaca.Markets.LatestDataRequest,System.Threading.CancellationToken)">
-            <summary>
-            Gets most recent bar for a single asset from Alpaca REST API endpoint.
-            </summary>
-            <param name="request">Asset symbol and exchange pair for data retrieval.</param>
-            <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-            <exception cref="T:Alpaca.Markets.RequestValidationException">
-            The <paramref name="request"/> argument contains invalid data or some required data is missing, unable to create a valid HTTP request.
-            </exception>
-            <exception cref="T:System.Net.Http.HttpRequestException">
-            The request failed due to an underlying issue such as network connectivity, DNS failure, server certificate validation or timeout.
-            </exception>
-            <exception cref="T:Alpaca.Markets.RestClientErrorException">
-            The response contains an error message or the received response cannot be deserialized properly due to JSON schema mismatch.
-            </exception>
-            <exception cref="T:System.Net.Sockets.SocketException">
-            The initial TPC socket connection failed due to an underlying low-level network connectivity issue.
-            </exception>
-            <exception cref="T:System.Threading.Tasks.TaskCanceledException">
-            .NET Core and .NET 5 and later only: The request failed due to timeout.
-            </exception>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="request"/> argument is <c>null</c>.
-            </exception>
-            <returns>Read-only latest bar information.</returns>
         </member>
         <member name="M:Alpaca.Markets.IAlpacaCryptoDataClient.ListLatestBarsAsync(Alpaca.Markets.LatestDataListRequest,System.Threading.CancellationToken)">
             <summary>
@@ -2640,32 +2753,6 @@
             </exception>
             <returns>Read-only dictionary with the latest bars information.</returns>
         </member>
-        <member name="M:Alpaca.Markets.IAlpacaCryptoDataClient.GetLatestTradeAsync(Alpaca.Markets.LatestDataRequest,System.Threading.CancellationToken)">
-            <summary>
-            Gets most recent trade for a single asset from Alpaca REST API endpoint.
-            </summary>
-            <param name="request">Asset symbol and exchange pair for data retrieval.</param>
-            <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-            <exception cref="T:Alpaca.Markets.RequestValidationException">
-            The <paramref name="request"/> argument contains invalid data or some required data is missing, unable to create a valid HTTP request.
-            </exception>
-            <exception cref="T:System.Net.Http.HttpRequestException">
-            The request failed due to an underlying issue such as network connectivity, DNS failure, server certificate validation or timeout.
-            </exception>
-            <exception cref="T:Alpaca.Markets.RestClientErrorException">
-            The response contains an error message or the received response cannot be deserialized properly due to JSON schema mismatch.
-            </exception>
-            <exception cref="T:System.Net.Sockets.SocketException">
-            The initial TPC socket connection failed due to an underlying low-level network connectivity issue.
-            </exception>
-            <exception cref="T:System.Threading.Tasks.TaskCanceledException">
-            .NET Core and .NET 5 and later only: The request failed due to timeout.
-            </exception>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="request"/> argument is <c>null</c>.
-            </exception>
-            <returns>Read-only latest trade information.</returns>
-        </member>
         <member name="M:Alpaca.Markets.IAlpacaCryptoDataClient.ListLatestTradesAsync(Alpaca.Markets.LatestDataListRequest,System.Threading.CancellationToken)">
             <summary>
             Gets most recent trade for several assets from Alpaca REST API endpoint.
@@ -2692,32 +2779,6 @@
             </exception>
             <returns>Read-only dictionary with the latest trades information.</returns>
         </member>
-        <member name="M:Alpaca.Markets.IAlpacaCryptoDataClient.GetLatestQuoteAsync(Alpaca.Markets.LatestDataRequest,System.Threading.CancellationToken)">
-            <summary>
-            Gets current quote for single asset from Alpaca REST API endpoint.
-            </summary>
-            <param name="request">Asset symbol and exchange pair for data retrieval.</param>
-            <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-            <exception cref="T:Alpaca.Markets.RequestValidationException">
-            The <paramref name="request"/> argument contains invalid data or some required data is missing, unable to create a valid HTTP request.
-            </exception>
-            <exception cref="T:System.Net.Http.HttpRequestException">
-            The request failed due to an underlying issue such as network connectivity, DNS failure, server certificate validation or timeout.
-            </exception>
-            <exception cref="T:Alpaca.Markets.RestClientErrorException">
-            The response contains an error message or the received response cannot be deserialized properly due to JSON schema mismatch.
-            </exception>
-            <exception cref="T:System.Net.Sockets.SocketException">
-            The initial TPC socket connection failed due to an underlying low-level network connectivity issue.
-            </exception>
-            <exception cref="T:System.Threading.Tasks.TaskCanceledException">
-            .NET Core and .NET 5 and later only: The request failed due to timeout.
-            </exception>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="request"/> argument is <c>null</c>.
-            </exception>
-            <returns>Read-only current quote information.</returns>
-        </member>
         <member name="M:Alpaca.Markets.IAlpacaCryptoDataClient.ListLatestQuotesAsync(Alpaca.Markets.LatestDataListRequest,System.Threading.CancellationToken)">
             <summary>
             Gets most recent quote for several assets from Alpaca REST API endpoint.
@@ -2743,84 +2804,6 @@
             The <paramref name="request"/> argument is <c>null</c>.
             </exception>
             <returns>Read-only dictionary with the latest quotes information.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.IAlpacaCryptoDataClient.GetLatestBestBidOfferAsync(Alpaca.Markets.LatestBestBidOfferRequest,System.Threading.CancellationToken)">
-            <summary>
-            Gets current cross-exchange best bid/offer (XBBO) for single asset from Alpaca REST API endpoint.
-            </summary>
-            <param name="request">Asset symbol and exchanges list pair for data retrieval.</param>
-            <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-            <exception cref="T:Alpaca.Markets.RequestValidationException">
-            The <paramref name="request"/> argument contains invalid data or some required data is missing, unable to create a valid HTTP request.
-            </exception>
-            <exception cref="T:System.Net.Http.HttpRequestException">
-            The request failed due to an underlying issue such as network connectivity, DNS failure, server certificate validation or timeout.
-            </exception>
-            <exception cref="T:Alpaca.Markets.RestClientErrorException">
-            The response contains an error message or the received response cannot be deserialized properly due to JSON schema mismatch.
-            </exception>
-            <exception cref="T:System.Net.Sockets.SocketException">
-            The initial TPC socket connection failed due to an underlying low-level network connectivity issue.
-            </exception>
-            <exception cref="T:System.Threading.Tasks.TaskCanceledException">
-            .NET Core and .NET 5 and later only: The request failed due to timeout.
-            </exception>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="request"/> argument is <c>null</c>.
-            </exception>
-            <returns>Read-only current XBBO information.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.IAlpacaCryptoDataClient.ListLatestBestBidOffersAsync(Alpaca.Markets.LatestBestBidOfferListRequest,System.Threading.CancellationToken)">
-            <summary>
-            Gets current cross-exchange best bid/offer (XBBO) for several assets from Alpaca REST API endpoint.
-            </summary>
-            <param name="request">Asset symbol and exchanges list pair for data retrieval.</param>
-            <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-            <exception cref="T:Alpaca.Markets.RequestValidationException">
-            The <paramref name="request"/> argument contains invalid data or some required data is missing, unable to create a valid HTTP request.
-            </exception>
-            <exception cref="T:System.Net.Http.HttpRequestException">
-            The request failed due to an underlying issue such as network connectivity, DNS failure, server certificate validation or timeout.
-            </exception>
-            <exception cref="T:Alpaca.Markets.RestClientErrorException">
-            The response contains an error message or the received response cannot be deserialized properly due to JSON schema mismatch.
-            </exception>
-            <exception cref="T:System.Net.Sockets.SocketException">
-            The initial TPC socket connection failed due to an underlying low-level network connectivity issue.
-            </exception>
-            <exception cref="T:System.Threading.Tasks.TaskCanceledException">
-            .NET Core and .NET 5 and later only: The request failed due to timeout.
-            </exception>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="request"/> argument is <c>null</c>.
-            </exception>
-            <returns>Read-only dictionary with the current XBBO information.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.IAlpacaCryptoDataClient.GetSnapshotAsync(Alpaca.Markets.SnapshotDataRequest,System.Threading.CancellationToken)">
-            <summary>
-            Gets current snapshot data for single asset from Alpaca REST API endpoint.
-            </summary>
-            <param name="request">Asset symbol and exchange pair for data retrieval.</param>
-            <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-            <exception cref="T:Alpaca.Markets.RequestValidationException">
-            The <paramref name="request"/> argument contains invalid data or some required data is missing, unable to create a valid HTTP request.
-            </exception>
-            <exception cref="T:System.Net.Http.HttpRequestException">
-            The request failed due to an underlying issue such as network connectivity, DNS failure, server certificate validation or timeout.
-            </exception>
-            <exception cref="T:Alpaca.Markets.RestClientErrorException">
-            The response contains an error message or the received response cannot be deserialized properly due to JSON schema mismatch.
-            </exception>
-            <exception cref="T:System.Net.Sockets.SocketException">
-            The initial TPC socket connection failed due to an underlying low-level network connectivity issue.
-            </exception>
-            <exception cref="T:System.Threading.Tasks.TaskCanceledException">
-            .NET Core and .NET 5 and later only: The request failed due to timeout.
-            </exception>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="request"/> argument is <c>null</c>.
-            </exception>
-            <returns>Read-only current snapshot information.</returns>
         </member>
         <member name="M:Alpaca.Markets.IAlpacaCryptoDataClient.ListSnapshotsAsync(Alpaca.Markets.SnapshotDataListRequest,System.Threading.CancellationToken)">
             <summary>
@@ -2877,6 +2860,8 @@
         <member name="T:Alpaca.Markets.IAlpacaCryptoStreamingClient">
             <summary>
             Provides unified type-safe access for Alpaca crypto data streaming API via websockets.
+            Supports spot cryptocurrency streaming only (e.g., BTC/USD, ETH/USD).
+            NOTE: Crypto perpetual futures are not currently supported by Alpaca Markets.
             </summary>
         </member>
         <member name="M:Alpaca.Markets.IAlpacaCryptoStreamingClient.GetOrderBookSubscription(System.String)">
@@ -3288,6 +3273,32 @@
             </exception>
             <returns>Read-only list of most active stocks ranked by trade count.</returns>
         </member>
+        <member name="M:Alpaca.Markets.IAlpacaDataClient.ListCorporateActionsAsync(Alpaca.Markets.CorporateActionsRequest,System.Threading.CancellationToken)">
+            <summary>
+            Returns the historical corporate actions for the current trading session according to request parameters.
+            </summary>
+            <param name="request">Historical auctions request parameters.</param>
+            <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+            <exception cref="T:Alpaca.Markets.RequestValidationException">
+            The <paramref name="request"/> argument contains invalid data or some required data is missing, unable to create a valid HTTP request.
+            </exception>
+            <exception cref="T:System.Net.Http.HttpRequestException">
+            The request failed due to an underlying issue such as network connectivity, DNS failure, server certificate validation or timeout.
+            </exception>
+            <exception cref="T:Alpaca.Markets.RestClientErrorException">
+            The response contains an error message or the received response cannot be deserialized properly due to JSON schema mismatch.
+            </exception>
+            <exception cref="T:System.Net.Sockets.SocketException">
+            The initial TPC socket connection failed due to an underlying low-level network connectivity issue.
+            </exception>
+            <exception cref="T:System.Threading.Tasks.TaskCanceledException">
+            .NET Core and .NET 5 and later only: The request failed due to timeout.
+            </exception>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="request"/> argument is <c>null</c>.
+            </exception>
+            <returns>Read-only list of most active stocks ranked by trade count.</returns>
+        </member>
         <member name="T:Alpaca.Markets.IAlpacaDataStreamingClient">
             <summary>
             Provides unified type-safe access for Alpaca data streaming API via websockets.
@@ -3337,6 +3348,23 @@
             Gets the LULD (limit up / limit down) subscription for the <paramref name="symbol"/> asset.
             </summary>
             <param name="symbol">Alpaca asset symbol.</param>
+            <returns>
+            Subscription object for tracking updates via the <see cref="E:Alpaca.Markets.IAlpacaDataSubscription`1.Received"/> event.
+            </returns>
+        </member>
+        <member name="M:Alpaca.Markets.IAlpacaDataStreamingClient.GetOrderImbalanceSubscription(System.String)">
+            <summary>
+            Gets the order imbalance subscription for the <paramref name="symbol"/> asset.
+            Order imbalance data is available during pre-market opening and closing auctions,
+            providing information about paired shares, imbalance volume, and reference pricing.
+            </summary>
+            <param name="symbol">Alpaca asset symbol.</param>
+            <exception cref="T:System.OverflowException">
+            The underlying subscriptions dictionary contains too many elements.
+            </exception>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="symbol"/> argument is <c>null</c>.
+            </exception>
             <returns>
             Subscription object for tracking updates via the <see cref="E:Alpaca.Markets.IAlpacaDataSubscription`1.Received"/> event.
             </returns>
@@ -3477,6 +3505,32 @@
             </exception>
             <returns>Read-only dictionary with the latest trades information.</returns>
         </member>
+        <member name="M:Alpaca.Markets.IAlpacaOptionsDataClient.ListLatestBarsAsync(Alpaca.Markets.LatestOptionsDataRequest,System.Threading.CancellationToken)">
+            <summary>
+            Gets most recent bars for several option contracts from Alpaca REST API endpoint.
+            </summary>
+            <param name="request">Option contracts latest data request.</param>
+            <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+            <exception cref="T:Alpaca.Markets.RequestValidationException">
+            The <paramref name="request"/> argument contains invalid data or some required data is missing, unable to create a valid HTTP request.
+            </exception>
+            <exception cref="T:System.Net.Http.HttpRequestException">
+            The request failed due to an underlying issue such as network connectivity, DNS failure, server certificate validation or timeout.
+            </exception>
+            <exception cref="T:Alpaca.Markets.RestClientErrorException">
+            The response contains an error message or the received response cannot be deserialized properly due to JSON schema mismatch.
+            </exception>
+            <exception cref="T:System.Net.Sockets.SocketException">
+            The initial TPC socket connection failed due to an underlying low-level network connectivity issue.
+            </exception>
+            <exception cref="T:System.Threading.Tasks.TaskCanceledException">
+            .NET Core and .NET 5 and later only: The request failed due to timeout.
+            </exception>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="request"/> argument is <c>null</c>.
+            </exception>
+            <returns>Read-only dictionary with the latest bars information.</returns>
+        </member>
         <member name="M:Alpaca.Markets.IAlpacaOptionsDataClient.ListSnapshotsAsync(Alpaca.Markets.OptionSnapshotRequest,System.Threading.CancellationToken)">
             <summary>
             Gets current snapshot (latest trade/quote) for several option contracts from Alpaca REST API endpoint.
@@ -3529,6 +3583,11 @@
             </exception>
             <returns>Read-only dictionary with the current snapshot information.</returns>
         </member>
+        <member name="T:Alpaca.Markets.IAlpacaOptionsStreamingClient">
+            <summary>
+            Provides unified type-safe access for Alpaca options data streaming API via websockets.
+            </summary>
+        </member>
         <member name="T:Alpaca.Markets.IAlpacaScreenerClient">
             <summary>
             Provides unified type-safe access for Alpaca Screener API via HTTP/REST.
@@ -3539,7 +3598,7 @@
             Returns top market movers (gainers and losers) and corresponding price change values.
             </summary>
             <param name="numberOfLosersAndGainersInResponse">
-            Number of top market movers to fetch (gainers and losers). Will return number top for each. By default 10 gainers and 10 losers.
+            Number of top market movers to fetch (gainers and losers). Will return number top for each. By default, 10 gainers and 10 losers.
             </param>
             <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
             <exception cref="T:System.Net.Http.HttpRequestException">
@@ -4303,29 +4362,6 @@
             </exception>
             <returns>Read-only clock information object.</returns>
         </member>
-        <member name="M:Alpaca.Markets.IAlpacaTradingClient.ListCalendarAsync(Alpaca.Markets.CalendarRequest,System.Threading.CancellationToken)">
-            <summary>
-            Gets list of trading days from Alpaca REST API endpoint.
-            </summary>
-            <param name="request">Calendar items request parameters.</param>
-            <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-            <exception cref="T:System.Net.Http.HttpRequestException">
-            The request failed due to an underlying issue such as network connectivity, DNS failure, server certificate validation or timeout.
-            </exception>
-            <exception cref="T:Alpaca.Markets.RestClientErrorException">
-            The response contains an error message or the received response cannot be deserialized properly due to JSON schema mismatch.
-            </exception>
-            <exception cref="T:System.Net.Sockets.SocketException">
-            The initial TPC socket connection failed due to an underlying low-level network connectivity issue.
-            </exception>
-            <exception cref="T:System.Threading.Tasks.TaskCanceledException">
-            .NET Core and .NET 5 and later only: The request failed due to timeout.
-            </exception>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="request"/> argument is <c>null</c>.
-            </exception>
-            <returns>Read-only list of trading date information object.</returns>
-        </member>
         <member name="M:Alpaca.Markets.IAlpacaTradingClient.ListIntervalCalendarAsync(Alpaca.Markets.CalendarRequest,System.Threading.CancellationToken)">
             <summary>
             Gets list of trading open/close intervals for each day from Alpaca REST API endpoint.
@@ -4522,7 +4558,7 @@
         </member>
         <member name="P:Alpaca.Markets.IAnnouncement.SubType">
             <summary>
-            Gets corporate action sub-type.
+            Gets corporate action subtype.
             </summary>
         </member>
         <member name="P:Alpaca.Markets.IAnnouncement.InitiatingSymbol">
@@ -4647,6 +4683,16 @@
             Gets the % margin requirement for the asset. This property is valid only for equity assets.
             </summary>
         </member>
+        <member name="P:Alpaca.Markets.IAsset.MarginRequirementLong">
+            <summary>
+            Gets the % long margin requirement for the asset. This property is valid only for equity assets.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IAsset.MarginRequirementShort">
+            <summary>
+            Gets the % short margin requirement for the asset. This property is valid only for equity assets.
+            </summary>
+        </member>
         <member name="P:Alpaca.Markets.IAsset.Attributes">
             <summary>
             Gets the list of asset attributes (unique asset characteristics like PTP order acceptance mode).
@@ -4757,39 +4803,94 @@
             Gets total trades count for this bar.
             </summary>
         </member>
-        <member name="T:Alpaca.Markets.ICalendar">
+        <member name="T:Alpaca.Markets.ICashDividend">
             <summary>
-            Encapsulates single trading day information from Alpaca REST API.
+            Encapsulates the cash dividend information from Alpaca APIs.
             </summary>
         </member>
-        <member name="P:Alpaca.Markets.ICalendar.TradingDateEst">
+        <member name="P:Alpaca.Markets.ICashDividend.Symbol">
             <summary>
-            Gets trading date in EST time zone.
+            Gets the symbol
             </summary>
         </member>
-        <member name="P:Alpaca.Markets.ICalendar.TradingDateUtc">
+        <member name="P:Alpaca.Markets.ICashDividend.Rate">
             <summary>
-            Gets trading date in UTC time zone.
+            Gets the dividend rate
             </summary>
         </member>
-        <member name="P:Alpaca.Markets.ICalendar.TradingOpenTimeEst">
+        <member name="P:Alpaca.Markets.ICashDividend.IsForeign">
             <summary>
-            Gets trading date open time in EST time zone.
+            Gets the foreign flag
             </summary>
         </member>
-        <member name="P:Alpaca.Markets.ICalendar.TradingOpenTimeUtc">
+        <member name="P:Alpaca.Markets.ICashDividend.IsSpecial">
             <summary>
-            Gets trading date open time in UTC time zone.
+            Gets te special flag
             </summary>
         </member>
-        <member name="P:Alpaca.Markets.ICalendar.TradingCloseTimeEst">
+        <member name="P:Alpaca.Markets.ICashDividend.ProcessDate">
             <summary>
-            Gets trading date close time in EST time zone.
+            Gets the cash dividend process date
             </summary>
         </member>
-        <member name="P:Alpaca.Markets.ICalendar.TradingCloseTimeUtc">
+        <member name="P:Alpaca.Markets.ICashDividend.ExecutionDate">
             <summary>
-            Gets trading date close time in UTC time zone.
+            Gets the cash dividend execution date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICashDividend.RecordDate">
+            <summary>
+            Gets the cash dividend record date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICashDividend.PayableDate">
+            <summary>
+            Gets the cash dividend payable date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICashDividend.DueBillOffDate">
+            <summary>
+            Gets the cash dividend due bill off date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICashDividend.DueBillOnDate">
+            <summary>
+            Gets the cash dividend due bill on date
+            </summary>
+        </member>
+        <member name="T:Alpaca.Markets.ICashMerger">
+            <summary>
+            Encapsulates the cash merger information from Alpaca APIs.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICashMerger.AcquirerSymbol">
+            <summary>
+            Gets the acquirer symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICashMerger.AcquireeSymbol">
+            <summary>
+            Gets the acquiree symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICashMerger.Rate">
+            <summary>
+            Gets the cash merger rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICashMerger.ProcessDate">
+            <summary>
+            Gets the cash merger process date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICashMerger.EffectiveDate">
+            <summary>
+            Gets the cash merger effective date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICashMerger.PayableDate">
+            <summary>
+            Gets the cash merger payable date
             </summary>
         </member>
         <member name="T:Alpaca.Markets.IClock">
@@ -4815,6 +4916,82 @@
         <member name="P:Alpaca.Markets.IClock.NextCloseUtc">
             <summary>
             Gets nearest trading day close time in UTC.
+            </summary>
+        </member>
+        <member name="T:Alpaca.Markets.ICorporateActionsResponse">
+            <summary>
+            Encapsulates the historical corporate action response page with different corporate action types inside.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICorporateActionsResponse.StockAndCashMergers">
+            <summary>
+            Gets list of <see cref="T:Alpaca.Markets.IStockAndCashMerger"/> items from the response page.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICorporateActionsResponse.RightsDistributions">
+            <summary>
+            Gets list of <see cref="T:Alpaca.Markets.IRightsDistribution"/> items from the response page.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICorporateActionsResponse.WorthlessRemovals">
+            <summary>
+            Gets list of <see cref="T:Alpaca.Markets.IWorthlessRemoval"/> items from the response page.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICorporateActionsResponse.StockDividends">
+            <summary>
+            Gets list of <see cref="T:Alpaca.Markets.IStockDividend"/> items from the response page.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICorporateActionsResponse.CashDividends">
+            <summary>
+            Gets list of <see cref="T:Alpaca.Markets.ICashDividend"/> items from the response page.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICorporateActionsResponse.ReverseSplits">
+            <summary>
+            Gets list of <see cref="T:Alpaca.Markets.IReverseSplit"/> items from the response page.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICorporateActionsResponse.ForwardSplits">
+            <summary>
+            Gets list of <see cref="T:Alpaca.Markets.IForwardSplit"/> items from the response page.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICorporateActionsResponse.StockMergers">
+            <summary>
+            Gets list of <see cref="T:Alpaca.Markets.IStockMerger"/> items from the response page.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICorporateActionsResponse.NameChanges">
+            <summary>
+            Gets list of <see cref="T:Alpaca.Markets.INameChange"/> items from the response page.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICorporateActionsResponse.CashMergers">
+            <summary>
+            Gets list of <see cref="T:Alpaca.Markets.ICashMerger"/> items from the response page.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICorporateActionsResponse.Redemptions">
+            <summary>
+            Gets list of <see cref="T:Alpaca.Markets.IRedemption"/> items from the response page.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICorporateActionsResponse.UnitSplits">
+            <summary>
+            Gets list of <see cref="T:Alpaca.Markets.IUnitSplit"/> items from the response page.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICorporateActionsResponse.SpinOffs">
+            <summary>
+            Gets list of <see cref="T:Alpaca.Markets.ISpinOff"/> items from the response page.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ICorporateActionsResponse.NextPageToken">
+            <summary>
+            Gets the next page token for continuation. If value of this property
+            equals to <c>null</c> this page is the last one and no more data is available.
             </summary>
         </member>
         <member name="T:Alpaca.Markets.ICorrection">
@@ -4877,6 +5054,51 @@
         <member name="P:Alpaca.Markets.IErrorInformation.MaxDayTradingBuyingPowerUsedSoFar">
             <summary>
             Gets the used maximal day trading buying power if this value related to the error.
+            </summary>
+        </member>
+        <member name="T:Alpaca.Markets.IForwardSplit">
+            <summary>
+            Encapsulates the forward split information from Alpaca APIs.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IForwardSplit.Symbol">
+            <summary>
+            Gets the symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IForwardSplit.NewRate">
+            <summary>
+            Gets the forward split new rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IForwardSplit.OldRate">
+            <summary>
+            Gets the forward split old rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IForwardSplit.ProcessDate">
+            <summary>
+            Gets the forward split process date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IForwardSplit.ExecutionDate">
+            <summary>
+            Gets the forward split execution date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IForwardSplit.RecordDate">
+            <summary>
+            Gets the forward split record date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IForwardSplit.PayableDate">
+            <summary>
+            Gets the forward split payable date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IForwardSplit.DueBillRedemptionDate">
+            <summary>
+            Gets the forward split due bill redemption date
             </summary>
         </member>
         <member name="T:Alpaca.Markets.IGreeks">
@@ -5209,6 +5431,26 @@
             Gets list of items for this response grouped by asset symbols.
             </summary>
         </member>
+        <member name="T:Alpaca.Markets.INameChange">
+            <summary>
+            Encapsulates the name change information from Alpaca APIs.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.INameChange.OldSymbol">
+            <summary>
+            Gets the old symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.INameChange.NewSymbol">
+            <summary>
+            Gets the new symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.INameChange.ProcessDate">
+            <summary>
+            Gets the name change process date
+            </summary>
+        </member>
         <member name="T:Alpaca.Markets.INewsArticle">
             <summary>
             Encapsulates the basic news article information from Alpaca APIs.
@@ -5241,7 +5483,7 @@
         </member>
         <member name="P:Alpaca.Markets.INewsArticle.Summary">
             <summary>
-            Gets summary text for the article (may be first sentence of content).
+            Gets summary text for the article (maybe first sentence of content).
             </summary>
         </member>
         <member name="P:Alpaca.Markets.INewsArticle.Content">
@@ -5536,7 +5778,7 @@
         </member>
         <member name="P:Alpaca.Markets.IOrder.HighWaterMark">
             <summary>
-            Gets the current high water mark price for trailing stop orders.
+            Gets the current high watermark price for trailing stop orders.
             </summary>
         </member>
         <member name="P:Alpaca.Markets.IOrder.AverageFillPrice">
@@ -5627,6 +5869,52 @@
         <member name="P:Alpaca.Markets.IOrderBookEntry.Size">
             <summary>
             Gets quantity.
+            </summary>
+        </member>
+        <member name="T:Alpaca.Markets.IOrderImbalance">
+            <summary>
+            Encapsulates the basic order imbalance information from Alpaca APIs.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IOrderImbalance.Symbol">
+            <summary>
+            Gets asset symbol.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IOrderImbalance.TimestampUtc">
+            <summary>
+            Gets the order imbalance update timestamp in UTC.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IOrderImbalance.ReferencePrice">
+            <summary>
+            Gets the reference price for the imbalance. Typically, NYSE Last Sale,
+            or bid/offer if last sale is outside spread.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IOrderImbalance.PairedShares">
+            <summary>
+            Gets the volume of shares that can be matched at the reference price.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IOrderImbalance.ImbalanceShares">
+            <summary>
+            Gets the volume of shares that cannot be paired (buy or sell excess).
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IOrderImbalance.ImbalanceSide">
+            <summary>
+            Gets the side of the imbalance: "B" for buy side, "S" for sale side.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IOrderImbalance.Tape">
+            <summary>
+            Gets tape.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IOrderImbalance.AuctionType">
+            <summary>
+            Gets the current auction type. "O" for opening auction, "C" for closing auction.
             </summary>
         </member>
         <member name="T:Alpaca.Markets.IPage`1">
@@ -5866,6 +6154,116 @@
             Gets trade conditions list.
             </summary>
         </member>
+        <member name="T:Alpaca.Markets.IRedemption">
+            <summary>
+            Encapsulates the redemption information from Alpaca APIs.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IRedemption.Symbol">
+            <summary>
+            Gets the symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IRedemption.Rate">
+            <summary>
+            Gets the dividend rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IRedemption.ProcessDate">
+            <summary>
+            Gets the redemption process date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IRedemption.PayableDate">
+            <summary>
+            Gets the redemption payable date
+            </summary>
+        </member>
+        <member name="T:Alpaca.Markets.IReverseSplit">
+            <summary>
+            Encapsulates the reverse split information from Alpaca APIs.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IReverseSplit.Symbol">
+            <summary>
+            Gets the symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IReverseSplit.NewRate">
+            <summary>
+            Gets the reverse split new rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IReverseSplit.OldRate">
+            <summary>
+            Gets the reverse split old rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IReverseSplit.ProcessDate">
+            <summary>
+            Gets the reverse split process date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IReverseSplit.ExecutionDate">
+            <summary>
+            Gets the reverse split execution date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IReverseSplit.RecordDate">
+            <summary>
+            Gets the reverse split record date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IReverseSplit.PayableDate">
+            <summary>
+            Gets the reverse split payable date
+            </summary>
+        </member>
+        <member name="T:Alpaca.Markets.IRightsDistribution">
+            <summary>
+            Encapsulates the right distribution information from Alpaca APIs.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IRightsDistribution.SourceSymbol">
+            <summary>
+            Gets the source symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IRightsDistribution.NewSymbol">
+            <summary>
+            Gets the new symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IRightsDistribution.Rate">
+            <summary>
+            Gets the right distribution rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IRightsDistribution.ProcessDate">
+            <summary>
+            Gets the right distribution process date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IRightsDistribution.ExecutionDate">
+            <summary>
+            Gets the right distribution execution date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IRightsDistribution.PayableDate">
+            <summary>
+            Gets the right distribution payable date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IRightsDistribution.RecordDate">
+            <summary>
+            Gets the right distribution record date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IRightsDistribution.ExpirationDate">
+            <summary>
+            Gets the right distribution expiration date
+            </summary>
+        </member>
         <member name="T:Alpaca.Markets.ISnapshot">
             <summary>
             Encapsulates snapshot information from the Alpaca REST API.
@@ -5899,6 +6297,56 @@
         <member name="P:Alpaca.Markets.ISnapshot.PreviousDailyBar">
             <summary>
             Gets the previous daily bar information.
+            </summary>
+        </member>
+        <member name="T:Alpaca.Markets.ISpinOff">
+            <summary>
+            Encapsulates the spin-off information from Alpaca APIs.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ISpinOff.SourceSymbol">
+            <summary>
+            Gets the source symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ISpinOff.NewSymbol">
+            <summary>
+            Gets the new symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ISpinOff.SourceRate">
+            <summary>
+            Gets the spin-off source rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ISpinOff.NewRate">
+            <summary>
+            Gets the spin-off new rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ISpinOff.ProcessDate">
+            <summary>
+            Gets the spin-off process date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ISpinOff.ExecutionDate">
+            <summary>
+            Gets the spin-off execution date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ISpinOff.PayableDate">
+            <summary>
+            Gets the spin-off payable date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ISpinOff.RecordDate">
+            <summary>
+            Gets the spin-off record date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.ISpinOff.DueBillRedemptionDate">
+            <summary>
+            Gets the spin-off due bill redemption date
             </summary>
         </member>
         <member name="T:Alpaca.Markets.IStatus">
@@ -5941,6 +6389,126 @@
             Gets tape.
             </summary>
         </member>
+        <member name="T:Alpaca.Markets.IStockAndCashMerger">
+            <summary>
+            Encapsulates the stock and cash merger information from Alpaca APIs.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockAndCashMerger.AcquirerSymbol">
+            <summary>
+            Gets the acquirer symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockAndCashMerger.AcquireeSymbol">
+            <summary>
+            Gets the acquiree symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockAndCashMerger.AcquirerRate">
+            <summary>
+            Gets the acquirer rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockAndCashMerger.AcquireeRate">
+            <summary>
+            Gets the acquiree rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockAndCashMerger.CashRate">
+            <summary>
+            Gets the cash rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockAndCashMerger.ProcessDate">
+            <summary>
+            Gets the stock and cash merger process date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockAndCashMerger.EffectiveDate">
+            <summary>
+            Gets the stock and cash merger effective date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockAndCashMerger.PayableDate">
+            <summary>
+            Gets the stock and cash merger payable date
+            </summary>
+        </member>
+        <member name="T:Alpaca.Markets.IStockDividend">
+            <summary>
+            Encapsulates the stock dividend information from Alpaca APIs.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockDividend.Symbol">
+            <summary>
+            Gets the symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockDividend.Rate">
+            <summary>
+            Gets the dividend rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockDividend.ProcessDate">
+            <summary>
+            Gets the stock dividend process date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockDividend.ExecutionDate">
+            <summary>
+            Gets the stock dividend execution date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockDividend.RecordDate">
+            <summary>
+            Gets the stock dividend record date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockDividend.PayableDate">
+            <summary>
+            Gets the stock dividend payable date
+            </summary>
+        </member>
+        <member name="T:Alpaca.Markets.IStockMerger">
+            <summary>
+            Encapsulates the stock merger information from Alpaca APIs.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockMerger.AcquirerSymbol">
+            <summary>
+            Gets the acquirer symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockMerger.AcquireeSymbol">
+            <summary>
+            Gets the acquiree symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockMerger.AcquirerRate">
+            <summary>
+            Gets the acquirer rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockMerger.AcquireeRate">
+            <summary>
+            Gets the acquiree rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockMerger.ProcessDate">
+            <summary>
+            Gets the stock merger process date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockMerger.EffectiveDate">
+            <summary>
+            Gets the stock merger effective date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IStockMerger.PayableDate">
+            <summary>
+            Gets the stock merger payable date
+            </summary>
+        </member>
         <member name="T:Alpaca.Markets.IStreamingClient">
             <summary>
             Provides unified type-safe access for websocket streaming APIs.
@@ -5977,10 +6545,10 @@
             </summary>
             <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
             <exception cref="T:System.Net.Sockets.SocketException">
-            The underlying TPC socket connection failed due to an low-level network connectivity issue.
+            The underlying TPC socket connection failed due to a low-level network connectivity issue.
             </exception>
             <exception cref="T:System.Net.WebSockets.WebSocketException">
-            The WebSocket connection failed due to an high-level protocol or connection issue.
+            The WebSocket connection failed due to a high-level protocol or connection issue.
             </exception>
             <returns>Awaitable task object for handling action completion in asynchronous mode.</returns>
         </member>
@@ -5990,10 +6558,10 @@
             </summary>
             <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
             <exception cref="T:System.Net.Sockets.SocketException">
-            The underlying TPC socket connection failed due to an low-level network connectivity issue.
+            The underlying TPC socket connection failed due to a low-level network connectivity issue.
             </exception>
             <exception cref="T:System.Net.WebSockets.WebSocketException">
-            The WebSocket connection failed due to an high-level protocol or connection issue.
+            The WebSocket connection failed due to a high-level protocol or connection issue.
             </exception>
             <returns>Awaitable task object for handling client authentication event in asynchronous mode.</returns>
         </member>
@@ -6003,10 +6571,10 @@
             </summary>
             <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
             <exception cref="T:System.Net.Sockets.SocketException">
-            The underlying TPC socket connection failed due to an low-level network connectivity issue.
+            The underlying TPC socket connection failed due to a low-level network connectivity issue.
             </exception>
             <exception cref="T:System.Net.WebSockets.WebSocketException">
-            The WebSocket connection failed due to an high-level protocol or connection issue.
+            The WebSocket connection failed due to a high-level protocol or connection issue.
             </exception>
             <returns>Awaitable task object for handling action completion in asynchronous mode.</returns>
         </member>
@@ -6306,6 +6874,56 @@
             Gets related order object.
             </summary>
         </member>
+        <member name="T:Alpaca.Markets.IUnitSplit">
+            <summary>
+            Encapsulates the unit split information from Alpaca APIs.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IUnitSplit.NewSymbol">
+            <summary>
+            Gets the new symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IUnitSplit.OldSymbol">
+            <summary>
+            Gets the old symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IUnitSplit.AlternateSymbol">
+            <summary>
+            Gets the alternate symbol
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IUnitSplit.NewRate">
+            <summary>
+            Gets the unit split new rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IUnitSplit.OldRate">
+            <summary>
+            Gets the unit split old rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IUnitSplit.AlternateRate">
+            <summary>
+            Gets the unit split alternate rate
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IUnitSplit.ProcessDate">
+            <summary>
+            Gets the unit split process date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IUnitSplit.EffectiveDate">
+            <summary>
+            Gets the unit split effective date
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.IUnitSplit.PayableDate">
+            <summary>
+            Gets the unit split payable date
+            </summary>
+        </member>
         <member name="T:Alpaca.Markets.IWatchList">
             <summary>
             Encapsulates watch list information from Alpaca REST API.
@@ -6341,318 +6959,20 @@
             Gets the content of this watchlist, in the order as registered by the client.
             </summary>
         </member>
-        <member name="T:Alpaca.Markets.IRequestWithTimeInterval`1">
+        <member name="T:Alpaca.Markets.IWorthlessRemoval">
             <summary>
-            Encapsulates access point for setting time interval filtering on request instance.
-            </summary>
-            <typeparam name="TInterval">The sort of time interval (inclusive or exclusive).</typeparam>
-        </member>
-        <member name="M:Alpaca.Markets.IRequestWithTimeInterval`1.SetInterval(`0)">
-            <summary>
-            Sets time interval value for the current request instance.
+            Encapsulates the worthless removal information from Alpaca APIs.
             </summary>
         </member>
-        <member name="T:Alpaca.Markets.ITimeInterval">
+        <member name="P:Alpaca.Markets.IWorthlessRemoval.Symbol">
             <summary>
-            Encapsulates time interval (from and till date/time points) for filtering requires.
+            Gets the symbol
             </summary>
         </member>
-        <member name="P:Alpaca.Markets.ITimeInterval.From">
+        <member name="P:Alpaca.Markets.IWorthlessRemoval.ProcessDate">
             <summary>
-            Gets the starting date/time point of filtering interval.
+            Gets the worthless removal process date
             </summary>
-        </member>
-        <member name="P:Alpaca.Markets.ITimeInterval.Into">
-            <summary>
-            Gets the ending date/time point of filtering interval.
-            </summary>
-        </member>
-        <member name="T:Alpaca.Markets.IInclusiveTimeInterval">
-            <summary>
-            Represents the inclusive version of the <see cref="T:Alpaca.Markets.ITimeInterval"/> interface.
-            </summary>
-        </member>
-        <member name="T:Alpaca.Markets.IExclusiveTimeInterval">
-            <summary>
-            Represents the exclusive version of the <see cref="T:Alpaca.Markets.ITimeInterval"/> interface.
-            </summary>
-        </member>
-        <member name="T:Alpaca.Markets.LatestBestBidOfferListRequest">
-            <summary>
-            Encapsulates data for latest crypto XBBO request on Alpaca Data API v2.
-            </summary>
-        </member>
-        <member name="M:Alpaca.Markets.LatestBestBidOfferListRequest.#ctor(System.Collections.Generic.IEnumerable{System.String},System.Collections.Generic.IEnumerable{Alpaca.Markets.CryptoExchange})">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.LatestBestBidOfferListRequest"/> object.
-            </summary>
-            <param name="symbols">Asset symbols list for data retrieval.</param>
-            <param name="exchanges">Crypto exchanges list for data retrieval.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbols"/> or <paramref name="exchanges"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="M:Alpaca.Markets.LatestBestBidOfferListRequest.#ctor(System.Collections.Generic.IEnumerable{System.String},Alpaca.Markets.CryptoExchange)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.LatestBestBidOfferListRequest"/> object.
-            </summary>
-            <param name="symbols">Asset symbols list for data retrieval.</param>
-            <param name="exchange">Crypto exchange for data retrieval.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbols"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="M:Alpaca.Markets.LatestBestBidOfferListRequest.#ctor(System.Collections.Generic.IEnumerable{System.String})">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.LatestBestBidOfferListRequest"/> object.
-            </summary>
-            <param name="symbols">Asset symbols list for data retrieval.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbols"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="P:Alpaca.Markets.LatestBestBidOfferListRequest.Symbols">
-            <summary>
-            Gets asset symbols for data retrieval.
-            </summary>
-        </member>
-        <member name="P:Alpaca.Markets.LatestBestBidOfferListRequest.Exchanges">
-            <summary>
-            Gets crypto exchanges list for data retrieval (empty list means 'all exchanges').
-            </summary>
-        </member>
-        <member name="T:Alpaca.Markets.LatestBestBidOfferRequest">
-            <summary>
-            Encapsulates data for latest crypto XBBO request on Alpaca Data API v2.
-            </summary>
-        </member>
-        <member name="M:Alpaca.Markets.LatestBestBidOfferRequest.#ctor(System.String,System.Collections.Generic.IEnumerable{Alpaca.Markets.CryptoExchange})">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.LatestBestBidOfferRequest"/> object.
-            </summary>
-            <param name="symbol">Asset symbol for data retrieval.</param>
-            <param name="exchanges">Crypto exchanges list for data retrieval.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbol"/> or <paramref name="exchanges"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="M:Alpaca.Markets.LatestBestBidOfferRequest.#ctor(System.String,Alpaca.Markets.CryptoExchange)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.LatestBestBidOfferRequest"/> object.
-            </summary>
-            <param name="symbol">Asset symbol for data retrieval.</param>
-            <param name="exchange">Crypto exchange for data retrieval.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbol"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="M:Alpaca.Markets.LatestBestBidOfferRequest.#ctor(System.String)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.LatestBestBidOfferRequest"/> object.
-            </summary>
-            <param name="symbol">Asset symbol for data retrieval.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbol"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="P:Alpaca.Markets.LatestBestBidOfferRequest.Symbol">
-            <summary>
-            Gets asset symbol for data retrieval.
-            </summary>
-        </member>
-        <member name="P:Alpaca.Markets.LatestBestBidOfferRequest.Exchanges">
-            <summary>
-            Gets crypto exchanges list for data retrieval (empty list means 'all exchanges').
-            </summary>
-        </member>
-        <member name="T:Alpaca.Markets.LatestDataRequest">
-            <summary>
-            Encapsulates data for latest crypto data requests on Alpaca Data API v2.
-            </summary>
-        </member>
-        <member name="M:Alpaca.Markets.LatestDataRequest.#ctor(System.String,Alpaca.Markets.CryptoExchange)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.LatestDataRequest"/> object.
-            </summary>
-            <param name="symbol">Asset symbol for data retrieval.</param>
-            <param name="exchange">Crypto exchange for data retrieval.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbol"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="P:Alpaca.Markets.LatestDataRequest.Symbol">
-            <summary>
-            Gets asset symbol for data retrieval.
-            </summary>
-        </member>
-        <member name="P:Alpaca.Markets.LatestDataRequest.Exchange">
-            <summary>
-            Gets crypto exchange for data retrieval.
-            </summary>
-        </member>
-        <member name="T:Alpaca.Markets.SnapshotDataRequest">
-            <summary>
-            Encapsulates data for snapshot crypto data requests on Alpaca Data API v2.
-            </summary>
-        </member>
-        <member name="M:Alpaca.Markets.SnapshotDataRequest.#ctor(System.String,Alpaca.Markets.CryptoExchange)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.SnapshotDataRequest"/> object.
-            </summary>
-            <param name="symbol">Asset symbol for data retrieval.</param>
-            <param name="exchange">Crypto exchange for data retrieval.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbol"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="P:Alpaca.Markets.SnapshotDataRequest.Symbol">
-            <summary>
-            Gets asset symbol for data retrieval.
-            </summary>
-        </member>
-        <member name="P:Alpaca.Markets.SnapshotDataRequest.Exchange">
-            <summary>
-            Gets crypto exchange for data retrieval.
-            </summary>
-        </member>
-        <member name="T:Alpaca.Markets.TimeInterval">
-            <summary>
-            Encapsulates implementations of the <see cref="T:Alpaca.Markets.ITimeInterval"/> interface and helper methods for it.
-            </summary>
-        </member>
-        <member name="M:Alpaca.Markets.TimeInterval.IsEmpty(Alpaca.Markets.ITimeInterval)">
-            <summary>
-            Gets boolean flag signals that time interval is empty (both start and end date equal to <c>null</c>).
-            </summary>
-            <param name="interval">Target time interval for checking.</param>
-            <returns>
-            Returns <c>true</c> if both <see cref="P:Alpaca.Markets.ITimeInterval.From"/> and <see cref="P:Alpaca.Markets.ITimeInterval.Into"/> equal to <c>null</c>.
-            </returns>
-        </member>
-        <member name="M:Alpaca.Markets.TimeInterval.IsOpen(Alpaca.Markets.ITimeInterval)">
-            <summary>
-            Gets boolean flag signals that time interval is open (both start or end date equal to <c>null</c>).
-            </summary>
-            <param name="interval">Target time interval for checking.</param>
-            <returns>
-            Returns <c>true</c> if both <see cref="P:Alpaca.Markets.ITimeInterval.From"/> or <see cref="P:Alpaca.Markets.ITimeInterval.Into"/> equal to <c>null</c>.
-            </returns>
-        </member>
-        <member name="M:Alpaca.Markets.TimeInterval.GetExclusiveIntervalTillThat(System.DateTime)">
-            <summary>
-            Gets exclusive open time interval ending at the <paramref name="value"/> date/time point.
-            </summary>
-            <param name="value">Ending date/time point for filtering.</param>
-            <returns>Inclusive open time interval.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.TimeInterval.GetInclusiveIntervalTillThat(System.DateTime)">
-            <summary>
-            Gets inclusive open time interval ending at the <paramref name="value"/> date/time point.
-            </summary>
-            <param name="value">Ending date/time point for filtering.</param>
-            <returns>Inclusive open time interval.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.TimeInterval.GetExclusiveIntervalFromThat(System.DateTime)">
-            <summary>
-            Gets exclusive open time interval starting from the <paramref name="value"/> date/time point.
-            </summary>
-            <param name="value">Starting date/time point for filtering.</param>
-            <returns>Inclusive open time interval.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.TimeInterval.GetInclusiveIntervalFromThat(System.DateTime)">
-            <summary>
-            Gets inclusive open time interval starting from the <paramref name="value"/> date/time point.
-            </summary>
-            <param name="value">Starting date/time point for filtering.</param>
-            <returns>Inclusive open time interval.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.TimeInterval.WithInto(Alpaca.Markets.IExclusiveTimeInterval,System.DateTime)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.IExclusiveTimeInterval"/> object
-            with the modified <see cref="P:Alpaca.Markets.ITimeInterval.Into"/> property value.
-            </summary>
-            <param name="interval">Original time interval.</param>
-            <param name="into">New ending date/time point for interval.</param>
-            <returns>The new instance of <see cref="T:Alpaca.Markets.IExclusiveTimeInterval"/> object.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.TimeInterval.WithInto(Alpaca.Markets.IInclusiveTimeInterval,System.DateTime)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.IInclusiveTimeInterval"/> object
-            with the modified <see cref="P:Alpaca.Markets.ITimeInterval.Into"/> property value.
-            </summary>
-            <param name="interval">Original time interval.</param>
-            <param name="into">New ending date/time point for interval.</param>
-            <returns>The new instance of <see cref="T:Alpaca.Markets.IInclusiveTimeInterval"/> object.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.TimeInterval.WithFrom(Alpaca.Markets.IExclusiveTimeInterval,System.DateTime)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.IExclusiveTimeInterval"/> object
-            with the modified <see cref="P:Alpaca.Markets.ITimeInterval.From"/> property value.
-            </summary>
-            <param name="interval">Original time interval.</param>
-            <param name="from">New starting date/time point for interval.</param>
-            <returns>The new instance of <see cref="T:Alpaca.Markets.IExclusiveTimeInterval"/> object.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.TimeInterval.WithFrom(Alpaca.Markets.IInclusiveTimeInterval,System.DateTime)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.IInclusiveTimeInterval"/> object
-            with the modified <see cref="P:Alpaca.Markets.ITimeInterval.From"/> property value.
-            </summary>
-            <param name="interval">Original time interval.</param>
-            <param name="from">New starting date/time point for interval.</param>
-            <returns>The new instance of <see cref="T:Alpaca.Markets.IInclusiveTimeInterval"/> object.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.TimeInterval.SetTimeInterval``1(``0,Alpaca.Markets.IExclusiveTimeInterval)">
-            <summary>
-            Set exclusive time interval for <paramref name="request"/> object.
-            </summary>
-            <param name="request">Target request for setting filtering interval.</param>
-            <param name="interval">Time interval (date/time pair) for filtering.</param>
-            <returns>Fluent interface - returns <paramref name="request"/> object.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.TimeInterval.SetTimeInterval``1(``0,Alpaca.Markets.IInclusiveTimeInterval)">
-            <summary>
-            Set inclusive time interval for <paramref name="request"/> object.
-            </summary>
-            <param name="request">Target request for setting filtering interval.</param>
-            <param name="interval">Time interval (date/time pair) for filtering.</param>
-            <returns>Fluent interface - returns <paramref name="request"/> object.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.TimeInterval.SetExclusiveTimeInterval``1(``0,System.DateTime,System.DateTime)">
-            <summary>
-            Set exclusive time interval for <paramref name="request"/> object.
-            </summary>
-            <param name="request">Target request for setting filtering interval.</param>
-            <param name="from">Starting date/time point for filtering.</param>
-            <param name="into">Ending date/time point for filtering.</param>
-            <returns>Fluent interface - returns <paramref name="request"/> object.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.TimeInterval.SetInclusiveTimeInterval``1(``0,System.DateTime,System.DateTime)">
-            <summary>
-            Set inclusive time interval for <paramref name="request"/> object.
-            </summary>
-            <param name="request">Target request for setting filtering interval.</param>
-            <param name="from">Starting date/time point for filtering.</param>
-            <param name="into">Ending date/time point for filtering.</param>
-            <returns>Fluent interface - returns <paramref name="request"/> object.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.TimeInterval.Deconstruct(Alpaca.Markets.IExclusiveTimeInterval,System.Nullable{System.DateTime}@,System.Nullable{System.DateTime}@)">
-            <summary>
-            Deconstructs the <see cref="T:Alpaca.Markets.IExclusiveTimeInterval"/> instance
-            into two <see cref="T:System.Nullable`1"/> values (tuple).
-            </summary>
-            <param name="interval">Original time interval.</param>
-            <param name="from">Time interval starting point.</param>
-            <param name="into">Time interval ending point.</param>
-        </member>
-        <member name="M:Alpaca.Markets.TimeInterval.Deconstruct(Alpaca.Markets.IInclusiveTimeInterval,System.Nullable{System.DateTime}@,System.Nullable{System.DateTime}@)">
-            <summary>
-            Deconstructs the <see cref="T:Alpaca.Markets.IInclusiveTimeInterval"/> instance
-            into two <see cref="T:System.Nullable`1"/> values (tuple).
-            </summary>
-            <param name="interval">Original time interval.</param>
-            <param name="from">Time interval starting point.</param>
-            <param name="into">Time interval ending point.</param>
         </member>
         <member name="T:Alpaca.Markets.AdvancedOrderBase">
             <summary>
@@ -6758,7 +7078,7 @@
             Creates a new instance of the <see cref="T:Alpaca.Markets.OneCancelsOtherOrder"/> order from the current order.
             </summary>
             <param name="stopLossStopPrice">Stop loss order stop price.</param>
-            <returns>New advanced order representing pair of original order and stop loss order.</returns>
+            <returns>New advanced order representing a pair of original order and stop loss order.</returns>
         </member>
         <member name="M:Alpaca.Markets.LimitOrder.OneCancelsOther(System.Decimal,System.Decimal)">
             <summary>
@@ -6766,7 +7086,7 @@
             </summary>
             <param name="stopLossStopPrice">Stop loss order stop price.</param>
             <param name="stopLossLimitPrice">Stop loss order limit price.</param>
-            <returns>New advanced order representing pair of original order and stop loss order.</returns>
+            <returns>New advanced order representing a pair of original order and stop loss order.</returns>
         </member>
         <member name="T:Alpaca.Markets.MarketOrder">
             <summary>
@@ -6795,6 +7115,74 @@
             The <paramref name="symbol"/> argument is <c>null</c>.
             </exception>
             <returns>The new <see cref="T:Alpaca.Markets.MarketOrder"/> object instance.</returns>
+        </member>
+        <member name="T:Alpaca.Markets.MultiLegOrder">
+            <summary>
+            TBD
+            </summary>
+        </member>
+        <member name="M:Alpaca.Markets.MultiLegOrder.Market(Alpaca.Markets.OrderQuantity,Alpaca.Markets.OrderLeg,Alpaca.Markets.OrderLeg)">
+            <summary>
+            Creates a new instance of the <see cref="T:Alpaca.Markets.MultiLegOrder"/> market order with two legs.
+            </summary>
+            <param name="quantity">Order quantity.</param>
+            <param name="orderLeg1">First leg of the multi-leg order.</param>
+            <param name="orderLeg2">Second leg of the multi-leg order.</param>
+            <returns>A new advanced options order with several legs.</returns>
+        </member>
+        <member name="M:Alpaca.Markets.MultiLegOrder.Market(Alpaca.Markets.OrderQuantity,Alpaca.Markets.OrderLeg,Alpaca.Markets.OrderLeg,Alpaca.Markets.OrderLeg)">
+            <summary>
+            Creates a new instance of the <see cref="T:Alpaca.Markets.MultiLegOrder"/> market order with three legs.
+            </summary>
+            <param name="quantity">Order quantity.</param>
+            <param name="orderLeg1">First leg of the multi-leg order.</param>
+            <param name="orderLeg2">Second leg of the multi-leg order.</param>
+            <param name="orderLeg3">Third leg of the multi-leg order.</param>
+            <returns>A new advanced options order with several legs.</returns>
+        </member>
+        <member name="M:Alpaca.Markets.MultiLegOrder.Market(Alpaca.Markets.OrderQuantity,Alpaca.Markets.OrderLeg,Alpaca.Markets.OrderLeg,Alpaca.Markets.OrderLeg,Alpaca.Markets.OrderLeg)">
+            <summary>
+            Creates a new instance of the <see cref="T:Alpaca.Markets.MultiLegOrder"/> market order with four legs.
+            </summary>
+            <param name="quantity">Order quantity.</param>
+            <param name="orderLeg1">First leg of the multi-leg order.</param>
+            <param name="orderLeg2">Second leg of the multi-leg order.</param>
+            <param name="orderLeg3">Third leg of the multi-leg order.</param>
+            <param name="orderLeg4">Fourth leg of the multi-leg order.</param>
+            <returns>A new advanced options order with several legs.</returns>
+        </member>
+        <member name="M:Alpaca.Markets.MultiLegOrder.Limit(Alpaca.Markets.OrderQuantity,System.Decimal,Alpaca.Markets.OrderLeg,Alpaca.Markets.OrderLeg)">
+            <summary>
+            Creates a new instance of the <see cref="T:Alpaca.Markets.MultiLegOrder"/> limit order with two legs.
+            </summary>
+            <param name="quantity">Order quantity.</param>
+            <param name="limitPrice">Order limit price.</param>
+            <param name="orderLeg1">First leg of the multi-leg order.</param>
+            <param name="orderLeg2">Second leg of the multi-leg order.</param>
+            <returns>A new advanced options order with several legs.</returns>
+        </member>
+        <member name="M:Alpaca.Markets.MultiLegOrder.Limit(Alpaca.Markets.OrderQuantity,System.Decimal,Alpaca.Markets.OrderLeg,Alpaca.Markets.OrderLeg,Alpaca.Markets.OrderLeg)">
+            <summary>
+            Creates a new instance of the <see cref="T:Alpaca.Markets.MultiLegOrder"/> limit order with three legs.
+            </summary>
+            <param name="quantity">Order quantity.</param>
+            <param name="limitPrice">Order limit price.</param>
+            <param name="orderLeg1">First leg of the multi-leg order.</param>
+            <param name="orderLeg2">Second leg of the multi-leg order.</param>
+            <param name="orderLeg3">Third leg of the multi-leg order.</param>
+            <returns>A new advanced options order with several legs.</returns>
+        </member>
+        <member name="M:Alpaca.Markets.MultiLegOrder.Limit(Alpaca.Markets.OrderQuantity,System.Decimal,Alpaca.Markets.OrderLeg,Alpaca.Markets.OrderLeg,Alpaca.Markets.OrderLeg,Alpaca.Markets.OrderLeg)">
+            <summary>
+            Creates a new instance of the <see cref="T:Alpaca.Markets.MultiLegOrder"/> limit order with four legs.
+            </summary>
+            <param name="quantity">Order quantity.</param>
+            <param name="limitPrice">Order limit price.</param>
+            <param name="orderLeg1">First leg of the multi-leg order.</param>
+            <param name="orderLeg2">Second leg of the multi-leg order.</param>
+            <param name="orderLeg3">Third leg of the multi-leg order.</param>
+            <param name="orderLeg4">Fourth leg of the multi-leg order.</param>
+            <returns>A new advanced options order with several legs.</returns>
         </member>
         <member name="T:Alpaca.Markets.OneCancelsOtherOrder">
             <summary>
@@ -6934,6 +7322,65 @@
             </exception>
             <returns>Fluent interface - returns the <paramref name="order"/> object.</returns>
         </member>
+        <member name="T:Alpaca.Markets.OrderLeg">
+            <summary>
+            Represents the single leg of the option multi-leg order.
+            </summary>
+        </member>
+        <member name="M:Alpaca.Markets.OrderLeg.#ctor(System.String,System.Decimal,Alpaca.Markets.OrderSide)">
+            <summary>
+            Creates a new instance of the <see cref="T:Alpaca.Markets.OrderLeg"/> object.
+            </summary>
+            <param name="symbol">Order asset symbol.</param>
+            <param name="ratioQuantity">Order quantity.</param>
+            <param name="side">Order side (buy or sell).</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="symbol"/> argument is <c>null</c>.
+            </exception>
+        </member>
+        <member name="M:Alpaca.Markets.OrderLeg.#ctor(System.String,System.Decimal,Alpaca.Markets.PositionIntent)">
+            <summary>
+            Creates a new instance of the <see cref="T:Alpaca.Markets.OrderLeg"/> object.
+            </summary>
+            <param name="symbol">Order asset symbol.</param>
+            <param name="ratioQuantity">Order quantity.</param>
+            <param name="positionIntent">Order position intent.</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="symbol"/> argument is <c>null</c>.
+            </exception>
+        </member>
+        <member name="M:Alpaca.Markets.OrderLeg.#ctor(System.String,System.Decimal,Alpaca.Markets.PositionIntent,Alpaca.Markets.OrderSide)">
+            <summary>
+            Creates a new instance of the <see cref="T:Alpaca.Markets.OrderLeg"/> object.
+            </summary>
+            <param name="symbol">Order asset symbol.</param>
+            <param name="ratioQuantity">Order quantity.</param>
+            <param name="side">Order side (buy or sell).</param>
+            <param name="positionIntent">Order position intent.</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="symbol"/> argument is <c>null</c>.
+            </exception>
+        </member>
+        <member name="P:Alpaca.Markets.OrderLeg.Symbol">
+            <summary>
+            Gets the new order asset symbol.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.OrderLeg.RatioQuantity">
+            <summary>
+            Gets the proportional quantity of this leg in relation to the overall multi-leg order quantity.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.OrderLeg.Side">
+            <summary>
+            Gets the new order side (buy or sell).
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.OrderLeg.PositionIntent">
+            <summary>
+            Gets the optional position intent for order placement.
+            </summary>
+        </member>
         <member name="T:Alpaca.Markets.OrderSideExtensions">
             <summary>
             Set of extensions methods for creating the <see cref="T:Alpaca.Markets.OrderBase"/> inheritors.
@@ -7004,6 +7451,56 @@
             </exception>
             <returns>The new <see cref="T:Alpaca.Markets.TrailingStopOrder"/> object instance.</returns>
         </member>
+        <member name="M:Alpaca.Markets.OrderSideExtensions.Leg(Alpaca.Markets.OrderSide,System.String,System.Decimal)">
+            <summary>
+            Creates new leg for the options multi-leg order.
+            </summary>
+            <param name="orderSide">Order side (buy or sell).</param>
+            <param name="symbol">Order asset symbol.</param>
+            <param name="ratioQuantity">Order quantity.</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="symbol"/> argument is <c>null</c>.
+            </exception>
+            <returns>The new <see cref="T:Alpaca.Markets.OrderLeg"/> object instance.</returns>
+        </member>
+        <member name="M:Alpaca.Markets.OrderSideExtensions.Leg(Alpaca.Markets.OrderSide,System.String,System.Decimal,Alpaca.Markets.PositionIntent)">
+            <summary>
+            Creates new leg for the options multi-leg order.
+            </summary>
+            <param name="orderSide">Order side (buy or sell).</param>
+            <param name="symbol">Order asset symbol.</param>
+            <param name="ratioQuantity">Order quantity.</param>
+            <param name="positionIntent">Order position intent.</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="symbol"/> argument is <c>null</c>.
+            </exception>
+            <returns>The new <see cref="T:Alpaca.Markets.OrderLeg"/> object instance.</returns>
+        </member>
+        <member name="M:Alpaca.Markets.OrderSideExtensions.Leg(Alpaca.Markets.PositionIntent,System.String,System.Decimal)">
+            <summary>
+            Creates new leg for the options multi-leg order.
+            </summary>
+            <param name="positionIntent">Order position intent.</param>
+            <param name="symbol">Order asset symbol.</param>
+            <param name="ratioQuantity">Order quantity.</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="symbol"/> argument is <c>null</c>.
+            </exception>
+            <returns>The new <see cref="T:Alpaca.Markets.OrderLeg"/> object instance.</returns>
+        </member>
+        <member name="M:Alpaca.Markets.OrderSideExtensions.Leg(Alpaca.Markets.PositionIntent,System.String,System.Decimal,Alpaca.Markets.OrderSide)">
+            <summary>
+            Creates new leg for the options multi-leg order.
+            </summary>
+            <param name="positionIntent">Order position intent.</param>
+            <param name="symbol">Order asset symbol.</param>
+            <param name="ratioQuantity">Order quantity.</param>
+            <param name="orderSide">Order side (buy or sell).</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="symbol"/> argument is <c>null</c>.
+            </exception>
+            <returns>The new <see cref="T:Alpaca.Markets.OrderLeg"/> object instance.</returns>
+        </member>
         <member name="T:Alpaca.Markets.SimpleOrderBase">
             <summary>
             Encapsulates base data for ordinal order types, never used directly by any code.
@@ -7026,14 +7523,14 @@
             Creates a new instance of the <see cref="T:Alpaca.Markets.TakeProfitOrder"/> order from the current order.
             </summary>
             <param name="takeProfitLimitPrice">Take profit order limit price.</param>
-            <returns>New advanced order representing pair of original order and take profit order.</returns>
+            <returns>New advanced order representing a pair of original order and take profit order.</returns>
         </member>
         <member name="M:Alpaca.Markets.SimpleOrderBase.StopLoss(System.Decimal)">
             <summary>
             Creates a new instance of the <see cref="T:Alpaca.Markets.StopLossOrder"/> order from the current order.
             </summary>
             <param name="stopLossStopPrice">Stop loss order stop price.</param>
-            <returns>New advanced order representing pair of original order and stop loss order.</returns>
+            <returns>New advanced order representing a pair of original order and stop loss order.</returns>
         </member>
         <member name="M:Alpaca.Markets.SimpleOrderBase.StopLoss(System.Decimal,System.Decimal)">
             <summary>
@@ -7041,7 +7538,7 @@
             </summary>
             <param name="stopLossStopPrice">Stop loss order stop price.</param>
             <param name="stopLossLimitPrice">Stop loss order limit price.</param>
-            <returns>New advanced order representing pair of original order and stop loss order.</returns>
+            <returns>New advanced order representing a pair of original order and stop loss order.</returns>
         </member>
         <member name="M:Alpaca.Markets.SimpleOrderBase.Bracket(System.Decimal,System.Decimal)">
             <summary>
@@ -7120,7 +7617,7 @@
             Creates a new instance of the <see cref="T:Alpaca.Markets.BracketOrder"/> order from the current order.
             </summary>
             <param name="takeProfitLimitPrice">Take profit order limit price.</param>
-            <returns>New advanced order representing pair of original order and take profit order.</returns>
+            <returns>New advanced order representing a pair of original order and take profit order.</returns>
         </member>
         <member name="T:Alpaca.Markets.StopOrder">
             <summary>
@@ -7171,7 +7668,7 @@
             Creates a new instance of the <see cref="T:Alpaca.Markets.BracketOrder"/> order from the current order.
             </summary>
             <param name="stopLossStopPrice">Stop loss order stop price.</param>
-            <returns>New advanced order representing pair of original order and stop loss order.</returns>
+            <returns>New advanced order representing a pair of original order and stop loss order.</returns>
         </member>
         <member name="M:Alpaca.Markets.TakeProfitOrder.StopLoss(System.Decimal,System.Decimal)">
             <summary>
@@ -7179,7 +7676,7 @@
             </summary>
             <param name="stopLossStopPrice">Stop loss order stop price.</param>
             <param name="stopLossLimitPrice">Stop loss order limit price.</param>
-            <returns>New advanced order representing pair of original order and stop loss order.</returns>
+            <returns>New advanced order representing a pair of original order and stop loss order.</returns>
         </member>
         <member name="T:Alpaca.Markets.TrailingStopOrder">
             <summary>
@@ -7218,7 +7715,7 @@
         </member>
         <member name="T:Alpaca.Markets.TrailOffset">
             <summary>
-            Represents the trailing stop order offset in dollars or as percent of HWM (High Water Mark).
+            Represents the trailing stop order offset in dollars or as percent of HWM (High Watermark).
             </summary>
         </member>
         <member name="M:Alpaca.Markets.TrailOffset.#ctor">
@@ -7308,13 +7805,6 @@
             <summary>
             Gets or sets the ID of the end of your current page of results.
             </summary>
-        </member>
-        <member name="M:Alpaca.Markets.AccountActivitiesRequest.SetSingleDate(System.DateTime)">
-            <summary>
-            Sets filtering for single <paramref name="date"/> activities.
-            </summary>
-            <param name="date">Target date for filtering activities.</param>
-            <returns>Fluent interface method return same <see cref="T:Alpaca.Markets.AccountActivitiesRequest"/> instance.</returns>
         </member>
         <member name="M:Alpaca.Markets.AccountActivitiesRequest.SetSingleDate(System.DateOnly)">
             <summary>
@@ -7452,13 +7942,32 @@
         </member>
         <member name="T:Alpaca.Markets.AlpacaOptionsStreamingClientConfiguration">
             <summary>
-            Configuration parameters object for <see cref="T:Alpaca.Markets.AlpacaOptionsStreamingClient"/> instance.
+            Configuration parameters object for <see cref="T:Alpaca.Markets.IAlpacaOptionsStreamingClient"/> instance.
             </summary>
         </member>
         <member name="M:Alpaca.Markets.AlpacaOptionsStreamingClientConfiguration.#ctor">
             <summary>
             Creates new instance of <see cref="T:Alpaca.Markets.AlpacaOptionsStreamingClientConfiguration"/> class.
             </summary>
+        </member>
+        <member name="M:Alpaca.Markets.AlpacaOptionsStreamingClientConfiguration.#ctor(Alpaca.Markets.OptionsFeed)">
+            <summary>
+            Creates new instance of <see cref="T:Alpaca.Markets.AlpacaOptionsStreamingClientConfiguration"/> class.
+            </summary>
+            <param name="feed">Options data feed selection (Indicative or OPRA).</param>
+        </member>
+        <member name="P:Alpaca.Markets.AlpacaOptionsStreamingClientConfiguration.Feed">
+            <summary>
+            Gets options' data feed selection (Indicative or OPRA).
+            </summary>
+        </member>
+        <member name="M:Alpaca.Markets.AlpacaOptionsStreamingClientConfiguration.WithFeed(Alpaca.Markets.OptionsFeed)">
+            <summary>
+            Creates new instance of <see cref="T:Alpaca.Markets.AlpacaOptionsStreamingClientConfiguration"/> object
+            with the updated <see cref="P:Alpaca.Markets.AlpacaOptionsStreamingClientConfiguration.Feed"/> value.
+            </summary>
+            <param name="feed">Options data feed selection.</param>
+            <returns>The new instance of the <see cref="T:Alpaca.Markets.AlpacaOptionsStreamingClientConfiguration"/> object.</returns>
         </member>
         <member name="T:Alpaca.Markets.AlpacaStreamingClientConfiguration">
             <summary>
@@ -7482,7 +7991,7 @@
         </member>
         <member name="T:Alpaca.Markets.AnnouncementsRequest">
             <summary>
-            Encapsulates request parameters for <see cref="M:Alpaca.Markets.IAlpacaTradingClient.ListAssetsAsync(Alpaca.Markets.AssetsRequest,System.Threading.CancellationToken)"/> call.
+            Encapsulates request parameters for <see cref="M:Alpaca.Markets.IAlpacaTradingClient.ListAnnouncementsAsync(Alpaca.Markets.AnnouncementsRequest,System.Threading.CancellationToken)"/> call.
             </summary>
         </member>
         <member name="M:Alpaca.Markets.AnnouncementsRequest.#ctor(Alpaca.Markets.CorporateActionType,Alpaca.Markets.Interval{System.DateOnly})">
@@ -7502,28 +8011,9 @@
             The <paramref name="corporateActionTypes"/> argument is <c>null</c>.
             </exception>
         </member>
-        <member name="M:Alpaca.Markets.AnnouncementsRequest.#ctor(Alpaca.Markets.CorporateActionType,Alpaca.Markets.IInclusiveTimeInterval)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.AnnouncementsRequest"/> object.
-            </summary>
-            <param name="corporateActionType">Single corporate action type for filtering.</param>
-            <param name="timeInterval">Date range when searching corporate action announcements.</param>
-        </member>
-        <member name="M:Alpaca.Markets.AnnouncementsRequest.#ctor(System.Collections.Generic.IEnumerable{Alpaca.Markets.CorporateActionType},Alpaca.Markets.IInclusiveTimeInterval)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.AnnouncementsRequest"/> object.
-            </summary>
-            <param name="corporateActionTypes">List of the corporate action types for filtering.</param>
-            <param name="timeInterval">Date range when searching corporate action announcements.</param>
-        </member>
         <member name="P:Alpaca.Markets.AnnouncementsRequest.CorporateActionTypes">
             <summary>
             Gets the list of the corporate action types for filtering.
-            </summary>
-        </member>
-        <member name="P:Alpaca.Markets.AnnouncementsRequest.TimeInterval">
-            <summary>
-            Gets the date range when searching corporate action announcements.
             </summary>
         </member>
         <member name="P:Alpaca.Markets.AnnouncementsRequest.DateInterval">
@@ -7573,7 +8063,7 @@
         </member>
         <member name="T:Alpaca.Markets.CalendarRequest">
             <summary>
-            Encapsulates request parameters for <see cref="M:Alpaca.Markets.IAlpacaTradingClient.ListCalendarAsync(Alpaca.Markets.CalendarRequest,System.Threading.CancellationToken)"/> call.
+            Encapsulates request parameters for <see cref="M:Alpaca.Markets.IAlpacaTradingClient.ListIntervalCalendarAsync(Alpaca.Markets.CalendarRequest,System.Threading.CancellationToken)"/> call.
             </summary>
         </member>
         <member name="M:Alpaca.Markets.CalendarRequest.#ctor">
@@ -7594,26 +8084,13 @@
             </summary>
             <param name="dateInterval">Initial value of the <see cref="P:Alpaca.Markets.CalendarRequest.DateInterval"/> property.</param>
         </member>
-        <member name="M:Alpaca.Markets.CalendarRequest.GetForSingleDay(System.DateTime)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.CalendarRequest"/> object with the
-            <see cref="P:Alpaca.Markets.CalendarRequest.TimeInterval"/> property configured for the single day.
-            </summary>
-            <param name="date"></param>
-            <returns></returns>
-        </member>
         <member name="M:Alpaca.Markets.CalendarRequest.GetForSingleDay(System.DateOnly)">
             <summary>
             Creates new instance of <see cref="T:Alpaca.Markets.CalendarRequest"/> object with the
-            <see cref="P:Alpaca.Markets.CalendarRequest.TimeInterval"/> property configured for the single day.
+            <see cref="P:Alpaca.Markets.CalendarRequest.DateInterval"/> property configured for the single day.
             </summary>
             <param name="date"></param>
             <returns></returns>
-        </member>
-        <member name="P:Alpaca.Markets.CalendarRequest.TimeInterval">
-            <summary>
-            Gets inclusive date interval for filtering items in response.
-            </summary>
         </member>
         <member name="P:Alpaca.Markets.CalendarRequest.DateInterval">
             <summary>
@@ -7705,6 +8182,71 @@
             <summary>
             Gets asset symbol for adding/deleting into watch list.
             </summary>
+        </member>
+        <member name="T:Alpaca.Markets.CorporateActionsRequest">
+            <summary>
+            Encapsulates request parameters for <see cref="M:Alpaca.Markets.IAlpacaDataClient.ListCorporateActionsAsync(Alpaca.Markets.CorporateActionsRequest,System.Threading.CancellationToken)"/> call.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.CorporateActionsRequest.Symbols">
+            <summary>
+            Gets asset symbols list for data retrieval (all symbols if list is empty).
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.CorporateActionsRequest.Types">
+            <summary>
+            Gets corporate action types list for data retrieval (all types if list is empty).
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.CorporateActionsRequest.DateInterval">
+            <summary>
+            Gets the date range when searching corporate actions history (current day if empty).
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.CorporateActionsRequest.Pagination">
+            <summary>
+            Gets the pagination parameters for the request (page size and token).
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.CorporateActionsRequest.SortDirection">
+            <summary>
+            Gets or sets the result sorting direction (sort fields is timestamp).
+            </summary>
+        </member>
+        <member name="M:Alpaca.Markets.CorporateActionsRequest.WithSymbols(System.Collections.Generic.IEnumerable{System.String})">
+            <summary>
+            Adds several symbols into the <see cref="P:Alpaca.Markets.CorporateActionsRequest.Symbols"/> filter list.
+            </summary>
+            <param name="symbols">Asset symbols for data retrieval.</param>
+            <returns>Fluent interface - returns the modified request object.</returns>
+        </member>
+        <member name="M:Alpaca.Markets.CorporateActionsRequest.WithSymbol(System.String)">
+            <summary>
+            Adds a single symbol into the <see cref="P:Alpaca.Markets.CorporateActionsRequest.Symbols"/> filter list.
+            </summary>
+            <param name="symbol">Asset symbol for data retrieval.</param>
+            <returns>Fluent interface - returns the modified request object.</returns>
+        </member>
+        <member name="M:Alpaca.Markets.CorporateActionsRequest.WithTypes(System.Collections.Generic.IEnumerable{Alpaca.Markets.CorporateActionFilterType})">
+            <summary>
+            Adds several items into the <see cref="P:Alpaca.Markets.CorporateActionsRequest.Types"/> filter list.
+            </summary>
+            <param name="types">Corporate action types for data retrieval.</param>
+            <returns>Fluent interface - returns the modified request object.</returns>
+        </member>
+        <member name="M:Alpaca.Markets.CorporateActionsRequest.WithType(Alpaca.Markets.CorporateActionFilterType)">
+            <summary>
+            Adds a single item into the <see cref="P:Alpaca.Markets.CorporateActionsRequest.Types"/> filter list.
+            </summary>
+            <param name="type">Corporate action type for data retrieval.</param>
+            <returns>Fluent interface - returns the modified request object.</returns>
+        </member>
+        <member name="M:Alpaca.Markets.CorporateActionsRequest.WithDateInterval(Alpaca.Markets.Interval{System.DateOnly})">
+            <summary>
+            Sets the <see cref="P:Alpaca.Markets.CorporateActionsRequest.DateInterval"/> filter value for the request.
+            </summary>
+            <param name="dateInterval">The inclusive date interval for data retrieval.</param>
+            <returns>Fluent interface - returns the modified request object.</returns>
         </member>
         <member name="T:Alpaca.Markets.DeleteAllPositionsRequest">
             <summary>
@@ -7813,26 +8355,6 @@
             The <paramref name="symbols"/> argument is <c>null</c>.
             </exception>
         </member>
-        <member name="M:Alpaca.Markets.HistoricalAuctionsRequest.#ctor(System.String,Alpaca.Markets.IInclusiveTimeInterval)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalAuctionsRequest"/> object.
-            </summary>
-            <param name="symbol">Asset symbol for data retrieval.</param>
-            <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbol"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalAuctionsRequest.#ctor(System.Collections.Generic.IEnumerable{System.String},Alpaca.Markets.IInclusiveTimeInterval)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalAuctionsRequest"/> object.
-            </summary>
-            <param name="symbols">Asset symbols for data retrieval.</param>
-            <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbols"/> argument is <c>null</c>.
-            </exception>
-        </member>
         <member name="P:Alpaca.Markets.HistoricalAuctionsRequest.UseSymbolAsOfTheDate">
             <summary>
             Gets or sets the optional parameter for mapping symbol to contract by a specific date.
@@ -7910,28 +8432,6 @@
             </summary>
             <param name="symbols">Asset symbols for data retrieval.</param>
             <param name="timeFrame">Type of time bars for retrieval.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbols"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalBarsRequest.#ctor(System.String,Alpaca.Markets.BarTimeFrame,Alpaca.Markets.IInclusiveTimeInterval)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalBarsRequest"/> object.
-            </summary>
-            <param name="symbol">Asset symbol for data retrieval.</param>
-            <param name="timeFrame">Type of time bars for retrieval.</param>
-            <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbol"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalBarsRequest.#ctor(System.Collections.Generic.IEnumerable{System.String},Alpaca.Markets.IInclusiveTimeInterval,Alpaca.Markets.BarTimeFrame)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalBarsRequest"/> object.
-            </summary>
-            <param name="symbols">Asset symbols for data retrieval.</param>
-            <param name="timeFrame">Type of time bars for retrieval.</param>
-            <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
             <exception cref="T:System.ArgumentNullException">
             The <paramref name="symbols"/> argument is <c>null</c>.
             </exception>
@@ -8040,58 +8540,9 @@
             The <paramref name="symbols"/> argument is <c>null</c>.
             </exception>
         </member>
-        <member name="M:Alpaca.Markets.HistoricalCryptoBarsRequest.#ctor(System.String,Alpaca.Markets.BarTimeFrame,Alpaca.Markets.IInclusiveTimeInterval)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalCryptoBarsRequest"/> object.
-            </summary>
-            <param name="symbol">Asset symbol for data retrieval.</param>
-            <param name="timeFrame">Type of time bars for retrieval.</param>
-            <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbol"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalCryptoBarsRequest.#ctor(System.Collections.Generic.IEnumerable{System.String},Alpaca.Markets.IInclusiveTimeInterval,Alpaca.Markets.BarTimeFrame)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalCryptoBarsRequest"/> object.
-            </summary>
-            <param name="symbols">Asset symbols for data retrieval.</param>
-            <param name="timeFrame">Type of time bars for retrieval.</param>
-            <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbols"/> argument is <c>null</c>.
-            </exception>
-        </member>
         <member name="P:Alpaca.Markets.HistoricalCryptoBarsRequest.TimeFrame">
             <summary>
             Gets type of time bars for retrieval.
-            </summary>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalCryptoBarsRequest.WithExchanges(System.Collections.Generic.IEnumerable{Alpaca.Markets.CryptoExchange})">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalCryptoBarsRequest"/> object
-            with the updated <see cref="P:Alpaca.Markets.HistoricalCryptoBarsRequest.Exchanges"/> list.
-            </summary>
-            <param name="exchanges">Crypto exchanges to add into the list.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="exchanges"/> argument is <c>null</c>.
-            </exception>
-            <returns>The new instance of the <see cref="T:Alpaca.Markets.HistoricalCryptoBarsRequest"/> object.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalCryptoBarsRequest.WithExchanges(Alpaca.Markets.CryptoExchange[])">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalCryptoBarsRequest"/> object
-            with the updated <see cref="P:Alpaca.Markets.HistoricalCryptoBarsRequest.Exchanges"/> list.
-            </summary>
-            <param name="exchanges">Crypto exchanges to add into the list.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="exchanges"/> argument is <c>null</c>.
-            </exception>
-            <returns>The new instance of the <see cref="T:Alpaca.Markets.HistoricalCryptoBarsRequest"/> object.</returns>
-        </member>
-        <member name="P:Alpaca.Markets.HistoricalCryptoBarsRequest.Exchanges">
-            <summary>
-            Gets crypto exchanges list for data retrieval (empty list means 'all exchanges').
             </summary>
         </member>
         <member name="P:Alpaca.Markets.HistoricalCryptoBarsRequest.LastPathSegment">
@@ -8163,53 +8614,6 @@
             <exception cref="T:System.ArgumentNullException">
             The <paramref name="symbols"/> argument is <c>null</c>.
             </exception>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalCryptoQuotesRequest.#ctor(System.String,Alpaca.Markets.IInclusiveTimeInterval)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalCryptoQuotesRequest"/> object.
-            </summary>
-            <param name="symbol">Asset symbol for data retrieval.</param>
-            <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbol"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalCryptoQuotesRequest.#ctor(System.Collections.Generic.IEnumerable{System.String},Alpaca.Markets.IInclusiveTimeInterval)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalCryptoQuotesRequest"/> object.
-            </summary>
-            <param name="symbols">Asset symbols for data retrieval.</param>
-            <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbols"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalCryptoQuotesRequest.WithExchanges(System.Collections.Generic.IEnumerable{Alpaca.Markets.CryptoExchange})">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalCryptoQuotesRequest"/> object
-            with the updated <see cref="P:Alpaca.Markets.HistoricalCryptoQuotesRequest.Exchanges"/> list.
-            </summary>
-            <param name="exchanges">Crypto exchanges to add into the list.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="exchanges"/> argument is <c>null</c>.
-            </exception>
-            <returns>The new instance of the <see cref="T:Alpaca.Markets.HistoricalCryptoQuotesRequest"/> object.</returns>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalCryptoQuotesRequest.WithExchanges(Alpaca.Markets.CryptoExchange[])">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalCryptoQuotesRequest"/> object
-            with the updated <see cref="P:Alpaca.Markets.HistoricalCryptoQuotesRequest.Exchanges"/> list.
-            </summary>
-            <param name="exchanges">Crypto exchanges to add into the list.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="exchanges"/> argument is <c>null</c>.
-            </exception>
-            <returns>The new instance of the <see cref="T:Alpaca.Markets.HistoricalCryptoQuotesRequest"/> object.</returns>
-        </member>
-        <member name="P:Alpaca.Markets.HistoricalCryptoQuotesRequest.Exchanges">
-            <summary>
-            Gets crypto exchanges list for data retrieval (empty list means 'all exchanges').
-            </summary>
         </member>
         <member name="P:Alpaca.Markets.HistoricalCryptoQuotesRequest.HasSingleSymbol">
             <inheritdoc />
@@ -8283,53 +8687,6 @@
             <exception cref="T:System.ArgumentNullException">
             The <paramref name="symbols"/> argument is <c>null</c>.
             </exception>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalCryptoTradesRequest.#ctor(System.String,Alpaca.Markets.IInclusiveTimeInterval)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalCryptoTradesRequest"/> object.
-            </summary>
-            <param name="symbol">Asset symbol for data retrieval.</param>
-            <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbol"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalCryptoTradesRequest.#ctor(System.Collections.Generic.IEnumerable{System.String},Alpaca.Markets.IInclusiveTimeInterval)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalCryptoTradesRequest"/> object.
-            </summary>
-            <param name="symbols">Asset symbols for data retrieval.</param>
-            <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbols"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalCryptoTradesRequest.WithExchanges(System.Collections.Generic.IEnumerable{Alpaca.Markets.CryptoExchange})">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalCryptoTradesRequest"/> object
-            with the updated <see cref="P:Alpaca.Markets.HistoricalCryptoTradesRequest.Exchanges"/> list.
-            </summary>
-            <param name="exchanges">Crypto exchanges to add into the list.</param>
-            <returns>The new instance of the <see cref="T:Alpaca.Markets.HistoricalCryptoTradesRequest"/> object.</returns>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="exchanges"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalCryptoTradesRequest.WithExchanges(Alpaca.Markets.CryptoExchange[])">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalCryptoTradesRequest"/> object
-            with the updated <see cref="P:Alpaca.Markets.HistoricalCryptoTradesRequest.Exchanges"/> list.
-            </summary>
-            <param name="exchanges">Crypto exchanges to add into the list.</param>
-            <returns>The new instance of the <see cref="T:Alpaca.Markets.HistoricalCryptoTradesRequest"/> object.</returns>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="exchanges"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="P:Alpaca.Markets.HistoricalCryptoTradesRequest.Exchanges">
-            <summary>
-            Gets crypto exchanges list for data retrieval (empty list means 'all exchanges').
-            </summary>
         </member>
         <member name="P:Alpaca.Markets.HistoricalCryptoTradesRequest.LastPathSegment">
             <inheritdoc />
@@ -8416,6 +8773,79 @@
             <inheritdoc />
         </member>
         <member name="P:Alpaca.Markets.HistoricalOptionBarsRequest.HasSingleSymbol">
+            <inheritdoc />
+        </member>
+        <member name="T:Alpaca.Markets.HistoricalOptionQuotesRequest">
+            <summary>
+            Encapsulates request parameters for
+            <see cref="M:Alpaca.Markets.IHistoricalQuotesClient`1.ListHistoricalQuotesAsync(`0,System.Threading.CancellationToken)"/> and
+            <see cref="M:Alpaca.Markets.IHistoricalQuotesClient`1.GetHistoricalQuotesAsync(`0,System.Threading.CancellationToken)"/> calls.
+            </summary>
+        </member>
+        <member name="M:Alpaca.Markets.HistoricalOptionQuotesRequest.#ctor(System.String,System.DateTime,System.DateTime)">
+            <summary>
+            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalOptionQuotesRequest"/> object.
+            </summary>
+            <param name="symbol">Asset symbol for data retrieval.</param>
+            <param name="from">Filter data equal to or after this time.</param>
+            <param name="into">Filter data equal to or before this time.</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="symbol"/> argument is <c>null</c>.
+            </exception>
+        </member>
+        <member name="M:Alpaca.Markets.HistoricalOptionQuotesRequest.#ctor(System.String,Alpaca.Markets.Interval{System.DateTime})">
+            <summary>
+            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalOptionQuotesRequest"/> object.
+            </summary>
+            <param name="symbol">Asset symbol for data retrieval.</param>
+            <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="symbol"/> argument is <c>null</c>.
+            </exception>
+        </member>
+        <member name="M:Alpaca.Markets.HistoricalOptionQuotesRequest.#ctor(System.String)">
+            <summary>
+            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalOptionQuotesRequest"/> object.
+            </summary>
+            <param name="symbol">Asset symbol for data retrieval.</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="symbol"/> argument is <c>null</c>.
+            </exception>
+        </member>
+        <member name="M:Alpaca.Markets.HistoricalOptionQuotesRequest.#ctor(System.Collections.Generic.IEnumerable{System.String},System.DateTime,System.DateTime)">
+            <summary>
+            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalOptionQuotesRequest"/> object.
+            </summary>
+            <param name="symbols">Asset symbols for data retrieval.</param>
+            <param name="from">Filter data equal to or after this time.</param>
+            <param name="into">Filter data equal to or before this time.</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="symbols"/> argument is <c>null</c>.
+            </exception>
+        </member>
+        <member name="M:Alpaca.Markets.HistoricalOptionQuotesRequest.#ctor(System.Collections.Generic.IEnumerable{System.String},Alpaca.Markets.Interval{System.DateTime})">
+            <summary>
+            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalOptionQuotesRequest"/> object.
+            </summary>
+            <param name="symbols">Asset symbol for data retrieval.</param>
+            <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="symbols"/> argument is <c>null</c>.
+            </exception>
+        </member>
+        <member name="M:Alpaca.Markets.HistoricalOptionQuotesRequest.#ctor(System.Collections.Generic.IEnumerable{System.String})">
+            <summary>
+            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalOptionQuotesRequest"/> object.
+            </summary>
+            <param name="symbols">Asset symbol for data retrieval.</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="symbols"/> argument is <c>null</c>.
+            </exception>
+        </member>
+        <member name="P:Alpaca.Markets.HistoricalOptionQuotesRequest.LastPathSegment">
+            <inheritdoc />
+        </member>
+        <member name="P:Alpaca.Markets.HistoricalOptionQuotesRequest.HasSingleSymbol">
             <inheritdoc />
         </member>
         <member name="T:Alpaca.Markets.HistoricalOptionTradesRequest">
@@ -8558,26 +8988,6 @@
             The <paramref name="symbols"/> argument is <c>null</c>.
             </exception>
         </member>
-        <member name="M:Alpaca.Markets.HistoricalQuotesRequest.#ctor(System.String,Alpaca.Markets.IInclusiveTimeInterval)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalQuotesRequest"/> object.
-            </summary>
-            <param name="symbol">Asset symbol for data retrieval.</param>
-            <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbol"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalQuotesRequest.#ctor(System.Collections.Generic.IEnumerable{System.String},Alpaca.Markets.IInclusiveTimeInterval)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalQuotesRequest"/> object.
-            </summary>
-            <param name="symbols">Asset symbols for data retrieval.</param>
-            <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbols"/> argument is <c>null</c>.
-            </exception>
-        </member>
         <member name="P:Alpaca.Markets.HistoricalQuotesRequest.Feed">
             <summary>
             Gets or sets the feed to pull market data from. The <see cref="F:Alpaca.Markets.MarketDataFeed.Sip"/> and
@@ -8618,18 +9028,6 @@
             </summary>
             <param name="symbols">Asset symbols for data retrieval.</param>
             <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalRequestBase.#ctor(System.Collections.Generic.IEnumerable{System.String},Alpaca.Markets.IInclusiveTimeInterval)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalRequestBase"/> object.
-            </summary>
-            <param name="symbols">Asset symbols for data retrieval.</param>
-            <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
-        </member>
-        <member name="P:Alpaca.Markets.HistoricalRequestBase.Symbol">
-            <summary>
-            Gets asset symbol for data retrieval.
-            </summary>
         </member>
         <member name="P:Alpaca.Markets.HistoricalRequestBase.Symbols">
             <summary>
@@ -8719,26 +9117,6 @@
             Creates new instance of <see cref="T:Alpaca.Markets.HistoricalTradesRequest"/> object.
             </summary>
             <param name="symbols">Asset symbol for data retrieval.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbols"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalTradesRequest.#ctor(System.String,Alpaca.Markets.IInclusiveTimeInterval)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalTradesRequest"/> object.
-            </summary>
-            <param name="symbol">Asset symbol for data retrieval.</param>
-            <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbol"/> argument is <c>null</c>.
-            </exception>
-        </member>
-        <member name="M:Alpaca.Markets.HistoricalTradesRequest.#ctor(System.Collections.Generic.IEnumerable{System.String},Alpaca.Markets.IInclusiveTimeInterval)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.HistoricalTradesRequest"/> object.
-            </summary>
-            <param name="symbols">Asset symbols for data retrieval.</param>
-            <param name="timeInterval">Inclusive time interval for filtering items in response.</param>
             <exception cref="T:System.ArgumentNullException">
             The <paramref name="symbols"/> argument is <c>null</c>.
             </exception>
@@ -8876,24 +9254,9 @@
             The <paramref name="symbols"/> argument is <c>null</c>.
             </exception>
         </member>
-        <member name="M:Alpaca.Markets.LatestDataListRequest.#ctor(System.Collections.Generic.IEnumerable{System.String},Alpaca.Markets.CryptoExchange)">
-            <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.LatestDataListRequest"/> object.
-            </summary>
-            <param name="symbols">Asset symbol for data retrieval.</param>
-            <param name="exchange">Crypto exchange for data retrieval.</param>
-            <exception cref="T:System.ArgumentNullException">
-            The <paramref name="symbols"/> argument is <c>null</c>.
-            </exception>
-        </member>
         <member name="P:Alpaca.Markets.LatestDataListRequest.Symbols">
             <summary>
             Gets asset symbols for data retrieval.
-            </summary>
-        </member>
-        <member name="P:Alpaca.Markets.LatestDataListRequest.Exchange">
-            <summary>
-            Gets crypto exchange for data retrieval.
             </summary>
         </member>
         <member name="T:Alpaca.Markets.LatestMarketDataListRequest">
@@ -8991,7 +9354,7 @@
         </member>
         <member name="M:Alpaca.Markets.LatestOrderBooksRequest.#ctor(System.Collections.Generic.IEnumerable{System.String},System.Collections.Generic.IEnumerable{Alpaca.Markets.CryptoExchange})">
             <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.LatestBestBidOfferListRequest"/> object.
+            Creates new instance of <see cref="T:Alpaca.Markets.LatestOrderBooksRequest"/> object.
             </summary>
             <param name="symbols">Asset symbols list for data retrieval.</param>
             <param name="exchanges">Crypto exchanges list for data retrieval.</param>
@@ -9001,7 +9364,7 @@
         </member>
         <member name="M:Alpaca.Markets.LatestOrderBooksRequest.#ctor(System.Collections.Generic.IEnumerable{System.String},Alpaca.Markets.CryptoExchange)">
             <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.LatestBestBidOfferListRequest"/> object.
+            Creates new instance of <see cref="T:Alpaca.Markets.LatestOrderBooksRequest"/> object.
             </summary>
             <param name="symbols">Asset symbols list for data retrieval.</param>
             <param name="exchange">Crypto exchange for data retrieval.</param>
@@ -9011,7 +9374,7 @@
         </member>
         <member name="M:Alpaca.Markets.LatestOrderBooksRequest.#ctor(System.Collections.Generic.IEnumerable{System.String})">
             <summary>
-            Creates new instance of <see cref="T:Alpaca.Markets.LatestBestBidOfferListRequest"/> object.
+            Creates new instance of <see cref="T:Alpaca.Markets.LatestOrderBooksRequest"/> object.
             </summary>
             <param name="symbols">Asset symbols list for data retrieval.</param>
             <exception cref="T:System.ArgumentNullException">
@@ -9113,6 +9476,14 @@
             The <paramref name="symbol"/> argument is <c>null</c>.
             </exception>
         </member>
+        <member name="M:Alpaca.Markets.NewOrderRequest.#ctor(Alpaca.Markets.OrderQuantity,Alpaca.Markets.OrderType,Alpaca.Markets.TimeInForce)">
+            <summary>
+            Creates new instance of <see cref="T:Alpaca.Markets.NewOrderRequest"/> object.
+            </summary>
+            <param name="quantity">Order quantity.</param>
+            <param name="duration">Order duration.</param>
+            <param name="type">Order type.</param>
+        </member>
         <member name="P:Alpaca.Markets.NewOrderRequest.Symbol">
             <summary>
             Gets the new order asset symbol.
@@ -9192,6 +9563,18 @@
             <summary>
             Gets or sets the optional position intent for order placement.
             </summary>
+        </member>
+        <member name="P:Alpaca.Markets.NewOrderRequest.Legs">
+            <summary>
+            Gets the list of order legs for option multi-legs order.
+            </summary>
+        </member>
+        <member name="M:Alpaca.Markets.NewOrderRequest.With(Alpaca.Markets.OptionLegRequest)">
+            <summary>
+            Adds the option multi-leg into the <see cref="P:Alpaca.Markets.NewOrderRequest.Legs"/> collection.
+            </summary>
+            <param name="leg">The option multi-leg order leg information.</param>
+            <returns>Original order request object with new leg.</returns>
         </member>
         <member name="T:Alpaca.Markets.NewsArticlesRequest">
             <summary>
@@ -9421,6 +9804,65 @@
         <member name="M:Alpaca.Markets.OptionContractsRequest.Alpaca#Markets#Validation#IRequest#GetExceptions">
             <inheritdoc />
         </member>
+        <member name="T:Alpaca.Markets.OptionLegRequest">
+            <summary>
+            Encapsulates request parameters for <see cref="M:Alpaca.Markets.IAlpacaTradingClient.PostOrderAsync(Alpaca.Markets.NewOrderRequest,System.Threading.CancellationToken)"/> call.
+            </summary>
+        </member>
+        <member name="M:Alpaca.Markets.OptionLegRequest.#ctor(System.String,System.Decimal,Alpaca.Markets.OrderSide,Alpaca.Markets.PositionIntent)">
+            <summary>
+            Creates new instance of <see cref="T:Alpaca.Markets.OptionLegRequest"/> object.
+            </summary>
+            <param name="symbol">Order asset symbol.</param>
+            <param name="ratioQuantity">Order quantity.</param>
+            <param name="side">Order side (buy or sell).</param>
+            <param name="positionIntent">Order position intent.</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="symbol"/> argument is <c>null</c>.
+            </exception>
+        </member>
+        <member name="M:Alpaca.Markets.OptionLegRequest.#ctor(System.String,System.Decimal,Alpaca.Markets.OrderSide)">
+            <summary>
+            Creates new instance of <see cref="T:Alpaca.Markets.OptionLegRequest"/> object.
+            </summary>
+            <param name="symbol">Order asset symbol.</param>
+            <param name="ratioQuantity">Order quantity.</param>
+            <param name="side">Order side (buy or sell).</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="symbol"/> argument is <c>null</c>.
+            </exception>
+        </member>
+        <member name="M:Alpaca.Markets.OptionLegRequest.#ctor(System.String,System.Decimal,Alpaca.Markets.PositionIntent)">
+            <summary>
+            Creates new instance of <see cref="T:Alpaca.Markets.OptionLegRequest"/> object.
+            </summary>
+            <param name="symbol">Order asset symbol.</param>
+            <param name="ratioQuantity">Order quantity.</param>
+            <param name="positionIntent">Order position intent.</param>
+            <exception cref="T:System.ArgumentNullException">
+            The <paramref name="symbol"/> argument is <c>null</c>.
+            </exception>
+        </member>
+        <member name="P:Alpaca.Markets.OptionLegRequest.Symbol">
+            <summary>
+            Gets the new order asset symbol.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.OptionLegRequest.RatioQuantity">
+            <summary>
+            Gets the proportional quantity of this leg in relation to the overall multi-leg order quantity.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.OptionLegRequest.Side">
+            <summary>
+            Gets the new order side (buy or sell).
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.OptionLegRequest.PositionIntent">
+            <summary>
+            Gets the optional position intent for order placement.
+            </summary>
+        </member>
         <member name="T:Alpaca.Markets.OptionSnapshotRequest">
             <summary>
             Encapsulates data for latest options data requests on Alpaca Data API v2.
@@ -9465,6 +9907,11 @@
             Gets the maximum valid page size for news requests supported by Alpaca Data API v2.
             </summary>
         </member>
+        <member name="P:Alpaca.Markets.Pagination.MaxCorporateActionsPageSize">
+            <summary>
+            Gets the maximum valid page size for corporate actions requests supported by Alpaca Data API v2.
+            </summary>
+        </member>
         <member name="P:Alpaca.Markets.Pagination.Size">
             <summary>
             Gets and sets the request page size. If equals to <c>null</c> default size will be used.
@@ -9478,11 +9925,6 @@
         <member name="T:Alpaca.Markets.PortfolioHistoryRequest">
             <summary>
             Encapsulates request parameters for <see cref="M:Alpaca.Markets.IAlpacaTradingClient.GetPortfolioHistoryAsync(Alpaca.Markets.PortfolioHistoryRequest,System.Threading.CancellationToken)"/> call.
-            </summary>
-        </member>
-        <member name="P:Alpaca.Markets.PortfolioHistoryRequest.TimeInterval">
-            <summary>
-            Gets inclusive date interval for filtering items in response.
             </summary>
         </member>
         <member name="P:Alpaca.Markets.PortfolioHistoryRequest.DateInterval">
@@ -9578,6 +10020,13 @@
         <member name="P:Alpaca.Markets.StreamingClientConfiguration.WebSocketFactory">
             <summary>
             Gets or sets factory for obtaining web socket client.
+            </summary>
+        </member>
+        <member name="P:Alpaca.Markets.StreamingClientConfiguration.UseMessagePack">
+            <summary>
+            Gets or sets the flag indicating that MessagePack format should be used.
+            Limited the set accessor accessibility level to internal because specifying the message format using
+            Content-Type header is not supported by the existing WebSocket implementation used.
             </summary>
         </member>
         <member name="T:Alpaca.Markets.UpdateWatchListRequest">
