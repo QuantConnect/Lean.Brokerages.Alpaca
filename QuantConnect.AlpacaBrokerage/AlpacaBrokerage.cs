@@ -29,7 +29,6 @@ using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 using QuantConnect.Api;
 using QuantConnect.Data.Market;
-using RestSharp;
 using System.IO;
 using System.Net.NetworkInformation;
 using System.Net;
@@ -41,6 +40,7 @@ using QuantConnect.Brokerages.CrossZero;
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Runtime.CompilerServices;
+using System.Net.Http;
 
 [assembly: InternalsVisibleTo("QuantConnect.Brokerages.Alpaca.Tests")]
 
@@ -452,7 +452,7 @@ namespace QuantConnect.Brokerages.Alpaca
                         if (_duplicationExecutionOrderIdByBrokerageOrderId.Remove(obj.Order.OrderId))
                         {
                             if (newLeanOrderStatus == Orders.OrderStatus.UpdateSubmitted)
-                            { 
+                            {
                                 _duplicationExecutionOrderIdByBrokerageOrderId[obj.Order.ReplacedByOrderId.Value] = [];
                             }
                             OnOrderEvent(new OrderEvent(leanOrder, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event") { Status = newLeanOrderStatus });
@@ -900,8 +900,13 @@ namespace QuantConnect.Brokerages.Alpaca
                 {
                     information.Add("organizationId", organizationId);
                 }
-                var request = new RestRequest("modules/license/read", Method.POST) { RequestFormat = DataFormat.Json };
-                request.AddParameter("application/json", JsonConvert.SerializeObject(information), ParameterType.RequestBody);
+                // Create HTTP request
+                var request = new HttpRequestMessage(HttpMethod.Post, "modules/license/read");
+                request.Content = new StringContent(
+                    JsonConvert.SerializeObject(information),
+                    Encoding.UTF8,
+                    "application/json"
+                );
                 api.TryRequest(request, out ModulesReadLicenseRead result);
                 if (!result.Success)
                 {
