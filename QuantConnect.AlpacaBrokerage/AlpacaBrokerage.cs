@@ -901,12 +901,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     information.Add("organizationId", organizationId);
                 }
                 // Create HTTP request
-                var request = new HttpRequestMessage(HttpMethod.Post, "modules/license/read");
-                request.Content = new StringContent(
-                    JsonConvert.SerializeObject(information),
-                    Encoding.UTF8,
-                    "application/json"
-                );
+                using var request = ApiUtils.CreateJsonPostRequest("modules/license/read", information);
                 api.TryRequest(request, out ModulesReadLicenseRead result);
                 if (!result.Success)
                 {
