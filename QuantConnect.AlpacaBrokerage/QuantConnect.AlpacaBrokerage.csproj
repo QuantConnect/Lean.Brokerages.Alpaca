@@ -3,7 +3,7 @@
 		<NoWarn>$(NoWarn);NU1605</NoWarn>
 		<Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
 		<Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-		<TargetFramework>net9.0</TargetFramework>
+		<TargetFramework>net10.0</TargetFramework>
 		<Product>QuantConnect.Brokerages.Alpaca</Product>
 		<AssemblyName>QuantConnect.Brokerages.Alpaca</AssemblyName>
 		<RootNamespace>QuantConnect.Brokerages.Alpaca</RootNamespace>
