@@ -468,6 +468,75 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         }
 
         [Test]
+        public void HandleTradeUpdateHandleExpiredOrder()
+        {
+            // pending_new -> new -> expired
+            // the same to all trade updates
+            var orderId = Guid.NewGuid();
+
+            var aop = new AlpacaOrderProperties()
+            {
+                TimeInForce = TimeInForce.Day
+            };
+
+            var order = new LimitOrder(Symbols.AAPL, 3m, 1m, default, properties: aop);
+            order.BrokerId.Add(orderId.ToString());
+
+            OrderProvider.Add(order);
+
+            var tradeUpdates = new List<TestTradeUpdate>()
+            {
+                new(TradeEvent.PendingNew, null, new TestOrder(orderId)),
+                new(TradeEvent.New, Guid.NewGuid(), new TestOrder(orderId))
+            };
+
+            var expiredExecutionId_1 = Guid.NewGuid();
+            var expired_1 = new TestTradeUpdate(TradeEvent.Expired, expiredExecutionId_1, new TestOrder(orderId, 1));
+
+            tradeUpdates.Add(expired_1);
+            tradeUpdates.Add(expired_1);
+
+            var orderWasCancelled = false;
+            var cancelledCounter = 0;
+            void HandleTradeUpdateHandleExpiredOrder(object _, List<OrderEvent> oes)
+            {
+                var oe = oes[0];
+                switch (oe.Status)
+                {
+                    case OrderStatus.Canceled:
+                        orderWasCancelled = true;
+                        cancelledCounter += 1;
+                        Assert.True(oe.Message.Contains("The order was canceled by the brokerage.", StringComparison.InvariantCultureIgnoreCase));
+                        break;
+                }
+            }
+
+            Brokerage.OrdersStatusChanged += HandleTradeUpdateHandleExpiredOrder;
+
+            foreach (var tradeUpdate in tradeUpdates)
+            {
+                AlpacaBrokerage.HandleTradeUpdate(tradeUpdate);
+
+                switch (tradeUpdate.Event)
+                {
+                    case TradeEvent.PendingNew:
+                    case TradeEvent.New:
+                        Assert.AreEqual(1, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId.Count);
+                        break;
+                    case TradeEvent.Expired when tradeUpdate.ExecutionId.Equals(expiredExecutionId_1):
+                        Assert.AreEqual(0, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId.Count);
+                        break;
+                }
+            }
+
+            Brokerage.OrdersStatusChanged -= HandleTradeUpdateHandleExpiredOrder;
+
+            Assert.True(orderWasCancelled);
+            Assert.AreEqual(1, cancelledCounter);
+            Assert.AreEqual(OrderStatus.Canceled, order.Status);
+        }
+
+        [Test]
         public void HandleTradeUpdateShouldSkipDuplication()
         {
             // pending_new -> new -> partial_fill -> fill

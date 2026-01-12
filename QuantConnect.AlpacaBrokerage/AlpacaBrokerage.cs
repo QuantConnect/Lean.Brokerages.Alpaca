@@ -78,6 +78,15 @@ namespace QuantConnect.Brokerages.Alpaca
         private readonly CancellationTokenSource _cancellationTokenSource = new();
 
         /// <summary>
+        /// Provides user-facing reason messages for specific trade events.
+        /// Used when emitting order events.
+        /// </summary>
+        private static readonly Dictionary<TradeEvent, string> _tradeEventReason = new()
+        {
+            { TradeEvent.Expired,  "The order was canceled by the brokerage." }
+        };
+
+        /// <summary>
         /// Maps each brokerage order ID to a set of execution IDs, used to detect and skip duplicate trade updates.
         /// </summary>
         internal readonly Dictionary<Guid, HashSet<Guid>> _duplicationExecutionOrderIdByBrokerageOrderId = [];
@@ -449,13 +458,20 @@ namespace QuantConnect.Brokerages.Alpaca
                     case TradeEvent.Rejected:
                     case TradeEvent.Canceled:
                     case TradeEvent.Replaced:
+                    case TradeEvent.Expired:
                         if (_duplicationExecutionOrderIdByBrokerageOrderId.Remove(obj.Order.OrderId))
                         {
                             if (newLeanOrderStatus == Orders.OrderStatus.UpdateSubmitted)
                             {
                                 _duplicationExecutionOrderIdByBrokerageOrderId[obj.Order.ReplacedByOrderId.Value] = [];
                             }
-                            OnOrderEvent(new OrderEvent(leanOrder, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event") { Status = newLeanOrderStatus });
+
+                            if (!_tradeEventReason.TryGetValue(obj.Event, out var message))
+                            {
+                                message = $"{nameof(AlpacaBrokerage)} Order Event";
+                            }
+
+                            OnOrderEvent(new OrderEvent(leanOrder, DateTime.UtcNow, OrderFee.Zero, message) { Status = newLeanOrderStatus });
                         }
                         return;
                     case TradeEvent.Fill:
@@ -807,6 +823,8 @@ namespace QuantConnect.Brokerages.Alpaca
                     return Orders.OrderStatus.Filled;
                 case TradeEvent.PartialFill:
                     return Orders.OrderStatus.PartiallyFilled;
+                case TradeEvent.Expired:
+                    return Orders.OrderStatus.Canceled;
                 default:
                     return Orders.OrderStatus.New;
             }
