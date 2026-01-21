@@ -97,6 +97,11 @@ namespace QuantConnect.Brokerages.Alpaca
         public override bool IsConnected => _connected;
 
         /// <summary>
+        /// Enables concurrent order requests processing
+        /// </summary>
+        public override bool ConcurrencyEnabled => true;
+
+        /// <summary>
         /// Parameterless constructor for brokerage
         /// </summary>
         public AlpacaBrokerage() : base("Alpaca")
@@ -178,7 +183,7 @@ namespace QuantConnect.Brokerages.Alpaca
                 _orderStreamingClient.OnTradeUpdate += (message) => _messageHandler.HandleNewMessage(message);
                 WireStreamingClientEvents(_orderStreamingClient);
             }
-            _messageHandler = new(HandleTradeUpdate);
+            _messageHandler = new(HandleTradeUpdate, ConcurrencyEnabled);
             _symbolMapper = new AlpacaBrokerageSymbolMapper(_tradingClient);
 
             // historical equity
@@ -489,7 +494,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     case TradeEvent.Accepted:
                     case TradeEvent.PendingReplace:
                     case TradeEvent.PendingCancel:
-                        // Skip this event to avoid flooding logs 
+                        // Skip this event to avoid flooding logs
                         return;
                     default:
                         Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}.Event: {obj.Event}. TradeUpdate: {obj}");
