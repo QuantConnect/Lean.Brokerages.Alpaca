@@ -92,6 +92,13 @@ namespace QuantConnect.Brokerages.Alpaca
         internal readonly Dictionary<Guid, HashSet<Guid>> _duplicationExecutionOrderIdByBrokerageOrderId = [];
 
         /// <summary>
+        /// Tracks unsupported TimeInForce values detected during order conversion.
+        /// This allows the system to issue a warning for each unsupported TIF only once,
+        /// preventing duplicate messages when processing multiple orders.
+        /// </summary>
+        private readonly HashSet<AlpacaMarket.TimeInForce> _unsupportedTimeInForce = [];
+
+        /// <summary>
         /// Returns true if we're currently connected to the broker
         /// </summary>
         public override bool IsConnected => _connected;
@@ -285,76 +292,84 @@ namespace QuantConnect.Brokerages.Alpaca
             var orders = _tradingClient.ListOrdersAsync(new ListOrdersRequest() { OrderStatusFilter = OrderStatusFilter.Open }).SynchronouslyAwaitTaskResult();
 
             var leanOrders = new List<Order>();
-            var unsupportedTimeInForce = new HashSet<AlpacaMarket.TimeInForce>();
             foreach (var brokerageOrder in orders)
             {
-                if (brokerageOrder.Legs.Count > 1)
+                if (TryConvertToLeanOrder(brokerageOrder, out var leanOrder))
                 {
-                    // TODO: Implement OrderType.ComboMarket and OrderType.ComboLimit
-                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "NotSupportedOrderType", "Multi-leg orders are not currently supported."));
-                    continue;
+                    leanOrders.Add(leanOrder);
                 }
-
-                var orderProperties = new AlpacaOrderProperties();
-                if (!orderProperties.TryGetLeanTimeInForceByAlpacaTimeInForce(brokerageOrder.TimeInForce))
-                {
-                    if (unsupportedTimeInForce.Add(brokerageOrder.TimeInForce))
-                    {
-                        OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, $"Detected unsupported Lean TimeInForce of '{brokerageOrder.TimeInForce}', ignoring. Using default: TimeInForce.GoodTilCanceled"));
-                    }
-                }
-
-                var leanSymbol = _symbolMapper.GetLeanSymbol(brokerageOrder.AssetClass, brokerageOrder.Symbol);
-                var quantity = (brokerageOrder.OrderSide == OrderSide.Buy ? brokerageOrder.Quantity : decimal.Negate(brokerageOrder.Quantity.Value)).Value;
-                var leanOrder = default(Order);
-                switch (brokerageOrder.OrderType)
-                {
-                    case AlpacaMarket.OrderType.Market:
-
-                        switch (brokerageOrder.TimeInForce)
-                        {
-                            case AlpacaMarket.TimeInForce.Opg:
-                                leanOrder = new MarketOnOpenOrder(leanSymbol, quantity, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
-                                break;
-                            case AlpacaMarket.TimeInForce.Cls:
-                                leanOrder = new MarketOnCloseOrder(leanSymbol, quantity, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
-                                break;
-                            default:
-                                leanOrder = new Orders.MarketOrder(leanSymbol, quantity, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
-                                break;
-                        }
-                        break;
-                    case AlpacaMarket.OrderType.Limit:
-                        leanOrder = new Orders.LimitOrder(leanSymbol, quantity, brokerageOrder.LimitPrice.Value, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
-                        break;
-                    case AlpacaMarket.OrderType.Stop:
-                        leanOrder = new StopMarketOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
-                        break;
-                    case AlpacaMarket.OrderType.StopLimit:
-                        leanOrder = new Orders.StopLimitOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, brokerageOrder.LimitPrice.Value, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
-                        break;
-                    case AlpacaMarket.OrderType.TrailingStop:
-                        var trailingAsPercent = brokerageOrder.TrailOffsetInPercent.HasValue ? true : false;
-                        var trailingAmount = brokerageOrder.TrailOffsetInPercent.HasValue ? brokerageOrder.TrailOffsetInPercent.Value / 100m : brokerageOrder.TrailOffsetInDollars.Value;
-                        leanOrder = new Orders.TrailingStopOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, trailingAmount, trailingAsPercent, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
-                        break;
-                    default:
-                        throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetOpenOrders)}: Order type '{brokerageOrder.OrderType}' is not supported.");
-                }
-
-                leanOrder.Status = Orders.OrderStatus.Submitted;
-                if (brokerageOrder.FilledQuantity > 0 && brokerageOrder.FilledQuantity != brokerageOrder.Quantity)
-                {
-                    leanOrder.Status = Orders.OrderStatus.PartiallyFilled;
-                }
-
-                var brokerageOrderId = brokerageOrder.OrderId;
-                _duplicationExecutionOrderIdByBrokerageOrderId[brokerageOrderId] = [];
-                leanOrder.BrokerId.Add(brokerageOrderId.ToString());
-                leanOrders.Add(leanOrder);
             }
 
             return leanOrders;
+        }
+
+        private bool TryConvertToLeanOrder(IOrder brokerageOrder, out Order leanOrder)
+        {
+            leanOrder = null;
+            if (brokerageOrder.Legs.Count > 1)
+            {
+                // TODO: Implement OrderType.ComboMarket and OrderType.ComboLimit
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "NotSupportedOrderType", "Multi-leg orders are not currently supported."));
+                return false;
+            }
+
+            var orderProperties = new AlpacaOrderProperties();
+            if (!orderProperties.TryGetLeanTimeInForceByAlpacaTimeInForce(brokerageOrder.TimeInForce))
+            {
+                if (_unsupportedTimeInForce.Add(brokerageOrder.TimeInForce))
+                {
+                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, $"Detected unsupported Lean TimeInForce of '{brokerageOrder.TimeInForce}', ignoring. Using default: TimeInForce.GoodTilCanceled"));
+                }
+            }
+
+            var leanSymbol = _symbolMapper.GetLeanSymbol(brokerageOrder.AssetClass, brokerageOrder.Symbol);
+            var quantity = (brokerageOrder.OrderSide == OrderSide.Buy ? brokerageOrder.Quantity : decimal.Negate(brokerageOrder.Quantity.Value)).Value;
+            switch (brokerageOrder.OrderType)
+            {
+                case AlpacaMarket.OrderType.Market:
+
+                    switch (brokerageOrder.TimeInForce)
+                    {
+                        case AlpacaMarket.TimeInForce.Opg:
+                            leanOrder = new MarketOnOpenOrder(leanSymbol, quantity, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
+                            break;
+                        case AlpacaMarket.TimeInForce.Cls:
+                            leanOrder = new MarketOnCloseOrder(leanSymbol, quantity, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
+                            break;
+                        default:
+                            leanOrder = new Orders.MarketOrder(leanSymbol, quantity, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
+                            break;
+                    }
+                    break;
+                case AlpacaMarket.OrderType.Limit:
+                    leanOrder = new Orders.LimitOrder(leanSymbol, quantity, brokerageOrder.LimitPrice.Value, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
+                    break;
+                case AlpacaMarket.OrderType.Stop:
+                    leanOrder = new StopMarketOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
+                    break;
+                case AlpacaMarket.OrderType.StopLimit:
+                    leanOrder = new Orders.StopLimitOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, brokerageOrder.LimitPrice.Value, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
+                    break;
+                case AlpacaMarket.OrderType.TrailingStop:
+                    var trailingAsPercent = brokerageOrder.TrailOffsetInPercent.HasValue ? true : false;
+                    var trailingAmount = brokerageOrder.TrailOffsetInPercent.HasValue ? brokerageOrder.TrailOffsetInPercent.Value / 100m : brokerageOrder.TrailOffsetInDollars.Value;
+                    leanOrder = new Orders.TrailingStopOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, trailingAmount, trailingAsPercent, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
+                    break;
+                default:
+                    throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetOpenOrders)}: Order type '{brokerageOrder.OrderType}' is not supported.");
+            }
+
+            leanOrder.Status = Orders.OrderStatus.Submitted;
+            if (brokerageOrder.FilledQuantity > 0 && brokerageOrder.FilledQuantity != brokerageOrder.Quantity)
+            {
+                leanOrder.Status = Orders.OrderStatus.PartiallyFilled;
+            }
+
+            var brokerageOrderId = brokerageOrder.OrderId;
+            _duplicationExecutionOrderIdByBrokerageOrderId[brokerageOrderId] = [];
+            leanOrder.BrokerId.Add(brokerageOrderId.ToString());
+
+            return true;
         }
 
         /// <summary>
@@ -446,6 +461,24 @@ namespace QuantConnect.Brokerages.Alpaca
                 if (!TryGetOrRemoveCrossZeroOrder(brokerageOrderId, newLeanOrderStatus, out var leanOrder))
                 {
                     leanOrder = _orderProvider.GetOrdersByBrokerageId(brokerageOrderId)?.SingleOrDefault();
+                    if (leanOrder == null)
+                    {
+                        if (TryConvertToLeanOrder(obj.Order, out leanOrder))
+                        {
+                            OnNewBrokerageOrderNotification(new(leanOrder));
+
+                            if (leanOrder.Id == 0)
+                            {
+                                leanOrder = null;
+                            }
+                            else
+                            {
+                                OnOrderEvent(new OrderEvent(leanOrder, DateTime.UtcNow, OrderFee.Zero, $"Order was submitted outside Lean")
+                                { Status = Orders.OrderStatus.Submitted });
+                                return;
+                            }
+                        }
+                    }
                 }
                 if (leanOrder == null)
                 {
@@ -468,7 +501,14 @@ namespace QuantConnect.Brokerages.Alpaca
                         {
                             if (newLeanOrderStatus == Orders.OrderStatus.UpdateSubmitted)
                             {
-                                _duplicationExecutionOrderIdByBrokerageOrderId[obj.Order.ReplacedByOrderId.Value] = [];
+                                var replacedBrokerageOrderId = obj.Order.ReplacedByOrderId.Value;
+                                // If the order already exists in the BrokerId list, it means the update was initiated by Lean.
+                                // Otherwise, the order was updated outside of Lean and we need to notify about the new brokerage ID.
+                                if (!leanOrder.BrokerId.Contains(replacedBrokerageOrderId.ToString()))
+                                {
+                                    OnOrderIdChangedEvent(new() { OrderId = leanOrder.Id, BrokerId = [replacedBrokerageOrderId.ToString()] });
+                                }
+                                _duplicationExecutionOrderIdByBrokerageOrderId[replacedBrokerageOrderId] = [];
                             }
 
                             if (!_tradeEventReason.TryGetValue(obj.Event, out var message))
