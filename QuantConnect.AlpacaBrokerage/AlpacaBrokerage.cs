@@ -356,7 +356,9 @@ namespace QuantConnect.Brokerages.Alpaca
                     leanOrder = new Orders.TrailingStopOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, trailingAmount, trailingAsPercent, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
                     break;
                 default:
-                    throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetOpenOrders)}: Order type '{brokerageOrder.OrderType}' is not supported.");
+                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "NotSupportedOrderType",
+                        $"Order type '{brokerageOrder.OrderType}' is not currently supported. Details {brokerageOrder}"));
+                    return false;
             }
 
             leanOrder.Status = Orders.OrderStatus.Submitted;
@@ -461,23 +463,18 @@ namespace QuantConnect.Brokerages.Alpaca
                 if (!TryGetOrRemoveCrossZeroOrder(brokerageOrderId, newLeanOrderStatus, out var leanOrder))
                 {
                     leanOrder = _orderProvider.GetOrdersByBrokerageId(brokerageOrderId)?.SingleOrDefault();
-                    if (leanOrder == null)
+                    if (leanOrder == null && TryConvertToLeanOrder(obj.Order, out leanOrder))
                     {
-                        if (TryConvertToLeanOrder(obj.Order, out leanOrder))
-                        {
-                            OnNewBrokerageOrderNotification(new(leanOrder));
+                        OnNewBrokerageOrderNotification(new(leanOrder));
 
-                            if (leanOrder.Id == 0)
-                            {
-                                leanOrder = null;
-                            }
-                            else
-                            {
-                                OnOrderEvent(new OrderEvent(leanOrder, DateTime.UtcNow, OrderFee.Zero, $"Order was submitted outside Lean")
-                                { Status = Orders.OrderStatus.Submitted });
-                                return;
-                            }
+                        if (leanOrder.Id != 0)
+                        {
+                            OnOrderEvent(new OrderEvent(leanOrder, DateTime.UtcNow, OrderFee.Zero, $"Order was submitted outside Lean")
+                            { Status = Orders.OrderStatus.Submitted });
+                            return;
                         }
+
+                        leanOrder = null;
                     }
                 }
                 if (leanOrder == null)
