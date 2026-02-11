@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -356,9 +356,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     leanOrder = new Orders.TrailingStopOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, trailingAmount, trailingAsPercent, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
                     break;
                 default:
-                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "NotSupportedOrderType",
-                        $"Order type '{brokerageOrder.OrderType}' is not currently supported. Details {brokerageOrder}"));
-                    return false;
+                    throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetOpenOrders)}: Order type '{brokerageOrder.OrderType}' is not supported.");
             }
 
             leanOrder.Status = Orders.OrderStatus.Submitted;
@@ -471,10 +469,16 @@ namespace QuantConnect.Brokerages.Alpaca
                         {
                             OnOrderEvent(new OrderEvent(leanOrder, DateTime.UtcNow, OrderFee.Zero, $"Order was submitted outside Lean")
                             { Status = Orders.OrderStatus.Submitted });
-                            return;
-                        }
 
-                        leanOrder = null;
+                            if (newLeanOrderStatus == Orders.OrderStatus.Submitted)
+                            {
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            leanOrder = null;
+                        }
                     }
                 }
                 if (leanOrder == null)
