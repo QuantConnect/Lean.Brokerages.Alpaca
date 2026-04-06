@@ -405,7 +405,8 @@ namespace QuantConnect.Brokerages.Alpaca
         public override List<CashAmount> GetCashBalance()
         {
             var accounts = _tradingClient.GetAccountAsync().SynchronouslyAwaitTaskResult();
-            return new List<CashAmount>() { new(accounts.TradableCash, accounts.Currency) };
+            return new List<CashAmount>() { new(accounts.NonMarginableBuyingPower ?? 0m, accounts.Currency) };
+
         }
 
         /// <summary>
