@@ -29,11 +29,9 @@ public record TestTradeUpdate(TradeEvent Event, Guid? ExecutionId, IOrder Order)
     public long? TradeIntegerQuantity { get; init; }
 }
 
-public record TestOrder(Guid OrderId, decimal FilledQuantity = 0) : IOrder
+public record TestOrder(Guid OrderId, decimal FilledQuantity = 0, OrderSide? OrderSide = null, AssetClass? AssetClass = AssetClass.UsEquity) : IOrder
 {
     public string Symbol { get; init; } = "AAPL";
-    public OrderSide? OrderSide { get; init; }
-    public AssetClass? AssetClass { get; init; }
     public string ClientOrderId { get; init; }
     public DateTime? CreatedAtUtc { get; init; }
     public DateTime? UpdatedAtUtc { get; init; }

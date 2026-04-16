@@ -487,6 +487,13 @@ namespace QuantConnect.Brokerages.Alpaca
                     return;
                 }
 
+                // Alpaca can replay trade updates (new/fill) after a terminal event. Once the Lean
+                // order is in a closed state, discard any further updates to avoid duplicate events.
+                if (leanOrder.Status.IsClosed())
+                {
+                    return;
+                }
+
                 switch (obj.Event)
                 {
                     case TradeEvent.New:
