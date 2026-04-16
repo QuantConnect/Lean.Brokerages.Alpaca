@@ -74,6 +74,16 @@ namespace QuantConnect.Brokerages.Alpaca
         private bool _isInitialized;
         private bool _connected;
 
+        /// <summary>
+        /// Latch gating <see cref="BrokerageMessageType.Disconnect"/> emission so it fires
+        /// exactly once per disconnect cycle. Set on the first stream close and cleared only
+        /// when <see cref="ReconnectionLogic"/> confirms all streams are back up, so market-data
+        /// streams bouncing through <c>TooManyConnections</c> during reconnect do not produce
+        /// duplicate Disconnect events. Guarded by <see cref="_disconnectNotifiedLock"/>.
+        /// </summary>
+        private bool _disconnectNotified;
+        private readonly object _disconnectNotifiedLock = new();
+
         private readonly ManualResetEvent _reconnectionResetEvent = new(false);
         private readonly CancellationTokenSource _cancellationTokenSource = new();
 
@@ -196,10 +206,6 @@ namespace QuantConnect.Brokerages.Alpaca
             {
                 _orderStreamingClient.OnTradeUpdate += (message) => _messageHandler.HandleNewMessage(message);
                 WireStreamingClientEvents(_orderStreamingClient);
-                // Order-stream-specific lifecycle: toggle _orderStreamReadyEvent so
-                // PlaceOrder/UpdateOrder/CancelOrder wait while the stream is down.
-                _orderStreamingClient.SocketClosed += OrderStreamingClient_SocketClosed;
-                _orderStreamingClient.Connected += OrderStreamingClient_Connected;
             }
             _messageHandler = new(HandleTradeUpdate, ConcurrencyEnabled);
             _symbolMapper = new AlpacaBrokerageSymbolMapper(_tradingClient);
@@ -268,6 +274,33 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             Log.Trace($"{nameof(StreamingClient_SocketClosed)}({client.GetStreamingClientName()}): SocketClosed");
             _reconnectionResetEvent.Set();
+
+            // Emit Disconnect once per cycle, for any stream. The latch is cleared by ReconnectionLogic
+            // only after a FULL successful reconnect, so data streams flapping during reconnect do not
+            // produce duplicate events even though Connect() has already restored _connected.
+            bool shouldNotify;
+            lock (_disconnectNotifiedLock)
+            {
+                shouldNotify = !_disconnectNotified;
+                if (shouldNotify)
+                {
+                    _disconnectNotified = true;
+                    _connected = false;
+                }
+            }
+
+            if (shouldNotify)
+            {
+                // let consumers know, we will try to reconnect internally, if we can't lean will kill us
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Disconnect, "Disconnected", "Brokerage Disconnected"));
+            }
+
+            // Order-stream-specific: gate PlaceOrder/UpdateOrder/CancelOrder while the stream is down.
+            if (client == _orderStreamingClient)
+            {
+                Log.Trace($"{nameof(StreamingClient_SocketClosed)}({client.GetStreamingClientName()}): order stream closed; blocking order operations until reconnect.");
+                _orderStreamReadyEvent.Reset();
+            }
         }
 
         private void StreamingClient_SocketOpened(IStreamingClient client)
@@ -283,25 +316,10 @@ namespace QuantConnect.Brokerages.Alpaca
         private void StreamingClient_Connected(IStreamingClient client, AuthStatus obj)
         {
             Log.Trace($"{nameof(StreamingClient_Connected)}({client.GetStreamingClientName()}): {obj}");
-        }
 
-        private void OrderStreamingClient_SocketClosed()
-        {
-            Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(OrderStreamingClient_SocketClosed)}: order stream closed; blocking order operations until reconnect.");
-            if (_connected)
+            if (client == _orderStreamingClient && obj == AuthStatus.Authorized)
             {
-                _connected = false;
-                // let consumers know, we will try to reconnect internally, if we can't lean will kill us
-                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Disconnect, "Disconnected", "Brokerage Disconnected"));
-                _orderStreamReadyEvent.Reset();
-            }
-        }
-
-        private void OrderStreamingClient_Connected(AuthStatus status)
-        {
-            if (status == AuthStatus.Authorized)
-            {
-                Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(OrderStreamingClient_Connected)}: order stream authorized; releasing order operations.");
+                Log.Trace($"{nameof(StreamingClient_Connected)}({client.GetStreamingClientName()}): order stream authorized; releasing order operations.");
                 _orderStreamReadyEvent.Set();
             }
         }
@@ -817,6 +835,8 @@ namespace QuantConnect.Brokerages.Alpaca
                         break;
                     }
 
+                    _reconnectionResetEvent.Reset();
+
                     try
                     {
                         Connect();
@@ -835,8 +855,14 @@ namespace QuantConnect.Brokerages.Alpaca
                                 Unsubscribe(symbols);
                                 Subscribe(symbols);
                             }
-                            _reconnectionResetEvent.Reset();
                             attempt = 0;
+                            // Re-arm the Disconnect latch: only after a FULL reconnect
+                            // (order stream restored + data streams resubscribed) do we
+                            // allow the next stream loss to emit Disconnect again.
+                            lock (_disconnectNotifiedLock)
+                            {
+                                _disconnectNotified = false;
+                            }
                             // let consumers know we are reconnected, avoid lean killing us
                             OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Reconnect, "Reconnected", "Brokerage Reconnected"));
                         }
