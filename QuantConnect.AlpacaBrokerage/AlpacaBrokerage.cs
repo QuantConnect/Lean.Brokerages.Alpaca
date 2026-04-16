@@ -267,13 +267,7 @@ namespace QuantConnect.Brokerages.Alpaca
         private void StreamingClient_SocketClosed(IStreamingClient client)
         {
             Log.Trace($"{nameof(StreamingClient_SocketClosed)}({client.GetStreamingClientName()}): SocketClosed");
-            if (_connected)
-            {
-                _connected = false;
-                // let consumers know, we will try to reconnect internally, if we can't lean will kill us
-                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Disconnect, "Disconnected", "Brokerage Disconnected"));
-                _reconnectionResetEvent.Set();
-            }
+            _reconnectionResetEvent.Set();
         }
 
         private void StreamingClient_SocketOpened(IStreamingClient client)
@@ -294,7 +288,13 @@ namespace QuantConnect.Brokerages.Alpaca
         private void OrderStreamingClient_SocketClosed()
         {
             Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(OrderStreamingClient_SocketClosed)}: order stream closed; blocking order operations until reconnect.");
-            _orderStreamReadyEvent.Reset();
+            if (_connected)
+            {
+                _connected = false;
+                // let consumers know, we will try to reconnect internally, if we can't lean will kill us
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Disconnect, "Disconnected", "Brokerage Disconnected"));
+                _orderStreamReadyEvent.Reset();
+            }
         }
 
         private void OrderStreamingClient_Connected(AuthStatus status)
@@ -767,7 +767,7 @@ namespace QuantConnect.Brokerages.Alpaca
             var authorizedStatus = streamingClient.ConnectAndAuthenticateAsync().SynchronouslyAwaitTaskResult();
             if (authorizedStatus != AuthStatus.Authorized)
             {
-                throw new InvalidOperationException($"Connect(): Failed to connect to {streamingClient.GetStreamingClientName()}");
+                throw new InvalidOperationException($"Connect(): Failed to connect to {streamingClient.GetStreamingClientName()}. Status: {authorizedStatus}");
             }
         }
 
@@ -800,21 +800,22 @@ namespace QuantConnect.Brokerages.Alpaca
             Task.Factory.StartNew(() =>
             {
                 Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(ReconnectionLogic)}: Starting reconnection loop.");
+                var attempt = 0;
                 while (!_cancellationTokenSource.IsCancellationRequested)
                 {
                     _reconnectionResetEvent.WaitOne(_cancellationTokenSource.Token);
 
+                    var delay = TimeSpan.FromSeconds(5 * ++attempt);
+                    Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(ReconnectionLogic)}: attempt #{attempt}, waiting {delay.TotalSeconds}s...");
                     // The server enforces a 90-second timeout for "partially dead" connections.
                     // If another WebSocket connection is opened with the same API key/secret
                     // before the old one is fully closed, this may trigger the
                     // "Too many connections" error. Waiting here prevents premature reconnection
                     // attempts that would conflict with the server's timeout window.
-                    if (_cancellationTokenSource.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(90)))
+                    if (_cancellationTokenSource.Token.WaitHandle.WaitOne(delay))
                     {
                         break;
                     }
-
-                    _reconnectionResetEvent.Reset();
 
                     try
                     {
@@ -834,6 +835,8 @@ namespace QuantConnect.Brokerages.Alpaca
                                 Unsubscribe(symbols);
                                 Subscribe(symbols);
                             }
+                            _reconnectionResetEvent.Reset();
+                            attempt = 0;
                             // let consumers know we are reconnected, avoid lean killing us
                             OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Reconnect, "Reconnected", "Brokerage Reconnected"));
                         }
