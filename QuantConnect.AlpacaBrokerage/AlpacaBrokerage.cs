@@ -802,7 +802,11 @@ namespace QuantConnect.Brokerages.Alpaca
                 Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(ExecuteWhenReconnectedAndStreamLocked)}.{methodName}: waiting for order stream reconnect...");
                 try
                 {
-                    _orderStreamReadyEvent.Wait(_cancellationTokenSource.Token);
+                    if (!_orderStreamReadyEvent.Wait(TimeSpan.FromMinutes(10), _cancellationTokenSource.Token))
+                    {
+                        Log.Error($"{nameof(AlpacaBrokerage)}.{nameof(ExecuteWhenReconnectedAndStreamLocked)}.{methodName}: order stream not ready after 10 minutes; skipping {methodName}.");
+                        return;
+                    }
                 }
                 catch (OperationCanceledException)
                 {
