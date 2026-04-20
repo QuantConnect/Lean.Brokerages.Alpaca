@@ -74,16 +74,6 @@ namespace QuantConnect.Brokerages.Alpaca
         private bool _isInitialized;
         private bool _connected;
 
-        /// <summary>
-        /// Latch gating <see cref="BrokerageMessageType.Disconnect"/> emission so it fires
-        /// exactly once per disconnect cycle. Set on the first stream close and cleared only
-        /// when <see cref="ReconnectionLogic"/> confirms all streams are back up, so market-data
-        /// streams bouncing through <c>TooManyConnections</c> during reconnect do not produce
-        /// duplicate Disconnect events. Guarded by <see cref="_disconnectNotifiedLock"/>.
-        /// </summary>
-        private bool _disconnectNotified;
-        private readonly object _disconnectNotifiedLock = new();
-
         private readonly ManualResetEvent _reconnectionResetEvent = new(false);
         private readonly CancellationTokenSource _cancellationTokenSource = new();
 
@@ -273,33 +263,18 @@ namespace QuantConnect.Brokerages.Alpaca
         private void StreamingClient_SocketClosed(IStreamingClient client)
         {
             Log.Trace($"{nameof(StreamingClient_SocketClosed)}({client.GetStreamingClientName()}): SocketClosed");
-            _reconnectionResetEvent.Set();
-
-            // Emit Disconnect once per cycle, for any stream. The latch is cleared by ReconnectionLogic
-            // only after a FULL successful reconnect, so data streams flapping during reconnect do not
-            // produce duplicate events even though Connect() has already restored _connected.
-            bool shouldNotify;
-            lock (_disconnectNotifiedLock)
+            if (_connected)
             {
-                shouldNotify = !_disconnectNotified;
-                if (shouldNotify)
-                {
-                    _disconnectNotified = true;
-                    _connected = false;
-                }
-            }
-
-            if (shouldNotify)
-            {
+                _connected = false;
                 // let consumers know, we will try to reconnect internally, if we can't lean will kill us
                 OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Disconnect, "Disconnected", "Brokerage Disconnected"));
-            }
-
-            // Order-stream-specific: gate PlaceOrder/UpdateOrder/CancelOrder while the stream is down.
-            if (client == _orderStreamingClient)
-            {
-                Log.Trace($"{nameof(StreamingClient_SocketClosed)}({client.GetStreamingClientName()}): order stream closed; blocking order operations until reconnect.");
-                _orderStreamReadyEvent.Reset();
+                _reconnectionResetEvent.Set();
+                // Order-stream-specific: gate PlaceOrder/UpdateOrder/CancelOrder while the stream is down.
+                if (client == _orderStreamingClient)
+                {
+                    Log.Trace($"{nameof(StreamingClient_SocketClosed)}({client.GetStreamingClientName()}): order stream closed; blocking order operations until reconnect.");
+                    _orderStreamReadyEvent.Reset();
+                }
             }
         }
 
@@ -860,13 +835,6 @@ namespace QuantConnect.Brokerages.Alpaca
                                 Subscribe(symbols);
                             }
                             attempt = 0;
-                            // Re-arm the Disconnect latch: only after a FULL reconnect
-                            // (order stream restored + data streams resubscribed) do we
-                            // allow the next stream loss to emit Disconnect again.
-                            lock (_disconnectNotifiedLock)
-                            {
-                                _disconnectNotified = false;
-                            }
                             // let consumers know we are reconnected, avoid lean killing us
                             OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Reconnect, "Reconnected", "Brokerage Reconnected"));
                         }
