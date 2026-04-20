@@ -16,7 +16,6 @@
 using System;
 using QuantConnect.Orders;
 using QuantConnect.Logging;
-using System.Collections.Generic;
 using AlpacaMarket = Alpaca.Markets;
 using QuantConnect.Orders.TimeInForces;
 
@@ -27,53 +26,37 @@ namespace QuantConnect.Brokerages.Alpaca;
 public static class AlpacaBrokerageExtensions
 {
     /// <summary>
-    /// Alpaca stock exchange codes mapped to a Lean <see cref="Exchange"/> name when a Lean
-    /// counterpart exists; otherwise the raw Alpaca display name is used as the fallback.
+    /// Maps an Alpaca stock-exchange code (single SIP/CTS letter) to the Lean
+    /// <see cref="Exchange"/> name, deferring to <see cref="Exchanges.GetPrimaryExchange"/>
+    /// and hard-coding the few codes that Lean's equity switch does not reach.
     /// </summary>
-    /// <remarks>Source: GET /v2/stocks/meta/exchanges <see href="https://docs.alpaca.markets/reference/stockmetaexchanges-1"/></remarks>
-    private static readonly Dictionary<string, string> _leanExchangeNameByAlpacaCode = new()
-    {
-        { "A", Exchange.AMEX.Name },
-        { "B", Exchange.NASDAQ_BX.Name },
-        { "C", Exchange.NSX.Name },
-        { "D", Exchange.FINRA.Name },
-        { "E", "Market Independent" },
-        { "H", Exchange.MIAX_PEARL.Name },
-        { "I", Exchange.ISE.Name },
-        { "J", Exchange.EDGA.Name },
-        { "K", Exchange.EDGX.Name },
-        { "L", Exchange.LTSE.Name },
-        { "M", Exchange.CSE.Name },
-        { "N", Exchange.NYSE.Name },
-        { "P", Exchange.ARCA.Name },
-        { "Q", Exchange.NASDAQ.Name },
-        { "S", "NASDAQ Small Cap" },
-        { "T", "NASDAQ Int" },
-        { "U", Exchange.MEMX.Name },
-        { "V", Exchange.IEX.Name },
-        { "W", Exchange.CBOE.Name },
-        { "X", Exchange.NASDAQ_PSX.Name },
-        { "Y", Exchange.BATS_Y.Name },
-        { "Z", Exchange.BATS.Name },
-    };
-
-    /// <summary>
-    /// Maps an Alpaca exchange code (single SIP/CTS letter) to a Lean exchange name,
-    /// falling back to the Alpaca-provided display name when no Lean venue exists.
-    /// </summary>
+    /// <remarks>
+    /// Source: GET /v2/stocks/meta/exchanges
+    /// <see href="https://docs.alpaca.markets/reference/stockmetaexchanges-1"/>.
+    /// Unmapped codes return <see cref="Exchange.UNKNOWN"/>'s name — the empty string —
+    /// which matches <see cref="Data.Market.Tick.Exchange"/>'s default.
+    /// </remarks>
     /// <param name="exchangeCode">The Alpaca exchange code (e.g. "N", "Q", "D").</param>
-    /// <param name="exchange">The resolved exchange name, or <c>null</c> when no mapping exists.</param>
-    /// <returns>
-    /// <c>false</c> when <paramref name="exchangeCode"/> is null/empty or unknown; otherwise <c>true</c>.
-    /// </returns>
-    public static bool TryGetExchange(string exchangeCode, out string exchange)
+    /// <returns>The Lean exchange name, or an empty string when no venue is known.</returns>
+    public static string GetExchange(string exchangeCode)
     {
-        if (string.IsNullOrEmpty(exchangeCode))
+        // Alpaca codes Lean's equity branch of GetPrimaryExchange does not reach.
+        // "S" (NASDAQ Small Cap) folds into Exchange.NASDAQ — Lean models the NASDAQ
+        // family as a single venue, same way "T" (NASDAQ Int) is handled inside
+        // GetPrimaryExchange below.
+        switch (exchangeCode)
         {
-            exchange = null;
-            return false;
+            case "H":
+                return Exchange.MIAX.Name;
+            case "S":
+                return Exchange.NASDAQ.Name;
+            case "U":
+                return Exchange.MEMX.Name;
+            case "V":
+                return Exchange.IEX.Name;
         }
-        return _leanExchangeNameByAlpacaCode.TryGetValue(exchangeCode, out exchange);
+
+        return exchangeCode.GetPrimaryExchange().Name;
     }
 
     /// <summary>

@@ -126,12 +126,8 @@ public partial class AlpacaBrokerage
             TickType = TickType.Trade,
             Symbol = subscriptionData.Symbol,
             Time = DateTime.UtcNow.ConvertFromUtc(subscriptionData.ExchangeTimeZone),
-            SaleCondition = obj.Conditions != null ? string.Join(",", obj.Conditions) : string.Empty,
+            Exchange = AlpacaBrokerageExtensions.GetExchange(obj.Exchange),
         };
-        if (AlpacaBrokerageExtensions.TryGetExchange(obj.Exchange, out var tradeExchange))
-        {
-            tick.Exchange = tradeExchange;
-        }
         lock (_aggregator)
         {
             _aggregator.Update(tick);
@@ -161,11 +157,8 @@ public partial class AlpacaBrokerage
             TickType = TickType.Quote,
             Symbol = subscriptionData.Symbol,
             Time = DateTime.UtcNow.ConvertFromUtc(subscriptionData.ExchangeTimeZone),
+            Exchange = AlpacaBrokerageExtensions.GetExchange(obj.AskExchange),
         };
-        if (AlpacaBrokerageExtensions.TryGetExchange(obj.AskExchange, out var askExchange))
-        {
-            tick.Exchange = askExchange;
-        }
 
         lock (_aggregator)
         {
