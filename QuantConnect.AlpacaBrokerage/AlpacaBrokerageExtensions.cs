@@ -16,6 +16,7 @@
 using System;
 using QuantConnect.Orders;
 using QuantConnect.Logging;
+using System.Collections.Generic;
 using AlpacaMarket = Alpaca.Markets;
 using QuantConnect.Orders.TimeInForces;
 
@@ -25,6 +26,56 @@ namespace QuantConnect.Brokerages.Alpaca;
 
 public static class AlpacaBrokerageExtensions
 {
+    /// <summary>
+    /// Alpaca stock exchange codes mapped to a Lean <see cref="Exchange"/> name when a Lean
+    /// counterpart exists; otherwise the raw Alpaca display name is used as the fallback.
+    /// </summary>
+    /// <remarks>Source: GET /v2/stocks/meta/exchanges <see href="https://docs.alpaca.markets/reference/stockmetaexchanges-1"/></remarks>
+    private static readonly Dictionary<string, string> _leanExchangeNameByAlpacaCode = new()
+    {
+        { "A", Exchange.AMEX.Name },
+        { "B", Exchange.NASDAQ_BX.Name },
+        { "C", Exchange.NSX.Name },
+        { "D", Exchange.FINRA.Name },
+        { "E", "Market Independent" },
+        { "H", Exchange.MIAX_PEARL.Name },
+        { "I", Exchange.ISE.Name },
+        { "J", Exchange.EDGA.Name },
+        { "K", Exchange.EDGX.Name },
+        { "L", Exchange.LTSE.Name },
+        { "M", Exchange.CSE.Name },
+        { "N", Exchange.NYSE.Name },
+        { "P", Exchange.ARCA.Name },
+        { "Q", Exchange.NASDAQ.Name },
+        { "S", "NASDAQ Small Cap" },
+        { "T", "NASDAQ Int" },
+        { "U", Exchange.MEMX.Name },
+        { "V", Exchange.IEX.Name },
+        { "W", Exchange.CBOE.Name },
+        { "X", Exchange.NASDAQ_PSX.Name },
+        { "Y", Exchange.BATS_Y.Name },
+        { "Z", Exchange.BATS.Name },
+    };
+
+    /// <summary>
+    /// Maps an Alpaca exchange code (single SIP/CTS letter) to a Lean exchange name,
+    /// falling back to the Alpaca-provided display name when no Lean venue exists.
+    /// </summary>
+    /// <param name="exchangeCode">The Alpaca exchange code (e.g. "N", "Q", "D").</param>
+    /// <param name="exchange">The resolved exchange name, or <c>null</c> when no mapping exists.</param>
+    /// <returns>
+    /// <c>false</c> when <paramref name="exchangeCode"/> is null/empty or unknown; otherwise <c>true</c>.
+    /// </returns>
+    public static bool TryGetExchange(string exchangeCode, out string exchange)
+    {
+        if (string.IsNullOrEmpty(exchangeCode))
+        {
+            exchange = null;
+            return false;
+        }
+        return _leanExchangeNameByAlpacaCode.TryGetValue(exchangeCode, out exchange);
+    }
+
     /// <summary>
     /// Creates an Alpaca sell order based on the provided Lean order type.
     /// </summary>
