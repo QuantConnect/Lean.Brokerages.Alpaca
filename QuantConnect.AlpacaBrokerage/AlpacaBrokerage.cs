@@ -265,16 +265,16 @@ namespace QuantConnect.Brokerages.Alpaca
             Log.Trace($"{nameof(StreamingClient_SocketClosed)}({client.GetStreamingClientName()}): SocketClosed");
             if (_connected)
             {
-                _connected = false;
-                // let consumers know, we will try to reconnect internally, if we can't lean will kill us
-                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Disconnect, "Disconnected", "Brokerage Disconnected"));
-                _reconnectionResetEvent.Set();
                 // Order-stream-specific: gate PlaceOrder/UpdateOrder/CancelOrder while the stream is down.
                 if (client == _orderStreamingClient)
                 {
                     Log.Trace($"{nameof(StreamingClient_SocketClosed)}({client.GetStreamingClientName()}): order stream closed; blocking order operations until reconnect.");
                     _orderStreamReadyEvent.Reset();
                 }
+                _connected = false;
+                // let consumers know, we will try to reconnect internally, if we can't lean will kill us
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Disconnect, "Disconnected", "Brokerage Disconnected"));
+                _reconnectionResetEvent.Set();
             }
         }
 
