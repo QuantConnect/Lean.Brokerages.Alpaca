@@ -41,16 +41,10 @@ public static class AlpacaBrokerageExtensions
     /// <returns>The Lean exchange name, or an empty string when no venue is known.</returns>
     public static string GetExchange(this string exchangeCode, SecurityType securityType)
     {
-        switch (exchangeCode)
+        if (string.Equals(exchangeCode, "E")) // Market Independent (Genesrated by Nasdaq SIP)
         {
-            case "E": // Market Independent (Genesrated by Nasdaq SIP)
-                return Exchange.UNKNOWN;
-            case "H":
-                return Exchange.MIAX.Name;
-            case "U":
-                return Exchange.MEMX.Name;
+            return Exchange.UNKNOWN;
         }
-
         return exchangeCode.GetPrimaryExchange(securityType).Name;
     }
 
