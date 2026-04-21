@@ -26,29 +26,6 @@ namespace QuantConnect.Brokerages.Alpaca;
 public static class AlpacaBrokerageExtensions
 {
     /// <summary>
-    /// Maps an Alpaca stock-exchange code (single SIP/CTS letter) to the Lean
-    /// <see cref="Exchange"/> name, deferring to <see cref="Exchanges.GetPrimaryExchange"/>
-    /// and hard-coding the few codes that Lean's equity switch does not reach.
-    /// </summary>
-    /// <remarks>
-    /// Source: GET /v2/stocks/meta/exchanges
-    /// <see href="https://docs.alpaca.markets/reference/stockmetaexchanges-1"/>.
-    /// Unmapped codes return <see cref="Exchange.UNKNOWN"/>'s name — the empty string —
-    /// which matches <see cref="Data.Market.Tick.Exchange"/>'s default.
-    /// </remarks>
-    /// <param name="exchangeCode">The Alpaca exchange code (e.g. "N", "Q", "D").</param>
-    /// <param name="securityType">The type of security (e.g., Equity, Option, Crypto).</param>
-    /// <returns>The Lean exchange name, or an empty string when no venue is known.</returns>
-    public static string GetExchange(this string exchangeCode, SecurityType securityType)
-    {
-        if (string.Equals(exchangeCode, "E")) // Market Independent (Genesrated by Nasdaq SIP)
-        {
-            return Exchange.UNKNOWN;
-        }
-        return exchangeCode.GetPrimaryExchange(securityType).Name;
-    }
-
-    /// <summary>
     /// Creates an Alpaca sell order based on the provided Lean order type.
     /// </summary>
     /// <param name="order">The order object containing details for the trade.</param>
