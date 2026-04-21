@@ -37,26 +37,21 @@ public static class AlpacaBrokerageExtensions
     /// which matches <see cref="Data.Market.Tick.Exchange"/>'s default.
     /// </remarks>
     /// <param name="exchangeCode">The Alpaca exchange code (e.g. "N", "Q", "D").</param>
+    /// <param name="securityType">The type of security (e.g., Equity, Option, Crypto).</param>
     /// <returns>The Lean exchange name, or an empty string when no venue is known.</returns>
-    public static string GetExchange(string exchangeCode)
+    public static string GetExchange(this string exchangeCode, SecurityType securityType)
     {
-        // Alpaca codes Lean's equity branch of GetPrimaryExchange does not reach.
-        // "S" (NASDAQ Small Cap) folds into Exchange.NASDAQ — Lean models the NASDAQ
-        // family as a single venue, same way "T" (NASDAQ Int) is handled inside
-        // GetPrimaryExchange below.
         switch (exchangeCode)
         {
+            case "E": // Market Independent (Genesrated by Nasdaq SIP)
+                return Exchange.UNKNOWN;
             case "H":
                 return Exchange.MIAX.Name;
-            case "S":
-                return Exchange.NASDAQ.Name;
             case "U":
                 return Exchange.MEMX.Name;
-            case "V":
-                return Exchange.IEX.Name;
         }
 
-        return exchangeCode.GetPrimaryExchange().Name;
+        return exchangeCode.GetPrimaryExchange(securityType).Name;
     }
 
     /// <summary>
