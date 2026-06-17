@@ -4,9 +4,24 @@ on:
   push:
     branches: ['*']
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: self-hosted
+    container:
+        image: quantconnect/lean:foundation
+        options: --cpus 12 --memory 12g
+        env:
+          QC_ALPACA_API_KEY: ${{ secrets.QC_ALPACA_API_KEY }}
+          QC_ALPACA_API_SECRET: ${{ secrets.QC_ALPACA_API_SECRET }}
+          QC_ALPACA_ACCESS_TOKEN: ${{ secrets.QC_ALPACA_ACCESS_TOKEN }}
+          QC_ALPACA_PAPER_TRADING: ${{ secrets.QC_ALPACA_PAPER_TRADING }}
+          QC_JOB_USER_ID: ${{ secrets.QC_JOB_USER_ID }}
+          QC_API_ACCESS_TOKEN: ${{ secrets.QC_API_ACCESS_TOKEN }}
+          QC_JOB_ORGANIZATION_ID: ${{ secrets.QC_JOB_ORGANIZATION_ID }}
     env:
       QC_ALPACA_API_KEY: ${{ secrets.QC_ALPACA_API_KEY }}
       QC_ALPACA_API_SECRET: ${{ secrets.QC_ALPACA_API_SECRET }}
@@ -18,14 +33,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-
-      - name: Liberate disk space
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: true
-          large-packages: false
-          docker-images: false
-          swap-storage: false
 
       - name: Checkout Lean Same Branch
         id: lean-same-branch
@@ -46,13 +53,10 @@ jobs:
       - name: Move Lean
         run: mv Lean ../Lean
 
-      - uses: addnab/docker-run-action@v3
-        with:
-          image: quantconnect/lean:foundation
-          options: --workdir /__w/Lean.Brokerages.Alpaca/Lean.Brokerages.Alpaca -v /home/runner/work:/__w -e QC_ALPACA_API_KEY=${{ secrets.QC_ALPACA_API_KEY }} -e QC_ALPACA_API_SECRET=${{ secrets.QC_ALPACA_API_SECRET }} -e QC_ALPACA_ACCESS_TOKEN=${{ secrets.QC_ALPACA_ACCESS_TOKEN }} -e QC_ALPACA_PAPER_TRADING=${{ secrets.QC_ALPACA_PAPER_TRADING }} -e QC_JOB_USER_ID=${{ secrets.QC_JOB_USER_ID }} -e QC_API_ACCESS_TOKEN=${{ secrets.QC_API_ACCESS_TOKEN }} -e QC_JOB_ORGANIZATION_ID=${{ secrets.QC_JOB_ORGANIZATION_ID }}
-          shell: bash
-          run: |
-            # Build
-            dotnet build /p:Configuration=Release /v:quiet /p:WarningLevel=1 QuantConnect.AlpacaBrokerage.sln && \
-            # Run Tests
-            dotnet test ./QuantConnect.AlpacaBrokerage.Tests/bin/Release/QuantConnect.Brokerages.Alpaca.Tests.dll
+      - name: Run build and tests
+        run: |
+          # Build
+          dotnet build /p:Configuration=Release /v:quiet /p:WarningLevel=1 QuantConnect.AlpacaBrokerage.sln && \
+          # Run Tests
+          dotnet test ./QuantConnect.AlpacaBrokerage.Tests/bin/Release/QuantConnect.Brokerages.Alpaca.Tests.dll
+
