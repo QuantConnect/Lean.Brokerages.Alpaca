@@ -14,8 +14,8 @@
 */
 
 using System;
-using System.Linq;
 using Alpaca.Markets;
+using QuantConnect.Securities;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
@@ -51,13 +51,13 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
         );
 
     /// <summary>
-    /// Lazy-loaded dictionary that maps Lean symbols to brokerage symbols for crypto assets.
+    /// Dictionary that maps Lean symbols to brokerage symbols for crypto assets.
     /// </summary>
     /// <remarks>
     /// The dictionary is initialized in the constructor by retrieving asset information from the Alpaca trading client.
     /// The keys in the dictionary are Lean symbols with slashes removed, and the values are the original brokerage symbols.
     /// </remarks>
-    private Lazy<Dictionary<string, string>> _brokerageSymbolByLeanSymbol;
+    private readonly Dictionary<string, string> _brokerageSymbolByLeanSymbol = [];
 
     /// <summary>
     /// Represents a set of supported security types.
@@ -73,15 +73,48 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
     /// <param name="alpacaTradingClient">The Alpaca trading client used to retrieve asset information.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="alpacaTradingClient"/> is null.</exception>
     /// <remarks>
-    /// The constructor initializes a lazy-loaded dictionary that maps Lean symbols to brokerage symbols for crypto assets.
+    /// The constructor retrieves the crypto asset information from the Alpaca trading client and registers
+    /// each pair's symbol properties so they resolve as tradable securities. This is done eagerly (rather
+    /// than lazily) so the registration is in place before the algorithm's Initialize() runs, which may
+    /// AddCrypto pairs (e.g. USDC/USD) that aren't in the bundled symbol properties database.
     /// </remarks>
     public AlpacaBrokerageSymbolMapper(IAlpacaTradingClient alpacaTradingClient)
     {
-        _brokerageSymbolByLeanSymbol = new Lazy<Dictionary<string, string>>(() =>
+        var symbolPropertiesDatabase = SymbolPropertiesDatabase.FromDataFolder();
+        var res = alpacaTradingClient.ListAssetsAsync(new AssetsRequest() { AssetClass = AssetClass.Crypto }).SynchronouslyAwaitTaskResult();
+
+        foreach (var asset in res)
         {
-            var res = alpacaTradingClient.ListAssetsAsync(new AssetsRequest() { AssetClass = AssetClass.Crypto }).SynchronouslyAwaitTaskResult();
-            return res.ToDictionary(x => x.Symbol.Replace("/", string.Empty), x => x.Symbol);
-        });
+            var leanTicker = asset.Symbol.Replace("/", string.Empty);
+            _brokerageSymbolByLeanSymbol[leanTicker] = asset.Symbol;
+
+            // Alpaca's tradable crypto universe does not fully overlap the crypto market's bundled
+            // symbol properties (e.g. USDC/USD is tradable on Alpaca but absent from Coinbase). Register
+            // each pair with Alpaca's own trading parameters so it resolves as a tradable security.
+            RegisterSymbolProperties(symbolPropertiesDatabase, leanTicker, asset);
+        }
+    }
+
+    /// <summary>
+    /// Registers the symbol properties for an Alpaca crypto asset into the symbol properties database
+    /// under the crypto market, using Alpaca's own trading parameters.
+    /// </summary>
+    private static void RegisterSymbolProperties(SymbolPropertiesDatabase symbolPropertiesDatabase, string leanTicker, IAsset asset)
+    {
+        // brokerage symbol is "<base>/<quote>", e.g. "USDC/USD"
+        var parts = asset.Symbol.Split('/');
+        var quoteCurrency = parts.Length == 2 ? parts[1] : Currencies.USD;
+
+        var symbolProperties = new SymbolProperties(
+            description: string.IsNullOrEmpty(asset.Name) ? leanTicker : asset.Name,
+            quoteCurrency: quoteCurrency,
+            contractMultiplier: 1,
+            minimumPriceVariation: asset.PriceIncrement ?? 0.01m,
+            lotSize: asset.MinTradeIncrement ?? 0.00000001m,
+            marketTicker: asset.Symbol,
+            minimumOrderSize: asset.MinOrderSize);
+
+        symbolPropertiesDatabase.SetEntry(Market.Coinbase, leanTicker, SecurityType.Crypto, symbolProperties);
     }
 
     /// <inheritdoc cref="ISymbolMapper.GetBrokerageSymbol(Symbol)"/>
@@ -89,7 +122,7 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
     {
         SecurityType.Equity => symbol.Value,
         SecurityType.Option => GenerateBrokerageOptionSymbol(symbol),
-        SecurityType.Crypto => _brokerageSymbolByLeanSymbol.Value.TryGetValue(symbol.Value, out var cryptoSymbol) 
+        SecurityType.Crypto => _brokerageSymbolByLeanSymbol.TryGetValue(symbol.Value, out var cryptoSymbol)
         ? cryptoSymbol 
         : throw new ArgumentException($"The symbol '{symbol.Value}' is not found in the brokerage symbol mappings for crypto."),
         _ => throw new NotSupportedException($"{nameof(AlpacaBrokerageSymbolMapper)}.{nameof(GetBrokerageSymbol)}: The security type '{symbol.SecurityType}' is not supported.")

@@ -402,14 +402,25 @@ namespace QuantConnect.Brokerages.Alpaca
             var holdings = new List<Holding>();
             foreach (var position in positions)
             {
+                var leanSymbol = _symbolMapper.GetLeanSymbol(position.AssetClass, position.Symbol);
+
+                // Crypto prices (average entry/market) are denominated in the pair's quote currency
+                // (e.g. USDC for BTC/USDC), which is not necessarily the account currency.
+                var quoteCurrency = Currencies.USD;
+                if (position.AssetClass == AssetClass.Crypto &&
+                    CurrencyPairUtil.TryDecomposeCurrencyPair(leanSymbol, out _, out var quote))
+                {
+                    quoteCurrency = quote;
+                }
+
                 holdings.Add(new Holding()
                 {
                     AveragePrice = position.AverageEntryPrice,
-                    CurrencySymbol = Currencies.USD,
+                    CurrencySymbol = Currencies.GetCurrencySymbol(quoteCurrency),
                     MarketValue = position.MarketValue ?? 0m,
                     MarketPrice = position.AssetCurrentPrice ?? 0m,
                     Quantity = position.Quantity,
-                    Symbol = _symbolMapper.GetLeanSymbol(position.AssetClass, position.Symbol),
+                    Symbol = leanSymbol,
                     UnrealizedPnL = position.UnrealizedProfitLoss ?? 0m,
                     UnrealizedPnLPercent = position.UnrealizedProfitLossPercent ?? 0m,
                 });
@@ -424,7 +435,27 @@ namespace QuantConnect.Brokerages.Alpaca
         public override List<CashAmount> GetCashBalance()
         {
             var accounts = _tradingClient.GetAccountAsync().SynchronouslyAwaitTaskResult();
-            return new List<CashAmount>() { new(accounts.TradableCash, accounts.Currency) };
+            var balances = new List<CashAmount>() { new(accounts.TradableCash, accounts.Currency) };
+
+            // Alpaca's account endpoint only reports fiat cash. Crypto coin balances are returned as
+            // positions, but Lean's CashBook tracks each coin as a currency, so include them here.
+            // Otherwise the daily cash sync would not find them and zero out the crypto holdings.
+            var positions = _tradingClient.ListPositionsAsync().SynchronouslyAwaitTaskResult();
+            foreach (var position in positions)
+            {
+                if (position.AssetClass != AssetClass.Crypto)
+                {
+                    continue;
+                }
+
+                var leanSymbol = _symbolMapper.GetLeanSymbol(position.AssetClass, position.Symbol);
+                if (CurrencyPairUtil.TryDecomposeCurrencyPair(leanSymbol, out var baseCurrency, out _))
+                {
+                    balances.Add(new CashAmount(position.Quantity, baseCurrency));
+                }
+            }
+
+            return balances;
         }
 
         /// <summary>
