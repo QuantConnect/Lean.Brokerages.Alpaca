@@ -407,9 +407,13 @@ namespace QuantConnect.Brokerages.Alpaca
                 // Crypto prices (average entry/market) are denominated in the pair's quote currency
                 // (e.g. USDC for BTC/USDC), which is not necessarily the account currency.
                 var quoteCurrency = Currencies.USD;
-                if (position.AssetClass == AssetClass.Crypto &&
-                    CurrencyPairUtil.TryDecomposeCurrencyPair(leanSymbol, out _, out var quote))
+                if (position.AssetClass == AssetClass.Crypto)
                 {
+                    if (!CurrencyPairUtil.TryDecomposeCurrencyPair(leanSymbol, out _, out var quote))
+                    {
+                        OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, -1, $"Unable to decompose crypto pair {leanSymbol} into base/quote currencies."));
+                        continue;
+                    }
                     quoteCurrency = quote;
                 }
 
@@ -449,10 +453,12 @@ namespace QuantConnect.Brokerages.Alpaca
                 }
 
                 var leanSymbol = _symbolMapper.GetLeanSymbol(position.AssetClass, position.Symbol);
-                if (CurrencyPairUtil.TryDecomposeCurrencyPair(leanSymbol, out var baseCurrency, out _))
+                if (!CurrencyPairUtil.TryDecomposeCurrencyPair(leanSymbol, out var baseCurrency, out _))
                 {
-                    balances.Add(new CashAmount(position.Quantity, baseCurrency));
+                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, -1, $"Unable to decompose crypto pair {leanSymbol} into base/quote currencies."));
+                    continue;
                 }
+                balances.Add(new CashAmount(position.Quantity, baseCurrency));  
             }
 
             return balances;
