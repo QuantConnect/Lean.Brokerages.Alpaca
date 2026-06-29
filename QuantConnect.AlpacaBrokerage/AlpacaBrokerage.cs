@@ -402,29 +402,14 @@ namespace QuantConnect.Brokerages.Alpaca
             var holdings = new List<Holding>();
             foreach (var position in positions)
             {
-                var leanSymbol = _symbolMapper.GetLeanSymbol(position.AssetClass, position.Symbol);
-
-                // Crypto prices (average entry/market) are denominated in the pair's quote currency
-                // (e.g. USDC for BTC/USDC), which is not necessarily the account currency.
-                var quoteCurrency = Currencies.USD;
-                if (position.AssetClass == AssetClass.Crypto)
-                {
-                    if (!CurrencyPairUtil.TryDecomposeCurrencyPair(leanSymbol, out _, out var quote))
-                    {
-                        OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, -1, $"Unable to decompose crypto pair {leanSymbol} into base/quote currencies."));
-                        continue;
-                    }
-                    quoteCurrency = quote;
-                }
-
                 holdings.Add(new Holding()
                 {
                     AveragePrice = position.AverageEntryPrice,
-                    CurrencySymbol = Currencies.GetCurrencySymbol(quoteCurrency),
+                    CurrencySymbol = Currencies.USD,
                     MarketValue = position.MarketValue ?? 0m,
                     MarketPrice = position.AssetCurrentPrice ?? 0m,
                     Quantity = position.Quantity,
-                    Symbol = leanSymbol,
+                    Symbol = _symbolMapper.GetLeanSymbol(position.AssetClass, position.Symbol),
                     UnrealizedPnL = position.UnrealizedProfitLoss ?? 0m,
                     UnrealizedPnLPercent = position.UnrealizedProfitLossPercent ?? 0m,
                 });
