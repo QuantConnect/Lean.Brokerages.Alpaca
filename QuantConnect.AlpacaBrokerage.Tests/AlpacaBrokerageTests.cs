@@ -217,6 +217,12 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 }
             }
 
+            // The crypto coin we just bought must also be reported by GetCashBalance as its base currency,
+            // otherwise the daily cash sync would not find it and would zero the holding (issue #66).
+            var baseCurrency = parameters.Symbol.Value[..^Currencies.USD.Length];
+            Assert.IsTrue(Brokerage.GetCashBalance().Any(balance => balance.Currency == baseCurrency && balance.Amount > 0),
+                $"{baseCurrency} coin balance should be included in GetCashBalance after buying {parameters.Symbol.Value}");
+
             var actualOrderQuantity = SecurityProvider[parameters.Symbol].Holdings.Quantity;
 
             PlaceOrderWaitForStatus(parameters.CreateShortOrder(actualOrderQuantity), parameters.ExpectedStatus);
