@@ -16,6 +16,7 @@
 using System;
 using Alpaca.Markets;
 using NUnit.Framework;
+using QuantConnect.Securities;
 
 namespace QuantConnect.Brokerages.Alpaca.Tests
 {
@@ -69,6 +70,20 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             var leanSymbol = GenerateLeanSymbol(symbol, securityType, optionRight, strike, expiryDate);
             var brokerageSymbol = _symbolMapper.GetBrokerageSymbol(leanSymbol);
             Assert.That(brokerageSymbol, Is.EqualTo(expectedBrokerageSymbol));
+        }
+
+        [TestCase("USDC/USD", "USDCUSD")]
+        public void RegistersSymbolPropertiesForCryptoPairMissingFromDatabase(string brokerageSymbol, string leanTicker)
+        {
+            // USDC/USD is tradable on Alpaca but absent from the bundled crypto market database; the
+            // symbol mapper registers it so it resolves as a tradable security.
+            var leanSymbol = _symbolMapper.GetLeanSymbol(AssetClass.Crypto, brokerageSymbol);
+            Assert.That(leanSymbol.Value, Is.EqualTo(leanTicker));
+            Assert.That(_symbolMapper.GetBrokerageSymbol(leanSymbol), Is.EqualTo(brokerageSymbol));
+
+            var symbolProperties = SymbolPropertiesDatabase.FromDataFolder()
+                .GetSymbolProperties(Market.Coinbase, leanSymbol, SecurityType.Crypto, Currencies.USD);
+            Assert.That(symbolProperties.MarketTicker, Is.EqualTo(brokerageSymbol));
         }
 
         [TestCase("BTCUSDTT")]

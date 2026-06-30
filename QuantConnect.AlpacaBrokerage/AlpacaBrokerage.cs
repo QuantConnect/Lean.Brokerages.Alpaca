@@ -424,7 +424,29 @@ namespace QuantConnect.Brokerages.Alpaca
         public override List<CashAmount> GetCashBalance()
         {
             var accounts = _tradingClient.GetAccountAsync().SynchronouslyAwaitTaskResult();
-            return new List<CashAmount>() { new(accounts.TradableCash, accounts.Currency) };
+            var balances = new List<CashAmount>() { new(accounts.TradableCash, accounts.Currency) };
+
+            // Alpaca's account endpoint only reports fiat cash. Crypto coin balances are returned as
+            // positions, but Lean's CashBook tracks each coin as a currency, so include them here.
+            // Otherwise the daily cash sync would not find them and zero out the crypto holdings.
+            var positions = _tradingClient.ListPositionsAsync().SynchronouslyAwaitTaskResult();
+            foreach (var position in positions)
+            {
+                if (position.AssetClass != AssetClass.Crypto)
+                {
+                    continue;
+                }
+
+                var leanSymbol = _symbolMapper.GetLeanSymbol(position.AssetClass, position.Symbol);
+                if (!CurrencyPairUtil.TryDecomposeCurrencyPair(leanSymbol, out var baseCurrency, out _))
+                {
+                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, -1, $"Unable to decompose crypto pair {leanSymbol} into base/quote currencies."));
+                    continue;
+                }
+                balances.Add(new CashAmount(position.Quantity, baseCurrency));  
+            }
+
+            return balances;
         }
 
         /// <summary>
