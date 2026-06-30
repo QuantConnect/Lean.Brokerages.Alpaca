@@ -14,6 +14,7 @@
 */
 
 using System;
+using System.Linq;
 using Alpaca.Markets;
 using QuantConnect.Securities;
 using System.Collections.Generic;
@@ -74,13 +75,17 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="alpacaTradingClient"/> is null.</exception>
     /// <remarks>
     /// The constructor retrieves the crypto asset information from the Alpaca trading client and registers
-    /// each pair's symbol properties so they resolve as tradable securities. This is done eagerly (rather
-    /// than lazily) so the registration is in place before the algorithm's Initialize() runs, which may
-    /// AddCrypto pairs (e.g. USDC/USD) that aren't in the bundled symbol properties database.
+    /// the symbol properties of the pairs missing from the database so they resolve as tradable securities.
+    /// This is done eagerly (rather than lazily) so the registration is in place before the algorithm's
+    /// Initialize() runs, which may AddCrypto pairs (e.g. USDC/USD) that aren't in the bundled database.
     /// </remarks>
     public AlpacaBrokerageSymbolMapper(IAlpacaTradingClient alpacaTradingClient)
     {
         var symbolPropertiesDatabase = SymbolPropertiesDatabase.FromDataFolder();
+        var existingCryptoSymbols = symbolPropertiesDatabase.GetSymbolPropertiesList(Market.Coinbase, SecurityType.Crypto)
+            .Select(entry => entry.Key.Symbol)
+            .ToHashSet();
+
         var res = alpacaTradingClient.ListAssetsAsync(new AssetsRequest() { AssetClass = AssetClass.Crypto }).SynchronouslyAwaitTaskResult();
 
         foreach (var asset in res)
@@ -88,10 +93,13 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
             var leanTicker = asset.Symbol.Replace("/", string.Empty);
             _brokerageSymbolByLeanSymbol[leanTicker] = asset.Symbol;
 
-            // Alpaca's tradable crypto universe does not fully overlap the crypto market's bundled
-            // symbol properties (e.g. USDC/USD is tradable on Alpaca but absent from Coinbase). Register
-            // each pair with Alpaca's own trading parameters so it resolves as a tradable security.
-            RegisterSymbolProperties(symbolPropertiesDatabase, leanTicker, asset);
+            // Alpaca's tradable crypto universe is not fully covered by the bundled symbol properties
+            // (e.g. USDC/USD). Register only the pairs that are missing so they resolve as tradable
+            // securities, without overriding the existing curated entries.
+            if (!existingCryptoSymbols.Contains(leanTicker))
+            {
+                RegisterSymbolProperties(symbolPropertiesDatabase, leanTicker, asset);
+            }
         }
     }
 
