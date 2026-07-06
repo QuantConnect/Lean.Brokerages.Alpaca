@@ -8,12 +8,7 @@
     ".NETCoreApp,Version=v8.0": {
       "Alpaca.Markets/8.0.0-beta4": {
         "dependencies": {
-          "IsExternalInit": "1.0.3",
-          "JetBrains.Annotations": "2025.2.2",
           "MessagePack": "3.1.4",
-          "Microsoft.CodeAnalysis.PublicApiAnalyzers": "4.14.0",
-          "Microsoft.NET.ILLink.Tasks": "8.0.21",
-          "Microsoft.SourceLink.GitHub": "8.0.0",
           "Newtonsoft.Json": "13.0.3",
           "Polly": "8.6.3",
           "System.IO.Pipelines": "9.0.8",
@@ -23,12 +18,9 @@
           "Alpaca.Markets.dll": {}
         }
       },
-      "IsExternalInit/1.0.3": {},
-      "JetBrains.Annotations/2025.2.2": {},
       "MessagePack/3.1.4": {
         "dependencies": {
           "MessagePack.Annotations": "3.1.4",
-          "MessagePackAnalyzer": "3.1.4",
           "Microsoft.NET.StringTools": "17.11.4"
         },
         "runtime": {
@@ -46,23 +38,12 @@
           }
         }
       },
-      "MessagePackAnalyzer/3.1.4": {},
-      "Microsoft.Build.Tasks.Git/8.0.0": {},
-      "Microsoft.CodeAnalysis.PublicApiAnalyzers/4.14.0": {},
-      "Microsoft.NET.ILLink.Tasks/8.0.21": {},
       "Microsoft.NET.StringTools/17.11.4": {
         "runtime": {
           "lib/net8.0/Microsoft.NET.StringTools.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "17.11.4.40609"
           }
-        }
-      },
-      "Microsoft.SourceLink.Common/8.0.0": {},
-      "Microsoft.SourceLink.GitHub/8.0.0": {
-        "dependencies": {
-          "Microsoft.Build.Tasks.Git": "8.0.0",
-          "Microsoft.SourceLink.Common": "8.0.0"
         }
       },
       "Newtonsoft.Json/13.0.3": {
@@ -116,20 +97,6 @@
       "serviceable": false,
       "sha512": ""
     },
-    "IsExternalInit/1.0.3": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-jcdN7vpDwjnV7U9KGCv/oNIWHJ/RIbyrpVsLQL2qbj6Cbi5U3iafKsaMn1rP+qCbkLbkB0v6oAwbVEkqrUnlyg==",
-      "path": "isexternalinit/1.0.3",
-      "hashPath": "isexternalinit.1.0.3.nupkg.sha512"
-    },
-    "JetBrains.Annotations/2025.2.2": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-0X56ZRizuHdrnPpgXjWV7f2tQO1FlQg5O1967OGKnI/4ZRNOK642J8L7brM1nYvrxTTU5TP1yRyXLRLaXLPQ8A==",
-      "path": "jetbrains.annotations/2025.2.2",
-      "hashPath": "jetbrains.annotations.2025.2.2.nupkg.sha512"
-    },
     "MessagePack/3.1.4": {
       "type": "package",
       "serviceable": true,
@@ -144,54 +111,12 @@
       "path": "messagepack.annotations/3.1.4",
       "hashPath": "messagepack.annotations.3.1.4.nupkg.sha512"
     },
-    "MessagePackAnalyzer/3.1.4": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-CTaSsN/liJ7MhLCAB7Z4ZLBNuVGCq9lt2BT/cbrc9vzGv89yK3CqIA+z9T19a11eQYl9etZHL6MQJgCqECRVpg==",
-      "path": "messagepackanalyzer/3.1.4",
-      "hashPath": "messagepackanalyzer.3.1.4.nupkg.sha512"
-    },
-    "Microsoft.Build.Tasks.Git/8.0.0": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-bZKfSIKJRXLTuSzLudMFte/8CempWjVamNUR5eHJizsy+iuOuO/k2gnh7W0dHJmYY0tBf+gUErfluCv5mySAOQ==",
-      "path": "microsoft.build.tasks.git/8.0.0",
-      "hashPath": "microsoft.build.tasks.git.8.0.0.nupkg.sha512"
-    },
-    "Microsoft.CodeAnalysis.PublicApiAnalyzers/4.14.0": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-5zBDSa8D1pfn5VyDzRekcYdVx/DGAzwegblVJhzdN0kvPt97TPr12haA6ZG0wS2WgBb1W42GeZJRiRtlNaoY1w==",
-      "path": "microsoft.codeanalysis.publicapianalyzers/4.14.0",
-      "hashPath": "microsoft.codeanalysis.publicapianalyzers.4.14.0.nupkg.sha512"
-    },
-    "Microsoft.NET.ILLink.Tasks/8.0.21": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-s8H5PZQs50OcNkaB6Si54+v3GWM7vzs6vxFRMlD3aXsbM+aPCtod62gmK0BYWou9diGzmo56j8cIf/PziijDqQ==",
-      "path": "microsoft.net.illink.tasks/8.0.21",
-      "hashPath": "microsoft.net.illink.tasks.8.0.21.nupkg.sha512"
-    },
     "Microsoft.NET.StringTools/17.11.4": {
       "type": "package",
       "serviceable": true,
       "sha512": "sha512-mudqUHhNpeqIdJoUx2YDWZO/I9uEDYVowan89R6wsomfnUJQk6HteoQTlNjZDixhT2B4IXMkMtgZtoceIjLRmA==",
       "path": "microsoft.net.stringtools/17.11.4",
       "hashPath": "microsoft.net.stringtools.17.11.4.nupkg.sha512"
-    },
-    "Microsoft.SourceLink.Common/8.0.0": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-dk9JPxTCIevS75HyEQ0E4OVAFhB2N+V9ShCXf8Q6FkUQZDkgLI12y679Nym1YqsiSysuQskT7Z+6nUf3yab6Vw==",
-      "path": "microsoft.sourcelink.common/8.0.0",
-      "hashPath": "microsoft.sourcelink.common.8.0.0.nupkg.sha512"
-    },
-    "Microsoft.SourceLink.GitHub/8.0.0": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-G5q7OqtwIyGTkeIOAc3u2ZuV/kicQaec5EaRnc0pIeSnh9LUjj+PYQrJYBURvDt7twGl2PKA7nSN0kz1Zw5bnQ==",
-      "path": "microsoft.sourcelink.github/8.0.0",
-      "hashPath": "microsoft.sourcelink.github.8.0.0.nupkg.sha512"
     },
     "Newtonsoft.Json/13.0.3": {
       "type": "package",
