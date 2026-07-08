@@ -16,6 +16,7 @@
 using System;
 using Alpaca.Markets;
 using NUnit.Framework;
+using QuantConnect.Tests;
 using QuantConnect.Securities;
 
 namespace QuantConnect.Brokerages.Alpaca.Tests
@@ -70,6 +71,28 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             var leanSymbol = GenerateLeanSymbol(symbol, securityType, optionRight, strike, expiryDate);
             var brokerageSymbol = _symbolMapper.GetBrokerageSymbol(leanSymbol);
             Assert.That(brokerageSymbol, Is.EqualTo(expectedBrokerageSymbol));
+        }
+
+        // Equity tickers change over the life of a SID. A Symbol carrying the historical permtick
+        // (e.g. an order reloaded from disk) must still map to the ticker that is current today,
+        // for the equity itself and for the option root alike.
+        [TestCase("GOOCV", "GOOG", "GOOG260608C00005000", Description = "GOOCV was renamed to GOOG on 2014/04/02")]
+        [TestCase("GOOG", "GOOGL", "GOOGL260608C00005000", Description = "GOOG was renamed to GOOGL on 2014/04/02")]
+        public void ReturnsCurrentTickerAfterEquityTickerChange(string permtick, string currentTicker, string expectedOptionSymbol)
+        {
+            TestGlobals.Initialize();
+
+            var current = Symbol.Create(currentTicker, SecurityType.Equity, Market.USA);
+            var historical = new Symbol(current.ID, permtick);
+
+            Assert.AreEqual(historical, current);
+            Assert.AreNotEqual(historical.Value, current.Value);
+
+            Assert.That(_symbolMapper.GetBrokerageSymbol(historical), Is.EqualTo(currentTicker));
+            Assert.That(_symbolMapper.GetBrokerageSymbol(current), Is.EqualTo(currentTicker));
+
+            var option = Symbol.CreateOption(historical, Market.USA, OptionStyle.American, OptionRight.Call, 5m, new DateTime(2026, 6, 8));
+            Assert.That(_symbolMapper.GetBrokerageSymbol(option), Is.EqualTo(expectedOptionSymbol));
         }
 
         [TestCase("USDC/USD", "USDCUSD")]
