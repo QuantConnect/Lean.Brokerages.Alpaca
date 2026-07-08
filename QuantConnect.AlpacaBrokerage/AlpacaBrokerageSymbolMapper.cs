@@ -128,7 +128,9 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
     /// <inheritdoc cref="ISymbolMapper.GetBrokerageSymbol(Symbol)"/>
     public string GetBrokerageSymbol(Symbol symbol) => symbol.SecurityType switch
     {
-        SecurityType.Equity => symbol.Value,
+        // Equity tickers change over the life of a SID (e.g. GOOCV -> GOOG). Resolve the
+        // ticker that is current today, since Symbol.Value can still carry the old one.
+        SecurityType.Equity => SecurityIdentifier.Ticker(symbol, DateTime.UtcNow),
         SecurityType.Option => GenerateBrokerageOptionSymbol(symbol),
         SecurityType.Crypto => _brokerageSymbolByLeanSymbol.TryGetValue(symbol.Value, out var cryptoSymbol)
         ? cryptoSymbol 
@@ -226,6 +228,6 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
 
         var strikePriceString = (Convert.ToInt32(symbol.ID.StrikePrice * 1000)).ToStringInvariant("D8");
 
-        return $"{symbol.Underlying.Value}{symbol.ID.Date:yyMMdd}{symbol.ID.OptionRight.ToString()[0]}{strikePriceString}";
+        return $"{SecurityIdentifier.Ticker(symbol.Underlying, DateTime.UtcNow)}{symbol.ID.Date:yyMMdd}{symbol.ID.OptionRight.ToString()[0]}{strikePriceString}";
     }
 }
