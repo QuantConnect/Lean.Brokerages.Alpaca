@@ -2434,11 +2434,6 @@
             Gets account number (string identifier).
             </summary>
         </member>
-        <member name="P:Alpaca.Markets.IAccount.IsDayPatternTrader">
-            <summary>
-            Returns <c>true</c> if account is linked to pattern day trader.
-            </summary>
-        </member>
         <member name="P:Alpaca.Markets.IAccount.IsTradingBlocked">
             <summary>
             Returns <c>true</c> if account trading functions are blocked.
@@ -2517,11 +2512,6 @@
         <member name="P:Alpaca.Markets.IAccount.LastMaintenanceMargin">
             <summary>
             Your maintenance margin requirement on the previous trading day
-            </summary>
-        </member>
-        <member name="P:Alpaca.Markets.IAccount.DayTradeCount">
-            <summary>
-            the current number of day trades that have been made in the last 5 trading days (inclusive of today).
             </summary>
         </member>
         <member name="P:Alpaca.Markets.IAccount.Sma">
