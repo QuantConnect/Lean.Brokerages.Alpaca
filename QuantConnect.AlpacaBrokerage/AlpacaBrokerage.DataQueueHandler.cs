@@ -15,6 +15,7 @@
 
 using System;
 using QuantConnect.Data;
+using QuantConnect.Logging;
 using QuantConnect.Packets;
 using QuantConnect.Interfaces;
 using System.Collections.Generic;
@@ -65,11 +66,16 @@ public partial class AlpacaBrokerage : IDataQueueHandler
         // required for trading
         job.BrokerageData.TryGetValue("alpaca-access-token", out var accessToken);
 
-        var usePaperTrading = false;
-        // might not be there if only used as a data source
-        if (job.BrokerageData.TryGetValue("alpaca-paper-trading", out var usePaper))
+        // paper api keys start with "PK"; OAuth access tokens authenticate against both environments
+        var usePaperTrading = apiKey?.StartsWith("PK", StringComparison.Ordinal) == true;
+        // might not be there if only used as a data source, or unset, arriving as an empty string locally
+        if (job.BrokerageData.TryGetValue("alpaca-paper-trading", out var usePaper) && bool.TryParse(usePaper, out var usePaperSetting))
         {
-            usePaperTrading = Convert.ToBoolean(usePaper);
+            if (usePaperTrading != usePaperSetting)
+            {
+                Log.Trace($"AlpacaBrokerage.SetJob(): \"alpaca-paper-trading\"={usePaperSetting} overrides the environment detected from the api key");
+            }
+            usePaperTrading = usePaperSetting;
         }
 
         Initialize(apiKey, secretKey, accessToken, usePaperTrading, null, null);

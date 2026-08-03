@@ -19,6 +19,7 @@ using Alpaca.Markets;
 using NUnit.Framework;
 using QuantConnect.Util;
 using QuantConnect.Tests;
+using QuantConnect.Packets;
 using QuantConnect.Interfaces;
 using System.Collections.Generic;
 using QuantConnect.Securities;
@@ -45,6 +46,38 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         {
             var brokerage = Composer.Instance.GetExportedValueByTypeName<IDataQueueHandler>("AlpacaBrokerage");
             Assert.IsNotNull(brokerage);
+        }
+
+        /// <summary>
+        /// Reproduces issue #72: when Alpaca is only a data provider the job carries no
+        /// "alpaca-paper-trading" setting, so <see cref="AlpacaBrokerage.SetJob"/> must detect
+        /// the paper environment from the api key's "PK" prefix. Routing the paper key to the
+        /// live endpoint would throw "request is not authorized" while initializing, since the
+        /// symbol mapper eagerly queries the trading api.
+        /// </summary>
+        [Test]
+        public void DetectsPaperEnvironmentFromKeyPrefixWhenOnlyDataProvider()
+        {
+            var (apiKey, apiKeySecret, _, _) = AlpacaBrokerageTestHelpers.GetConfigParameters();
+            if (!apiKey.StartsWith("PK", StringComparison.Ordinal))
+            {
+                Assert.Ignore("This test requires paper api credentials, whose key starts with 'PK'.");
+            }
+
+            var job = new LiveNodePacket
+            {
+                BrokerageData = new()
+                {
+                    ["alpaca-api-key"] = apiKey,
+                    ["alpaca-api-secret"] = apiKeySecret
+                }
+            };
+
+            using var brokerage = new AlpacaBrokerage();
+            Assert.DoesNotThrow(() => brokerage.SetJob(job));
+            Assert.IsTrue(brokerage.IsConnected);
+
+            brokerage.Disconnect();
         }
 
         private static IEnumerable<Symbol> QuoteSymbolParameters
