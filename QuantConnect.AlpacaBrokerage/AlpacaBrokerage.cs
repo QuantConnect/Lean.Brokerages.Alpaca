@@ -60,6 +60,11 @@ namespace QuantConnect.Brokerages.Alpaca
         private BrokerageConcurrentMessageHandler<ITradeUpdate> _messageHandler;
         private AlpacaBrokerageSymbolMapper _symbolMapper;
 
+        /// <summary>
+        /// Caches group/combo order legs until all of them arrive before submitting a single brokerage order.
+        /// </summary>
+        private readonly GroupOrderCacheManager _groupOrderCacheManager = new();
+
         private IAlpacaTradingClient _tradingClient;
 
         private IAlpacaDataClient _equityHistoricalDataClient;
@@ -462,6 +467,18 @@ namespace QuantConnect.Brokerages.Alpaca
                 return false;
             }
 
+            if (!_groupOrderCacheManager.TryGetGroupCachedOrders(order, out var orders))
+            {
+                // not every leg of the group has arrived yet; wait for the rest
+                return true;
+            }
+
+            if (orders.Count > 1 && order.GroupOrderManager?.ComboType == ComboType.OneCancelsTheOther)
+            {
+                PlaceOneCancelsTheOtherOrder(orders);
+                return true;
+            }
+
             try
             {
                 ExecuteWhenReconnectedAndStreamLocked(nameof(PlaceOrder), () =>
@@ -488,6 +505,93 @@ namespace QuantConnect.Brokerages.Alpaca
                 OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, ex.Message) { Status = Orders.OrderStatus.Invalid });
             }
             return true;
+        }
+
+        /// <summary>
+        /// Places a Lean one-cancels-the-other (OCO) group as a single Alpaca OCO order: the take-profit limit
+        /// leg becomes the parent order and the stop-loss leg becomes its nested stop_loss leg. Both legs receive
+        /// their own real Alpaca order id before the stream lock releases, so later trade updates for either leg
+        /// route to the right Lean order instead of being adopted as an order placed outside Lean.
+        /// </summary>
+        /// <param name="orders">The group's legs, as resolved by <see cref="_groupOrderCacheManager"/></param>
+        private void PlaceOneCancelsTheOtherOrder(List<Order> orders)
+        {
+            // Alpaca's constraints on these groups are checked per leg in AlpacaBrokerageModel.CanSubmitOrder,
+            // so a group only reaches this point with 2 same-side equity legs of the right order types
+            var limitLeg = (Orders.LimitOrder)orders.Single(o => o.Type == Orders.OrderType.Limit);
+            var stopLeg = (StopMarketOrder)orders.Single(o => o.Type == Orders.OrderType.StopMarket);
+
+            try
+            {
+                ExecuteWhenReconnectedAndStreamLocked(nameof(PlaceOrder), () =>
+                {
+                    var ocoOrder = orders.CreateAlpacaOneCancelsTheOtherOrder(_symbolMapper);
+                    var response = _tradingClient.PostOrderAsync(ocoOrder).SynchronouslyAwaitTaskResult();
+                    if (response == null || response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
+                    {
+                        OnOrderEvents(orders.ToList(o => new OrderEvent(o, DateTime.UtcNow, OrderFee.Zero, $"Place One-Cancels-the-Other (OCO) Failed")
+                        { 
+                            Status = Orders.OrderStatus.Invalid
+                        }));
+                        return;
+                    }
+
+                    // the response is the take-profit (parent) order; its one child leg is the stop-loss order.
+                    // The child id is commonly observed in the POST response, but that is not clearly documented,
+                    // so fall back to a single GET by id if it is ever missing
+                    limitLeg.BrokerId.Add(response.OrderId.ToString());
+                    var childOrderId = response.Legs.SingleOrDefault()?.OrderId;
+                    if (!childOrderId.HasValue)
+                    {
+                        var fullOrder = _tradingClient.GetOrderAsync(response.OrderId).SynchronouslyAwaitTaskResult();
+                        childOrderId = fullOrder.Legs.Single().OrderId;
+                    }
+                    stopLeg.BrokerId.Add(childOrderId.Value.ToString());
+
+                    OnOrderEvents(orders.ToList(o => new OrderEvent(o, DateTime.UtcNow, OrderFee.Zero, $"Place One-Cancels-the-Other (OCO)")
+                    { 
+                        Status = Orders.OrderStatus.Submitted
+                    }));
+                });
+            }
+            catch (Exception ex)
+            {
+                OnOrderEvents(orders.ToList(o => new OrderEvent(o, DateTime.UtcNow, OrderFee.Zero, ex.Message)
+                {
+                    Status = Orders.OrderStatus.Invalid
+                }));
+            }
+        }
+
+        /// <summary>
+        /// Emits a warning if a sibling leg of the same one-cancels-the-other group already filled. Alpaca
+        /// documents that "in extremely volatile and fast market conditions, both orders may fill before the
+        /// cancellation occurs" - this cannot be prevented client-side, only surfaced to the algorithm.
+        /// </summary>
+        /// <param name="leanOrder">The order that just filled</param>
+        private void WarnIfOneCancelsTheOtherSiblingAlreadyFilled(Order leanOrder)
+        {
+            var groupOrderManager = leanOrder.GroupOrderManager;
+            if (groupOrderManager == null || groupOrderManager.ComboType != ComboType.OneCancelsTheOther)
+            {
+                return;
+            }
+
+            foreach (var siblingOrderId in groupOrderManager.OrderIds)
+            {
+                if (siblingOrderId == leanOrder.Id)
+                {
+                    continue;
+                }
+
+                if (_orderProvider.GetOrderById(siblingOrderId)?.Status == Orders.OrderStatus.Filled)
+                {
+                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "OneCancelsTheOtherDoubleFill",
+                        $"Both legs of one-cancels-the-other group {groupOrderManager.Id} filled (orders {leanOrder.Id} and {siblingOrderId}). " +
+                        "Alpaca documents this as possible in extremely volatile and fast market conditions."));
+                    return;
+                }
+            }
         }
 
         internal void HandleTradeUpdate(ITradeUpdate obj)
@@ -539,7 +643,12 @@ namespace QuantConnect.Brokerages.Alpaca
                 {
                     case TradeEvent.New:
                     case TradeEvent.PendingNew:
-                        // we don't send anything for this event
+                    case TradeEvent.Held:
+                        // we don't send anything for this event. Held is reported for the passive leg of a
+                        // one-cancels-the-other group while it waits, per community reports - and unlike a
+                        // normal leg, it never gets its own New/PendingNew event first, so it must be
+                        // registered here too or its eventual terminal event below would find nothing to
+                        // Remove() and get mistaken for an unregistered replay and silently dropped
                         _duplicationExecutionOrderIdByBrokerageOrderId.TryAdd(obj.Order.OrderId, []);
                         return;
                     case TradeEvent.Rejected:
@@ -608,6 +717,8 @@ namespace QuantConnect.Brokerages.Alpaca
                 {
                     var security = _securityProvider.GetSecurity(leanOrder.Symbol);
                     fee = security.FeeModel.GetOrderFee(new OrderFeeParameters(security, leanOrder));
+
+                    WarnIfOneCancelsTheOtherSiblingAlreadyFilled(leanOrder);
                 }
 
                 var orderEvent = new OrderEvent(leanOrder, obj.TimestampUtc.HasValue ? obj.TimestampUtc.Value : DateTime.UtcNow, fee)

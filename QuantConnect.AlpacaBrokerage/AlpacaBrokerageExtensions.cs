@@ -14,9 +14,11 @@
 */
 
 using System;
+using System.Linq;
 using QuantConnect.Orders;
 using QuantConnect.Logging;
 using AlpacaMarket = Alpaca.Markets;
+using System.Collections.Generic;
 using QuantConnect.Orders.TimeInForces;
 
 using static Alpaca.Markets.OrderBaseExtensions;
@@ -25,6 +27,31 @@ namespace QuantConnect.Brokerages.Alpaca;
 
 public static class AlpacaBrokerageExtensions
 {
+    /// <summary>
+    /// Creates an Alpaca one-cancels-the-other (OCO) order from a validated 2-leg Lean OCO group: the
+    /// take-profit limit leg becomes the parent order and the stop-loss leg becomes its nested stop_loss leg.
+    /// The caller is expected to have already validated the group (2 legs, same symbol, same side, one Limit
+    /// and one StopMarket leg) before calling this method.
+    /// </summary>
+    /// <param name="orders">The 2-leg OCO group: one <see cref="LimitOrder"/> (take-profit) and one <see cref="StopMarketOrder"/> (stop-loss)</param>
+    /// <param name="symbolMapper">The symbol mapper used to convert the Lean symbol into the brokerage symbol</param>
+    /// <returns>The Alpaca <see cref="AlpacaMarket.OneCancelsOtherOrder"/> ready to submit</returns>
+    public static AlpacaMarket.OneCancelsOtherOrder CreateAlpacaOneCancelsTheOtherOrder(this List<Order> orders, ISymbolMapper symbolMapper)
+    {
+        var limitLeg = (LimitOrder)orders.Single(o => o.Type == OrderType.Limit);
+        var stopLeg = (StopMarketOrder)orders.Single(o => o.Type == OrderType.StopMarket);
+
+        var brokerageSymbol = symbolMapper.GetBrokerageSymbol(limitLeg.Symbol);
+        var quantity = AlpacaMarket.OrderQuantity.Fractional(limitLeg.AbsoluteQuantity);
+
+        var takeProfitLeg = limitLeg.Direction == OrderDirection.Buy
+            ? AlpacaMarket.LimitOrder.Buy(brokerageSymbol, quantity, limitLeg.LimitPrice)
+            : AlpacaMarket.LimitOrder.Sell(brokerageSymbol, quantity, limitLeg.LimitPrice);
+
+        return takeProfitLeg.OneCancelsOther(stopLeg.StopPrice)
+            .WithDuration(limitLeg.TimeInForce.ConvertLeanTimeInForceToBrokerage(limitLeg.SecurityType, limitLeg.Type));
+    }
+
     /// <summary>
     /// Creates an Alpaca sell order based on the provided Lean order type.
     /// </summary>
