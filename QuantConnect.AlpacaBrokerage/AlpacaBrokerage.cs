@@ -473,7 +473,7 @@ namespace QuantConnect.Brokerages.Alpaca
                 return true;
             }
 
-            if (orders.Count > 1 && order.GroupOrderManager?.ComboType == ComboType.OneCancelsTheOther)
+            if (orders.Count > 1 && order.GroupOrderManager?.ExecutionType == GroupExecutionType.OneCancelsTheOther)
             {
                 PlaceOneCancelsTheOtherOrder(orders);
                 return true;
@@ -572,7 +572,7 @@ namespace QuantConnect.Brokerages.Alpaca
         private void WarnIfOneCancelsTheOtherSiblingAlreadyFilled(Order leanOrder)
         {
             var groupOrderManager = leanOrder.GroupOrderManager;
-            if (groupOrderManager == null || groupOrderManager.ComboType != ComboType.OneCancelsTheOther)
+            if (groupOrderManager == null || groupOrderManager.ExecutionType != GroupExecutionType.OneCancelsTheOther)
             {
                 return;
             }

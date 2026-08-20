@@ -30,7 +30,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
     // Alpaca's OCO is exit-only, so every scenario below opens a long
     // position first, then submits the 2-leg exit group the same way
     // QCAlgorithm.OneCancelsTheOtherOrder/SubmitGroupOrder would: two plain orders sharing one
-    // GroupOrderManager with ComboType.OneCancelsTheOther, built directly (there is no live
+    // GroupOrderManager with GroupExecutionType.OneCancelsTheOther, built directly (there is no live
     // QCAlgorithm in this test fixture to call the public API through).
     public partial class AlpacaBrokerageTests
     {
@@ -174,7 +174,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         /// </summary>
         private List<Order> CreateOneCancelsTheOtherOrders(decimal quantity, decimal takeProfitLimitPrice, decimal stopLossStopPrice)
         {
-            var groupOrderManager = new GroupOrderManager(2, quantity, 0) { ComboType = ComboType.OneCancelsTheOther };
+            var groupOrderManager = new GroupOrderManager(2, quantity, 0) { ExecutionType = GroupExecutionType.OneCancelsTheOther };
 
             var limitOrder = new LimitOrder(Symbol, quantity, takeProfitLimitPrice, DateTime.UtcNow, properties: OrderProperties)
             {
