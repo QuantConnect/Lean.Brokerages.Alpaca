@@ -41,13 +41,10 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 .Setup(m => m.ListAssetsAsync(It.IsAny<AlpacaMarket.AssetsRequest>(), It.IsAny<System.Threading.CancellationToken>()))
                 .ReturnsAsync(new List<AlpacaMarket.IAsset>());
             var symbolMapper = new AlpacaBrokerageSymbolMapper(tradingClientMock.Object);
-            var orders = new List<Order>
-            {
-                new LimitOrder(Symbols.AAPL, quantitySign, 220m, OrderTime),
-                new StopMarketOrder(Symbols.AAPL, quantitySign, 190m, OrderTime)
-            };
+            var limitLeg = new LimitOrder(Symbols.AAPL, quantitySign, 220m, OrderTime);
+            var stopLeg = new StopMarketOrder(Symbols.AAPL, quantitySign, 190m, OrderTime);
 
-            var ocoOrder = orders.CreateAlpacaOneCancelsTheOtherOrder(symbolMapper);
+            var ocoOrder = limitLeg.CreateAlpacaOneCancelsTheOtherOrder(stopLeg, symbolMapper);
 
             Assert.AreEqual(AlpacaMarket.OrderClass.OneCancelsOther, ocoOrder.OrderClass);
             Assert.AreEqual(220m, ocoOrder.TakeProfit.LimitPrice);

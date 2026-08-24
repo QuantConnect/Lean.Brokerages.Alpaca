@@ -473,7 +473,7 @@ namespace QuantConnect.Brokerages.Alpaca
                 return true;
             }
 
-            if (orders.Count > 1 && order.GroupOrderManager?.ExecutionType == GroupExecutionType.OneCancelsTheOther)
+            if (order.GroupOrderManager?.ExecutionType == GroupExecutionType.OneCancelsTheOther)
             {
                 PlaceOneCancelsTheOtherOrder(orders);
                 return true;
@@ -508,16 +508,13 @@ namespace QuantConnect.Brokerages.Alpaca
         }
 
         /// <summary>
-        /// Places a Lean one-cancels-the-other (OCO) group as a single Alpaca OCO order: the take-profit limit
-        /// leg becomes the parent order and the stop-loss leg becomes its nested stop_loss leg. Both legs receive
-        /// their own real Alpaca order id before the stream lock releases, so later trade updates for either leg
-        /// route to the right Lean order instead of being adopted as an order placed outside Lean.
+        /// Places a Lean one-cancels-the-other (OCO) group as one Alpaca OCO order: the limit leg becomes the
+        /// parent take profit order and the stop leg becomes its nested stop loss leg
         /// </summary>
         /// <param name="orders">The group's legs, as resolved by <see cref="_groupOrderCacheManager"/></param>
         private void PlaceOneCancelsTheOtherOrder(List<Order> orders)
         {
-            // Alpaca's constraints on these groups are checked per leg in AlpacaBrokerageModel.CanSubmitOrder,
-            // so a group only reaches this point with 2 same-side equity legs of the right order types
+            // AlpacaBrokerageModel.CanSubmitOrder checks every leg, so the group is 2 equity legs on one side here
             var limitLeg = (Orders.LimitOrder)orders.Single(o => o.Type == Orders.OrderType.Limit);
             var stopLeg = (StopMarketOrder)orders.Single(o => o.Type == Orders.OrderType.StopMarket);
 
@@ -525,20 +522,20 @@ namespace QuantConnect.Brokerages.Alpaca
             {
                 ExecuteWhenReconnectedAndStreamLocked(nameof(PlaceOrder), () =>
                 {
-                    var ocoOrder = orders.CreateAlpacaOneCancelsTheOtherOrder(_symbolMapper);
+                    var ocoOrder = limitLeg.CreateAlpacaOneCancelsTheOtherOrder(stopLeg, _symbolMapper);
                     var response = _tradingClient.PostOrderAsync(ocoOrder).SynchronouslyAwaitTaskResult();
                     if (response == null || response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
                     {
-                        OnOrderEvents(orders.ToList(o => new OrderEvent(o, DateTime.UtcNow, OrderFee.Zero, $"Place One-Cancels-the-Other (OCO) Failed")
-                        { 
+                        OnOrderEvents(orders.ToList(o => new OrderEvent(o, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Place One-Cancels-the-Other Order Failed")
+                        {
                             Status = Orders.OrderStatus.Invalid
                         }));
                         return;
                     }
 
-                    // the response is the take-profit (parent) order; its one child leg is the stop-loss order.
-                    // The child id is commonly observed in the POST response, but that is not clearly documented,
-                    // so fall back to a single GET by id if it is ever missing
+                    // the response is the parent take profit order and its one leg is the stop loss. The leg id is
+                    // there in practice but not documented, so read the order back once when it is missing. Both ids
+                    // must be set before the lock releases, or the first stream event looks like an outside order
                     limitLeg.BrokerId.Add(response.OrderId.ToString());
                     var childOrderId = response.Legs.SingleOrDefault()?.OrderId;
                     if (!childOrderId.HasValue)
@@ -548,8 +545,8 @@ namespace QuantConnect.Brokerages.Alpaca
                     }
                     stopLeg.BrokerId.Add(childOrderId.Value.ToString());
 
-                    OnOrderEvents(orders.ToList(o => new OrderEvent(o, DateTime.UtcNow, OrderFee.Zero, $"Place One-Cancels-the-Other (OCO)")
-                    { 
+                    OnOrderEvents(orders.ToList(o => new OrderEvent(o, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event")
+                    {
                         Status = Orders.OrderStatus.Submitted
                     }));
                 });
@@ -564,9 +561,9 @@ namespace QuantConnect.Brokerages.Alpaca
         }
 
         /// <summary>
-        /// Emits a warning if a sibling leg of the same one-cancels-the-other group already filled. Alpaca
-        /// documents that "in extremely volatile and fast market conditions, both orders may fill before the
-        /// cancellation occurs" - this cannot be prevented client-side, only surfaced to the algorithm.
+        /// Warns when both legs of a one-cancels-the-other group filled. Alpaca documents that "in extremely
+        /// volatile and fast market conditions, both orders may fill before the cancellation occurs", which the
+        /// client cannot prevent, only report
         /// </summary>
         /// <param name="leanOrder">The order that just filled</param>
         private void WarnIfOneCancelsTheOtherSiblingAlreadyFilled(Order leanOrder)
@@ -644,11 +641,9 @@ namespace QuantConnect.Brokerages.Alpaca
                     case TradeEvent.New:
                     case TradeEvent.PendingNew:
                     case TradeEvent.Held:
-                        // we don't send anything for this event. Held is reported for the passive leg of a
-                        // one-cancels-the-other group while it waits, per community reports - and unlike a
-                        // normal leg, it never gets its own New/PendingNew event first, so it must be
-                        // registered here too or its eventual terminal event below would find nothing to
-                        // Remove() and get mistaken for an unregistered replay and silently dropped
+                        // we don't send anything for this event. The waiting leg of a one-cancels-the-other group
+                        // reports Held and never gets a New event first, so it has to register here as well or its
+                        // later fill or cancel finds nothing to Remove() and is dropped as an unknown order
                         _duplicationExecutionOrderIdByBrokerageOrderId.TryAdd(obj.Order.OrderId, []);
                         return;
                     case TradeEvent.Rejected:

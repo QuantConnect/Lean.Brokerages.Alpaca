@@ -14,11 +14,9 @@
 */
 
 using System;
-using System.Linq;
 using QuantConnect.Orders;
 using QuantConnect.Logging;
 using AlpacaMarket = Alpaca.Markets;
-using System.Collections.Generic;
 using QuantConnect.Orders.TimeInForces;
 
 using static Alpaca.Markets.OrderBaseExtensions;
@@ -28,19 +26,16 @@ namespace QuantConnect.Brokerages.Alpaca;
 public static class AlpacaBrokerageExtensions
 {
     /// <summary>
-    /// Creates an Alpaca one-cancels-the-other (OCO) order from a validated 2-leg Lean OCO group: the
-    /// take-profit limit leg becomes the parent order and the stop-loss leg becomes its nested stop_loss leg.
-    /// The caller is expected to have already validated the group (2 legs, same symbol, same side, one Limit
-    /// and one StopMarket leg) before calling this method.
+    /// Creates an Alpaca one-cancels-the-other (OCO) order: the limit leg becomes the parent take profit order
+    /// and the stop leg becomes its nested stop_loss leg. Both legs must be on the same symbol and the same side
     /// </summary>
-    /// <param name="orders">The 2-leg OCO group: one <see cref="LimitOrder"/> (take-profit) and one <see cref="StopMarketOrder"/> (stop-loss)</param>
+    /// <param name="limitLeg">The take profit leg</param>
+    /// <param name="stopLeg">The stop loss leg</param>
     /// <param name="symbolMapper">The symbol mapper used to convert the Lean symbol into the brokerage symbol</param>
     /// <returns>The Alpaca <see cref="AlpacaMarket.OneCancelsOtherOrder"/> ready to submit</returns>
-    public static AlpacaMarket.OneCancelsOtherOrder CreateAlpacaOneCancelsTheOtherOrder(this List<Order> orders, ISymbolMapper symbolMapper)
+    public static AlpacaMarket.OneCancelsOtherOrder CreateAlpacaOneCancelsTheOtherOrder(this LimitOrder limitLeg,
+        StopMarketOrder stopLeg, ISymbolMapper symbolMapper)
     {
-        var limitLeg = (LimitOrder)orders.Single(o => o.Type == OrderType.Limit);
-        var stopLeg = (StopMarketOrder)orders.Single(o => o.Type == OrderType.StopMarket);
-
         var brokerageSymbol = symbolMapper.GetBrokerageSymbol(limitLeg.Symbol);
         var quantity = AlpacaMarket.OrderQuantity.Fractional(limitLeg.AbsoluteQuantity);
 
