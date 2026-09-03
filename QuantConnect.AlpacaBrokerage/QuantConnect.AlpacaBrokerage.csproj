@@ -32,8 +32,6 @@
 		<!--Dependencies of Alpaca.Markets.dll ref: https://github.com/QuantConnect/alpaca-trade-api-csharp/blob/master/Alpaca.Markets/Alpaca.Markets.csproj-->
 		<PackageReference Include="Polly" Version="8.6.3" />
 		<PackageReference Include="MessagePack" Version="3.1.7" />
-		<PackageReference Include="System.Threading.Channels" Version="9.0.8" PrivateAssets="compile;contentfiles;build;analyzers" />
-		<PackageReference Include="System.IO.Pipelines" Version="9.0.8" PrivateAssets="compile;contentfiles;build;analyzers" />
 	</ItemGroup>
 
 	<ItemGroup>
