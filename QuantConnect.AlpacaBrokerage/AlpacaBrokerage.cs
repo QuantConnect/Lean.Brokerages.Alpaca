@@ -652,7 +652,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     pathOrderRequest.LimitPrice = lo.LimitPrice;
                     break;
                 case Orders.TrailingStopOrder sto:
-                    pathOrderRequest.TrailOffset = AlpacaBrokerageExtensions.GetTrailOffsetValue(sto);
+                    pathOrderRequest.Trail = AlpacaBrokerageExtensions.GetTrailOffsetValue(sto).Value;
                     break;
                 case StopMarketOrder smo:
                     pathOrderRequest.StopPrice = smo.StopPrice;
