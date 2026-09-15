@@ -21,6 +21,7 @@ using QuantConnect.Util;
 using QuantConnect.Orders;
 using QuantConnect.Logging;
 using QuantConnect.Interfaces;
+using QuantConnect.Lean.Engine.Results;
 using QuantConnect.Securities;
 using QuantConnect.Orders.Fees;
 using System.Collections.Generic;
@@ -239,6 +240,8 @@ namespace QuantConnect.Brokerages.Alpaca
                 }
             }
             ReconnectionLogic();
+
+            DeploymentDetailsHelper.Add("alpaca-paper-trading", isPaperTrading.ToStringInvariant());
         }
 
         private void WireStreamingClientEvents(IStreamingClient streamingClient)
