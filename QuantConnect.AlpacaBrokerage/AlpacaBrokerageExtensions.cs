@@ -14,8 +14,11 @@
 */
 
 using System;
+using System.Linq;
 using QuantConnect.Orders;
 using QuantConnect.Logging;
+using QuantConnect.Securities;
+using System.Collections.Generic;
 using AlpacaMarket = Alpaca.Markets;
 using QuantConnect.Orders.TimeInForces;
 
@@ -53,6 +56,139 @@ public static class AlpacaBrokerageExtensions
         return orderRequest
             .WithDuration(order.TimeInForce.ConvertLeanTimeInForceToBrokerage(order.SecurityType, order.Type))
             .WithExtendedHours((order.Properties as AlpacaOrderProperties)?.OutsideRegularTradingHours ?? false);
+    }
+
+    /// <summary>
+    /// Creates an Alpaca multi-leg options order request from the Lean combo orders of one group.
+    /// Alpaca takes market and limit multi-leg orders with 2 to 4 option legs.
+    /// See https://docs.alpaca.markets/docs/options-level-3-trading and https://docs.alpaca.markets/reference/postorder
+    /// </summary>
+    /// <param name="orders">The Lean combo orders, one per leg, all sharing one group order manager.</param>
+    /// <param name="symbolMapper">The symbol mapper used to get the brokerage symbol of each leg.</param>
+    /// <param name="securityProvider">The provider of the current holdings, used to tell an opening leg from a closing one.</param>
+    /// <returns>The Alpaca multi-leg order request.</returns>
+    /// <exception cref="NotSupportedException">Thrown when the combo order type or the number of legs is not supported.</exception>
+    public static AlpacaMarket.NewOrderRequest CreateAlpacaMultiLegOrder(this List<Order> orders, ISymbolMapper symbolMapper, ISecurityProvider securityProvider)
+    {
+        if (orders.Count < 2 || orders.Count > 4)
+        {
+            throw new NotSupportedException($"{nameof(AlpacaBrokerageExtensions)}.{nameof(CreateAlpacaMultiLegOrder)}: A multi-leg order with {orders.Count} legs is not supported, Alpaca takes from 2 to 4 legs.");
+        }
+
+        var legs = orders.CreateAlpacaOrderLegs(symbolMapper, securityProvider, out var multiLegQuantity);
+        var quantity = AlpacaMarket.OrderQuantity.Fractional(multiLegQuantity);
+        var duration = orders[0].TimeInForce.ConvertLeanTimeInForceToBrokerage(orders[0].SecurityType, orders[0].Type);
+
+        // The request is built without a symbol and a side: they belong to the legs, and the 'MultiLegOrder' class of the SDK
+        // cannot be used here because the SDK refuses its empty symbol before the request is sent.
+        var orderRequest = default(AlpacaMarket.NewOrderRequest);
+        switch (orders[0])
+        {
+            case ComboMarketOrder:
+                orderRequest = new AlpacaMarket.NewOrderRequest(quantity, AlpacaMarket.OrderType.Market, duration);
+                break;
+            case ComboLimitOrder:
+                orderRequest = new AlpacaMarket.NewOrderRequest(quantity, AlpacaMarket.OrderType.Limit, duration)
+                {
+                    LimitPrice = orders[0].GroupOrderManager.GetAlpacaMultiLegLimitPrice()
+                };
+                break;
+            default:
+                throw new NotSupportedException($"{nameof(AlpacaBrokerageExtensions)}.{nameof(CreateAlpacaMultiLegOrder)}: The order type '{orders[0].GetType().Name}' is not supported for Alpaca multi-leg orders.");
+        }
+
+        orderRequest.OrderClass = AlpacaMarket.OrderClass.MultiLegOptions;
+        foreach (var leg in legs)
+        {
+            orderRequest.With(leg);
+        }
+
+        return orderRequest;
+    }
+
+    /// <summary>
+    /// Creates the Alpaca request that changes the quantity and the limit price of a multi-leg options order.
+    /// </summary>
+    /// <param name="orders">The Lean combo orders, one per leg, all sharing one group order manager.</param>
+    /// <param name="brokerageOrderId">The id of the Alpaca multi-leg order to change.</param>
+    /// <returns>The Alpaca change order request.</returns>
+    public static AlpacaMarket.ChangeOrderRequest CreateAlpacaMultiLegChangeOrder(this List<Order> orders, Guid brokerageOrderId)
+    {
+        var multiLegQuantity = orders.Select(order => order.AbsoluteQuantity).GreatestCommonDivisor();
+        var changeOrderRequest = new AlpacaMarket.ChangeOrderRequest(brokerageOrderId) { Quantity = Convert.ToInt64(multiLegQuantity) };
+        if (orders[0] is ComboLimitOrder)
+        {
+            changeOrderRequest.LimitPrice = orders[0].GroupOrderManager.GetAlpacaMultiLegLimitPrice();
+        }
+        return changeOrderRequest;
+    }
+
+    /// <summary>
+    /// Creates the Alpaca legs of a multi-leg order and the quantity of the whole order.
+    /// </summary>
+    /// <param name="orders">The Lean combo orders, one per leg, all sharing one group order manager.</param>
+    /// <param name="symbolMapper">The symbol mapper used to get the brokerage symbol of each leg.</param>
+    /// <param name="securityProvider">The provider of the current holdings, used to tell an opening leg from a closing one.</param>
+    /// <param name="multiLegQuantity">The quantity of the whole multi-leg order; each leg trades this quantity times its ratio.</param>
+    /// <returns>One Alpaca leg per Lean combo order, in the same order.</returns>
+    private static List<AlpacaMarket.OptionLegRequest> CreateAlpacaOrderLegs(this List<Order> orders, ISymbolMapper symbolMapper, ISecurityProvider securityProvider, out decimal multiLegQuantity)
+    {
+        // Alpaca rejects leg ratios that share a common divisor, so that divisor moves into the quantity of the whole order.
+        multiLegQuantity = orders.Select(order => order.AbsoluteQuantity).GreatestCommonDivisor();
+
+        var legs = new List<AlpacaMarket.OptionLegRequest>(orders.Count);
+        foreach (var order in orders)
+        {
+            var brokerageSymbol = symbolMapper.GetBrokerageSymbol(order.Symbol);
+            var ratioQuantity = order.AbsoluteQuantity / multiLegQuantity;
+            var side = order.Direction == OrderDirection.Buy ? AlpacaMarket.OrderSide.Buy : AlpacaMarket.OrderSide.Sell;
+            var positionIntent = GetAlpacaPositionIntent(order.Direction, securityProvider.GetHoldingsQuantity(order.Symbol));
+            legs.Add(new AlpacaMarket.OptionLegRequest(brokerageSymbol, ratioQuantity, side, positionIntent));
+        }
+
+        return legs;
+    }
+
+    /// <summary>
+    /// Gets the limit price of an Alpaca multi-leg order from the Lean group order manager.
+    /// Alpaca reads a positive price as a debit to pay and a negative price as a credit to receive.
+    /// </summary>
+    /// <param name="groupOrderManager">The group order manager that carries the combo limit price and the group quantity.</param>
+    /// <returns>The limit price with the Alpaca sign.</returns>
+    private static decimal GetAlpacaMultiLegLimitPrice(this GroupOrderManager groupOrderManager)
+    {
+        var limitPrice = Math.Abs(groupOrderManager.LimitPrice);
+        // In Lean the combo receives a credit when the limit price and the group quantity have different signs.
+        if (groupOrderManager.LimitPrice * groupOrderManager.Quantity < 0)
+        {
+            return decimal.Negate(limitPrice);
+        }
+        return limitPrice;
+    }
+
+    /// <summary>
+    /// Gets the Alpaca position intent of an order leg from the leg direction and the current holdings of its symbol.
+    /// </summary>
+    /// <param name="orderDirection">The direction of the leg.</param>
+    /// <param name="holdingsQuantity">The current holdings quantity of the leg symbol.</param>
+    /// <returns>The Alpaca position intent.</returns>
+    /// <exception cref="NotSupportedException">Thrown when the order position is not supported.</exception>
+    private static AlpacaMarket.PositionIntent GetAlpacaPositionIntent(OrderDirection orderDirection, decimal holdingsQuantity)
+    {
+        var orderPosition = BrokerageExtensions.GetOrderPosition(orderDirection, holdingsQuantity);
+        switch (orderPosition)
+        {
+            case OrderPosition.BuyToOpen:
+                return AlpacaMarket.PositionIntent.BuyToOpen;
+            case OrderPosition.BuyToClose:
+                return AlpacaMarket.PositionIntent.BuyToClose;
+            case OrderPosition.SellToOpen:
+                return AlpacaMarket.PositionIntent.SellToOpen;
+            case OrderPosition.SellToClose:
+                return AlpacaMarket.PositionIntent.SellToClose;
+            default:
+                throw new NotSupportedException($"{nameof(AlpacaBrokerageExtensions)}.{nameof(GetAlpacaPositionIntent)}: The order position '{orderPosition}' is not supported.");
+        }
     }
 
     /// <summary>
