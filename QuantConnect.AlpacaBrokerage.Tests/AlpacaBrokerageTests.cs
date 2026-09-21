@@ -19,6 +19,7 @@ using QuantConnect.Logging;
 using QuantConnect.Orders;
 using QuantConnect.Orders.TimeInForces;
 using QuantConnect.Securities;
+using QuantConnect.Securities.Option;
 using QuantConnect.Tests;
 using QuantConnect.Tests.Brokerages;
 using System;
@@ -102,6 +103,111 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 yield return new TestCaseData(new MarketOrderTestParameters(ETHUSD));
                 yield return new TestCaseData(new LimitOrderTestParameters(ETHUSD, 3600m, 3000m));
                 yield return new TestCaseData(new StopLimitOrderTestParameters(ETHUSD, 3600m, 3000m)).Explicit("The WebSocket does not return an update order event, which is necessary for this test case to pass.");
+            }
+        }
+
+        /// <summary>
+        /// Provides the data required to test the combo orders: a bull call spread whose first limit prices cannot fill,
+        /// so the order rests until it is cancelled or its price is changed. A 10 point wide call spread is never worth
+        /// more than 10, so nobody pays 20 for it (short side), and nobody sells it for 0.05 (long side).
+        /// The price step is 30%: the Lean test helper rounds the new price to a multiple of 2, a smaller step gives
+        /// the same price twice, and Alpaca refuses a change that changes nothing ("order parameters are not changed").
+        /// </summary>
+        private static IEnumerable<TestCaseData> ComboOrderParameters
+        {
+            get
+            {
+                var canonical = Symbol.CreateCanonicalOption(Symbols.AAPL);
+                yield return new TestCaseData(new ComboLimitOrderTestParameters(
+                    OptionStrategies.BullCallSpread(canonical, leg1Strike: 250m, leg2Strike: 260m, new DateTime(2026, 12, 18)),
+                    askPrice: 20m,
+                    bidPrice: 0.05m,
+                    limitPriceAdjustmentFactor: 1.3m)).SetArgDisplayNames("AAPL bull call spread 250/260 2026-12-18");
+            }
+        }
+
+        [Test, TestCaseSource(nameof(ComboOrderParameters)), Explicit("Places a multi-leg order on the paper account: the strikes and the expiry must be listed contracts.")]
+        public override void CancelComboOrders(ComboLimitOrderTestParameters parameters)
+        {
+            base.CancelComboOrders(parameters);
+        }
+
+        [Test, TestCaseSource(nameof(ComboOrderParameters)), Explicit("Places a multi-leg order on the paper account and changes its price until it fills: run it while the option market is open.")]
+        public override void LongCombo(ComboLimitOrderTestParameters parameters)
+        {
+            base.LongCombo(parameters);
+
+            // The opposite market combo closes both legs at once, so the teardown does not close them one leg at a time.
+            PlaceOrderWaitForStatus(new ComboMarketOrderTestParameters(parameters).CreateShortOrder(GetDefaultQuantity()), OrderStatus.Filled, secondsTimeout: 120);
+        }
+
+        [Test, TestCaseSource(nameof(ComboOrderParameters)), Explicit("Places a multi-leg order on the paper account and changes its price until it fills: run it while the option market is open.")]
+        public override void ShortCombo(ComboLimitOrderTestParameters parameters)
+        {
+            base.ShortCombo(parameters);
+
+            // The opposite market combo closes both legs at once, so the teardown does not close them one leg at a time.
+            PlaceOrderWaitForStatus(new ComboMarketOrderTestParameters(parameters).CreateLongOrder(GetDefaultQuantity()), OrderStatus.Filled, secondsTimeout: 120);
+        }
+
+        /// <summary>
+        /// Provides the combo market order, its quantity and the number of open and close rounds to try.
+        /// The paper account fills an order in parts only about 10% of the time, so the second case repeats the round trip until a partial fill is seen.
+        /// </summary>
+        private static IEnumerable<TestCaseData> ComboMarketOrderParameters
+        {
+            get
+            {
+                var canonical = Symbol.CreateCanonicalOption(Symbols.AAPL);
+                var bullCallSpread = OptionStrategies.BullCallSpread(canonical, leg1Strike: 250m, leg2Strike: 260m, new DateTime(2026, 12, 18));
+                yield return new TestCaseData(new ComboMarketOrderTestParameters(bullCallSpread), 1m, 1).SetArgDisplayNames("1 contract, 1 round");
+                yield return new TestCaseData(new ComboMarketOrderTestParameters(bullCallSpread), 5m, 6).SetArgDisplayNames("5 contracts, up to 6 rounds until a partial fill");
+            }
+        }
+
+        [Test, TestCaseSource(nameof(ComboMarketOrderParameters)), Explicit("Opens and closes a call spread with multi-leg market orders on the paper account: run it while the option market is open.")]
+        public void PlaceComboMarketOrderFillsEveryLeg(ComboMarketOrderTestParameters parameters, decimal groupQuantity, int maxRounds)
+        {
+            var isPartialFillSeen = false;
+            var filledQuantityByOrderId = new Dictionary<int, decimal>();
+            EventHandler<List<OrderEvent>> onOrdersStatusChanged = (_, orderEvents) =>
+            {
+                foreach (var orderEvent in orderEvents)
+                {
+                    if (orderEvent.Status == OrderStatus.PartiallyFilled)
+                    {
+                        isPartialFillSeen = true;
+                    }
+                    filledQuantityByOrderId.TryGetValue(orderEvent.OrderId, out var filledQuantity);
+                    filledQuantityByOrderId[orderEvent.OrderId] = filledQuantity + orderEvent.FillQuantity;
+                }
+            };
+            Brokerage.OrdersStatusChanged += onOrdersStatusChanged;
+
+            try
+            {
+                for (var round = 1; round <= maxRounds && !isPartialFillSeen; round++)
+                {
+                    Log.Trace($"COMBO MARKET ROUND {round} of {maxRounds}, quantity {groupQuantity}");
+
+                    // The second combo is the opposite of the first one, so the paper account is left without a position.
+                    var openOrders = PlaceOrderWaitForStatus(parameters.CreateLongOrder(groupQuantity), parameters.ExpectedStatus, secondsTimeout: 120);
+                    var closeOrders = PlaceOrderWaitForStatus(parameters.CreateShortOrder(groupQuantity), parameters.ExpectedStatus, secondsTimeout: 120);
+
+                    foreach (var order in openOrders.Concat(closeOrders))
+                    {
+                        Assert.That(filledQuantityByOrderId[order.Id], Is.EqualTo(order.Quantity), $"the fills of order {order.Id} do not add up to its quantity");
+                    }
+                }
+            }
+            finally
+            {
+                Brokerage.OrdersStatusChanged -= onOrdersStatusChanged;
+            }
+
+            if (groupQuantity > 1 && !isPartialFillSeen)
+            {
+                Assert.Inconclusive($"No partial fill was seen in {maxRounds} rounds, run the test again.");
             }
         }
 

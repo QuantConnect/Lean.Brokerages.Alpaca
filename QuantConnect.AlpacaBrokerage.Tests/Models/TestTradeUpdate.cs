@@ -58,5 +58,5 @@ public record TestOrder(Guid OrderId, decimal FilledQuantity = 0, OrderSide? Ord
     public OrderStatus OrderStatus { get; init; }
     public Guid? ReplacedByOrderId { get; init; }
     public Guid? ReplacesOrderId { get; init; }
-    public IReadOnlyList<IOrder> Legs { get; init; }
+    public IReadOnlyList<IOrder> Legs { get; init; } = [];
 }

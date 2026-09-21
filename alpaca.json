@@ -12,7 +12,7 @@
 			"Live Trading":	[0,0,0]
         }
     ],
-    "order-types": ["Market", "Limit", "Stop Market", "Stop Limit", "Trailing", "Market On Open", "Market On Close"],
+    "order-types": ["Market", "Limit", "Stop Market", "Stop Limit", "Trailing", "Market On Open", "Market On Close", "Combo Market", "Combo Limit"],
 	"assets": ["Equity", "Equity Options", "Crypto"], 
 	"brokerage-url": "https://alpaca.markets/",
 	"landing-page-url": "/brokerages/alpaca",
