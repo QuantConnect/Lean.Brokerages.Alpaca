@@ -353,14 +353,6 @@ namespace QuantConnect.Brokerages.Alpaca
         private bool TryConvertToLeanOrders(IOrder brokerageOrder, out List<Order> leanOrders)
         {
             leanOrders = null;
-            if (brokerageOrder.OrderClass is not (OrderClass.Simple or OrderClass.MultiLegOptions))
-            {
-                if (_unsupportedOrderClassOrderIds.Add(brokerageOrder.OrderId))
-                {
-                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "NotSupportedOrderType", $"The {brokerageOrder.OrderClass} order {brokerageOrder.OrderId} is not supported. Only simple orders and multi-leg option orders are supported."));
-                }
-                return false;
-            }
 
             var orderProperties = new AlpacaOrderProperties();
             if (!orderProperties.TryGetLeanTimeInForceByAlpacaTimeInForce(brokerageOrder.TimeInForce))
@@ -371,61 +363,38 @@ namespace QuantConnect.Brokerages.Alpaca
                 }
             }
 
-            if (brokerageOrder.OrderClass == OrderClass.Simple)
+            switch (brokerageOrder.OrderClass)
             {
-                leanOrders = [CreateLeanOrder(brokerageOrder, brokerageOrder, orderProperties)];
+                case OrderClass.Simple:
+                    leanOrders = [CreateLeanOrder(brokerageOrder, orderProperties)];
                 _duplicationExecutionOrderIdByBrokerageOrderId[brokerageOrder.OrderId] = [];
                 return true;
-            }
-
-            // Alpaca marks a credit with a negative limit price; Lean marks it with a negative group quantity and keeps the price positive.
-            var groupDirection = brokerageOrder.LimitPrice < 0 ? OrderDirection.Sell : OrderDirection.Buy;
-            var groupQuantity = GroupOrderExtensions.GetGroupQuantityByEachLegQuantity(brokerageOrder.Legs.Select(leg => leg.Quantity.Value), groupDirection);
-
-            var groupOrderManager = default(GroupOrderManager);
-            switch (brokerageOrder.OrderType)
-            {
-                case AlpacaMarket.OrderType.Market:
-                    groupOrderManager = new GroupOrderManager(brokerageOrder.Legs.Count, groupQuantity);
-                    break;
-                case AlpacaMarket.OrderType.Limit:
-                    groupOrderManager = new GroupOrderManager(brokerageOrder.Legs.Count, groupQuantity, Math.Abs(brokerageOrder.LimitPrice.Value));
-                    break;
+                case OrderClass.MultiLegOptions:
+                    leanOrders = CreateComboLeanOrders(brokerageOrder, orderProperties);
+                    return true;
                 default:
-                    throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(TryConvertToLeanOrders)}: Order type '{brokerageOrder.OrderType}' is not supported for multi-leg orders.");
-            }
-
-            leanOrders = new List<Order>(brokerageOrder.Legs.Count);
-            foreach (var leg in brokerageOrder.Legs)
+                    if (_unsupportedOrderClassOrderIds.Add(brokerageOrder.OrderId))
             {
-                leanOrders.Add(CreateLeanOrder(brokerageOrder, leg, orderProperties, groupOrderManager));
+                        OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "NotSupportedOrderType", $"The {brokerageOrder.OrderClass} order {brokerageOrder.OrderId} is not supported. Only simple orders and multi-leg option orders are supported."));
             }
-
-            return true;
+                    return false;
+        }
         }
 
         /// <summary>
-        /// Creates the Lean order of an Alpaca order, or of one leg of an Alpaca multi-leg options order.
-        /// The symbol, the side and the quantities come from the leg; the order type, the prices and the submit time come
-        /// from the whole order, because a leg carries none of its own. For a single order the leg is the order itself.
+        /// Creates the Lean order of a single Alpaca order.
         /// </summary>
         /// <param name="brokerageOrder">The Alpaca order.</param>
-        /// <param name="leg">The leg to create the Lean order for; the order itself when it has no legs.</param>
         /// <param name="orderProperties">The order properties of the Lean order.</param>
-        /// <param name="groupOrderManager">The group order manager shared by the legs of a multi-leg order; <c>null</c> for a single order.</param>
         /// <returns>The Lean order, with its status and the id of the Alpaca order as its brokerage id.</returns>
-        private Order CreateLeanOrder(IOrder brokerageOrder, IOrder leg, AlpacaOrderProperties orderProperties, GroupOrderManager groupOrderManager = null)
+        private Order CreateLeanOrder(IOrder brokerageOrder, AlpacaOrderProperties orderProperties)
         {
-            var leanSymbol = _symbolMapper.GetLeanSymbol(leg.AssetClass, leg.Symbol);
-            // The side of a multi-leg order itself is not reliable, so the quantity takes its sign from the side of the leg.
-            var quantity = leg.OrderSide == OrderSide.Buy ? leg.Quantity.Value : decimal.Negate(leg.Quantity.Value);
+            var leanSymbol = _symbolMapper.GetLeanSymbol(brokerageOrder.AssetClass, brokerageOrder.Symbol);
+            var quantity = brokerageOrder.OrderSide == OrderSide.Buy ? brokerageOrder.Quantity.Value : decimal.Negate(brokerageOrder.Quantity.Value);
 
             var leanOrder = default(Order);
             switch (brokerageOrder.OrderType)
             {
-                case AlpacaMarket.OrderType.Market when groupOrderManager != null:
-                    leanOrder = new ComboMarketOrder(leanSymbol, quantity, brokerageOrder.SubmittedAtUtc.Value, groupOrderManager, properties: orderProperties);
-                    break;
                 case AlpacaMarket.OrderType.Market:
 
                     switch (brokerageOrder.TimeInForce)
@@ -440,9 +409,6 @@ namespace QuantConnect.Brokerages.Alpaca
                             leanOrder = new Orders.MarketOrder(leanSymbol, quantity, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
                             break;
                     }
-                    break;
-                case AlpacaMarket.OrderType.Limit when groupOrderManager != null:
-                    leanOrder = new ComboLimitOrder(leanSymbol, quantity, groupOrderManager.LimitPrice, brokerageOrder.SubmittedAtUtc.Value, groupOrderManager, properties: orderProperties);
                     break;
                 case AlpacaMarket.OrderType.Limit:
                     leanOrder = new Orders.LimitOrder(leanSymbol, quantity, brokerageOrder.LimitPrice.Value, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
@@ -459,7 +425,62 @@ namespace QuantConnect.Brokerages.Alpaca
                     leanOrder = new Orders.TrailingStopOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, trailingAmount, trailingAsPercent, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
                     break;
                 default:
-                    throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetOpenOrders)}: Order type '{brokerageOrder.OrderType}' is not supported.");
+                    throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(CreateLeanOrder)}: Order type '{brokerageOrder.OrderType}' is not supported.");
+            }
+
+            leanOrder.Status = Orders.OrderStatus.Submitted;
+            if (brokerageOrder.FilledQuantity > 0 && brokerageOrder.FilledQuantity != brokerageOrder.Quantity)
+            {
+                leanOrder.Status = Orders.OrderStatus.PartiallyFilled;
+            }
+
+            leanOrder.BrokerId.Add(brokerageOrder.OrderId.ToString());
+
+            return leanOrder;
+        }
+
+        /// <summary>
+        /// Creates the Lean combo orders of an Alpaca multi-leg options order, one per leg, all sharing one
+        /// <see cref="GroupOrderManager"/>. The symbol, the side and the quantities come from the leg; the order type,
+        /// the price and the submit time come from the whole order, because a leg carries none of its own.
+        /// </summary>
+        /// <param name="brokerageOrder">The Alpaca multi-leg options order.</param>
+        /// <param name="orderProperties">The order properties of the Lean orders.</param>
+        /// <returns>One Lean combo order per leg, each with its status and the id of the Alpaca order as its brokerage id.</returns>
+        private List<Order> CreateComboLeanOrders(IOrder brokerageOrder, AlpacaOrderProperties orderProperties)
+        {
+            // Alpaca marks a credit with a negative limit price; Lean marks it with a negative group quantity and keeps the price positive.
+            var groupDirection = brokerageOrder.LimitPrice < 0 ? OrderDirection.Sell : OrderDirection.Buy;
+            var groupQuantity = GroupOrderExtensions.GetGroupQuantityByEachLegQuantity(brokerageOrder.Legs.Select(leg => leg.Quantity.Value), groupDirection);
+
+            var groupOrderManager = default(GroupOrderManager);
+            switch (brokerageOrder.OrderType)
+            {
+                case AlpacaMarket.OrderType.Market:
+                    groupOrderManager = new GroupOrderManager(brokerageOrder.Legs.Count, groupQuantity);
+                    break;
+                case AlpacaMarket.OrderType.Limit:
+                    groupOrderManager = new GroupOrderManager(brokerageOrder.Legs.Count, groupQuantity, Math.Abs(brokerageOrder.LimitPrice.Value));
+                    break;
+                default:
+                    throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(CreateComboLeanOrders)}: Order type '{brokerageOrder.OrderType}' is not supported for multi-leg orders.");
+            }
+
+            var leanOrders = new List<Order>(brokerageOrder.Legs.Count);
+            foreach (var leg in brokerageOrder.Legs)
+            {
+                var leanSymbol = _symbolMapper.GetLeanSymbol(leg.AssetClass, leg.Symbol);
+                // The side of the multi-leg order itself is not reliable, so the quantity takes its sign from the side of the leg.
+                var quantity = leg.OrderSide == OrderSide.Buy ? leg.Quantity.Value : decimal.Negate(leg.Quantity.Value);
+
+                var leanOrder = default(Order);
+                if (brokerageOrder.OrderType == AlpacaMarket.OrderType.Market)
+                {
+                    leanOrder = new ComboMarketOrder(leanSymbol, quantity, brokerageOrder.SubmittedAtUtc.Value, groupOrderManager, properties: orderProperties);
+                }
+                else
+                {
+                    leanOrder = new ComboLimitOrder(leanSymbol, quantity, groupOrderManager.LimitPrice, brokerageOrder.SubmittedAtUtc.Value, groupOrderManager, properties: orderProperties);
             }
 
             leanOrder.Status = Orders.OrderStatus.Submitted;
@@ -469,8 +490,10 @@ namespace QuantConnect.Brokerages.Alpaca
             }
 
             leanOrder.BrokerId.Add(brokerageOrder.OrderId.ToString());
+                leanOrders.Add(leanOrder);
+            }
 
-            return leanOrder;
+            return leanOrders;
         }
 
         /// <summary>
