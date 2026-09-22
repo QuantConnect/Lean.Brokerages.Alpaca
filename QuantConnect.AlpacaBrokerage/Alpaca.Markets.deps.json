@@ -1,18 +1,16 @@
 {
   "runtimeTarget": {
-    "name": ".NETCoreApp,Version=v8.0",
+    "name": ".NETCoreApp,Version=v10.0",
     "signature": ""
   },
   "compilationOptions": {},
   "targets": {
-    ".NETCoreApp,Version=v8.0": {
-      "Alpaca.Markets/8.0.0-beta4": {
+    ".NETCoreApp,Version=v10.0": {
+      "Alpaca.Markets/8.0.0-beta6": {
         "dependencies": {
           "MessagePack": "3.1.7",
           "Newtonsoft.Json": "13.0.3",
-          "Polly": "8.6.3",
-          "System.IO.Pipelines": "9.0.8",
-          "System.Threading.Channels": "9.0.8"
+          "Polly": "8.6.3"
         },
         "runtime": {
           "Alpaca.Markets.dll": {}
@@ -24,7 +22,7 @@
           "Microsoft.NET.StringTools": "17.11.4"
         },
         "runtime": {
-          "lib/net8.0/MessagePack.dll": {
+          "lib/net9.0/MessagePack.dll": {
             "assemblyVersion": "3.1.7.0",
             "fileVersion": "3.1.7.0"
           }
@@ -72,27 +70,11 @@
             "fileVersion": "8.6.3.4893"
           }
         }
-      },
-      "System.IO.Pipelines/9.0.8": {
-        "runtime": {
-          "lib/net8.0/System.IO.Pipelines.dll": {
-            "assemblyVersion": "9.0.0.0",
-            "fileVersion": "9.0.825.36511"
-          }
-        }
-      },
-      "System.Threading.Channels/9.0.8": {
-        "runtime": {
-          "lib/net8.0/System.Threading.Channels.dll": {
-            "assemblyVersion": "9.0.0.0",
-            "fileVersion": "9.0.825.36511"
-          }
-        }
       }
     }
   },
   "libraries": {
-    "Alpaca.Markets/8.0.0-beta4": {
+    "Alpaca.Markets/8.0.0-beta6": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
@@ -138,20 +120,6 @@
       "sha512": "sha512-xRlcE+1FidqIfZ7zxBT6klSblJ/7MAJq1x5yvYoLnwNhs8Xc2gp3Srf8wHG2NpFxVBqrldc3svhkMPJjSzTmzw==",
       "path": "polly.core/8.6.3",
       "hashPath": "polly.core.8.6.3.nupkg.sha512"
-    },
-    "System.IO.Pipelines/9.0.8": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-6vPmJt73mgUo1gzc/OcXlJvClz/2jxZ4TQPRfriVaLoGRH2mye530D9WHJYbFQRNMxF3PWCoeofsFdCyN7fLzA==",
-      "path": "system.io.pipelines/9.0.8",
-      "hashPath": "system.io.pipelines.9.0.8.nupkg.sha512"
-    },
-    "System.Threading.Channels/9.0.8": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-kpvkzWJoHR9os3/4LL5feaTTLD92+XzTqPyYLU2tw2BoJ4MrWCfkjGXtL7MsdpV/20e1+SamCbrPj2L9ptwgBA==",
-      "path": "system.threading.channels/9.0.8",
-      "hashPath": "system.threading.channels.9.0.8.nupkg.sha512"
     }
   }
 }

@@ -816,27 +816,6 @@
             Coinbase Exchange.
             </summary>
         </member>
-        <member name="T:Alpaca.Markets.DayTradeMarginCallProtection">
-            <summary>
-            Day trade margin call protection mode for account. See more information here:
-            https://docs.alpaca.markets/user-protections/#day-trade-margin-call-dtmc-protection-at-alpaca
-            </summary>
-        </member>
-        <member name="F:Alpaca.Markets.DayTradeMarginCallProtection.Entry">
-            <summary>
-            Check rules on position entry.
-            </summary>
-        </member>
-        <member name="F:Alpaca.Markets.DayTradeMarginCallProtection.Exit">
-            <summary>
-            Check rules on position exit.
-            </summary>
-        </member>
-        <member name="F:Alpaca.Markets.DayTradeMarginCallProtection.Both">
-            <summary>
-            Check rules on position entry and exit.
-            </summary>
-        </member>
         <member name="T:Alpaca.Markets.Exchange">
             <summary>
             Exchanges supported by Alpaca REST API.
@@ -2658,11 +2637,6 @@
         <member name="T:Alpaca.Markets.IAccountConfiguration">
             <summary>
             Encapsulates account configuration settings from Alpaca REST API.
-            </summary>
-        </member>
-        <member name="P:Alpaca.Markets.IAccountConfiguration.DayTradeMarginCallProtection">
-            <summary>
-            Gets or sets day trade margin call protection mode for account.
             </summary>
         </member>
         <member name="P:Alpaca.Markets.IAccountConfiguration.TradeConfirmEmail">
@@ -8142,17 +8116,12 @@
             Gets or sets updated client order ID or <c>null</c> if client order ID is not changed.
             </summary>
         </member>
-        <member name="P:Alpaca.Markets.ChangeOrderRequest.TrailOffset">
+        <member name="P:Alpaca.Markets.ChangeOrderRequest.Trail">
             <summary>
-            Gets or sets the trailing offset details used to calculate <see cref="P:Alpaca.Markets.ChangeOrderRequest.TrailValue"/>.
-            This property is ignored during JSON serialization and is used only to derive the <c>trail</c> payload.
-            </summary>
-        </member>
-        <member name="P:Alpaca.Markets.ChangeOrderRequest.TrailValue">
-            <summary>
-            Gets the trailing value that will be sent in the request payload (either <c>trail_price</c> or <c>trail_percent</c>).
-            This update applies only to orders of type <c>trailing_stop</c> and only before the stop price is triggered.
-            Note: you cannot switch between price-based and percent-based trailing types in a single update.
+            Gets or sets the new trail amount, or <c>null</c> if unchanged.
+            Uses the same unit as the original order (dollars or percent).
+            Only valid for trailing-stop orders that have not yet triggered.
+            You cannot switch between price-based and percent-based trailing.
             </summary>
         </member>
         <member name="T:Alpaca.Markets.ChangeWatchListRequest`1">
