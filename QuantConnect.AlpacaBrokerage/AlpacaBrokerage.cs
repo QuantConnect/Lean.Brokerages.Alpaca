@@ -367,7 +367,6 @@ namespace QuantConnect.Brokerages.Alpaca
             {
                 case OrderClass.Simple:
                     leanOrders = [CreateLeanOrder(brokerageOrder, orderProperties)];
-                    _duplicationExecutionOrderIdByBrokerageOrderId[brokerageOrder.OrderId] = [];
                     return true;
                 case OrderClass.MultiLegOptions:
                     leanOrders = CreateComboLeanOrders(brokerageOrder, orderProperties);
@@ -435,6 +434,7 @@ namespace QuantConnect.Brokerages.Alpaca
             }
 
             leanOrder.BrokerId.Add(brokerageOrder.OrderId.ToString());
+            _duplicationExecutionOrderIdByBrokerageOrderId[brokerageOrder.OrderId] = [];
 
             return leanOrder;
         }
