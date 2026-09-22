@@ -323,7 +323,8 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <returns>The open orders returned from Alpaca</returns>
         public override List<Order> GetOpenOrders()
         {
-            var orders = _tradingClient.ListOrdersAsync(new ListOrdersRequest() { OrderStatusFilter = OrderStatusFilter.Open }).SynchronouslyAwaitTaskResult();
+            // the legs of advanced orders (bracket, oco, oto) come nested so we can tell how they relate to each other
+            var orders = _tradingClient.ListOrdersAsync(new ListOrdersRequest() { OrderStatusFilter = OrderStatusFilter.Open, RollUpNestedOrders = true }).SynchronouslyAwaitTaskResult();
 
             var leanOrders = new List<Order>();
             foreach (var brokerageOrder in orders)
@@ -333,9 +334,54 @@ namespace QuantConnect.Brokerages.Alpaca
                     Log.Debug($"{nameof(AlpacaBrokerage)}.{nameof(GetOpenOrders)}: {brokerageOrder}");
                 }
 
-                if (TryConvertToLeanOrders(brokerageOrder, out var convertedOrders))
+                var legs = (brokerageOrder.Legs ?? []).Where(leg => IsOpen(leg.OrderStatus)).ToList();
+                if (brokerageOrder.OrderClass == OrderClass.MultiLegOptions || legs.Count == 0)
                 {
-                    leanOrders.AddRange(convertedOrders);
+                    if (TryConvertToLeanOrders(brokerageOrder, out var convertedOrders))
+                    {
+                        leanOrders.AddRange(convertedOrders);
+                    }
+                    continue;
+                }
+
+                // best effort: rebuild the contingencies of the advanced order
+                var parentOrders = default(List<Order>);
+                var isParentOpen = IsOpen(brokerageOrder.OrderStatus) && TryConvertToLeanOrders(brokerageOrder, out parentOrders);
+                var parentOrder = isParentOpen ? parentOrders[0] : null;
+                var legOrders = new List<Order>();
+                foreach (var leg in legs)
+                {
+                    if (TryConvertToLeanOrders(leg, out var convertedLegOrders))
+                    {
+                        legOrders.AddRange(convertedLegOrders);
+                    }
+                }
+
+                if (isParentOpen)
+                {
+                    leanOrders.Add(parentOrder);
+                }
+                leanOrders.AddRange(legOrders);
+
+                if (brokerageOrder.OrderClass == OrderClass.OneCancelsOther)
+                {
+                    // the take profit holds the stop loss as its leg
+                    var members = isParentOpen ? legOrders.Append(parentOrder).ToList() : legOrders;
+                    if (members.Count > 1)
+                    {
+                        OrderContingency.Relate(ContingencyType.OneCancelsOther, members);
+                    }
+                    continue;
+                }
+
+                if (isParentOpen)
+                {
+                    // held until the entry order fills, else they are working already
+                    OrderContingency.Trigger([parentOrder], legOrders);
+                }
+                if (legOrders.Count > 1)
+                {
+                    OrderContingency.Relate(ContingencyType.OneCancelsOther, legOrders);
                 }
             }
 
@@ -343,9 +389,30 @@ namespace QuantConnect.Brokerages.Alpaca
         }
 
         /// <summary>
+        /// Determines whether the brokerage order status is an open one, including the orders held until another fills
+        /// </summary>
+        internal static bool IsOpen(AlpacaMarket.OrderStatus orderStatus)
+        {
+            switch (orderStatus)
+            {
+                case AlpacaMarket.OrderStatus.Accepted:
+                case AlpacaMarket.OrderStatus.New:
+                case AlpacaMarket.OrderStatus.PartiallyFilled:
+                case AlpacaMarket.OrderStatus.PendingNew:
+                case AlpacaMarket.OrderStatus.AcceptedForBidding:
+                case AlpacaMarket.OrderStatus.PendingReplace:
+                case AlpacaMarket.OrderStatus.Held:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
         /// Converts an Alpaca order to the matching Lean orders: one order for a single order, one combo order per leg
         /// for a multi-leg options order. The combo orders share one <see cref="GroupOrderManager"/> and every one of them
         /// carries the id of the Alpaca order as its brokerage id, because Alpaca reports all legs under that id.
+        /// Each order of an advanced order (bracket, oco, oto) converts to a single Lean order, its legs are not included.
         /// </summary>
         /// <param name="brokerageOrder">The Alpaca order.</param>
         /// <param name="leanOrders">When this method returns <c>true</c>, the Lean orders; otherwise <c>null</c>.</param>
@@ -366,6 +433,9 @@ namespace QuantConnect.Brokerages.Alpaca
             switch (brokerageOrder.OrderClass)
             {
                 case OrderClass.Simple:
+                case OrderClass.Bracket:
+                case OrderClass.OneCancelsOther:
+                case OrderClass.OneTriggersOther:
                     leanOrders = [CreateLeanOrder(brokerageOrder, orderProperties)];
                     return true;
                 case OrderClass.MultiLegOptions:
@@ -374,7 +444,7 @@ namespace QuantConnect.Brokerages.Alpaca
                 default:
                     if (_unsupportedOrderClassOrderIds.Add(brokerageOrder.OrderId))
                     {
-                        OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "NotSupportedOrderType", $"The {brokerageOrder.OrderClass} order {brokerageOrder.OrderId} is not supported. Only simple orders and multi-leg option orders are supported."));
+                        OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "NotSupportedOrderType", $"The {brokerageOrder.OrderClass} order {brokerageOrder.OrderId} is not supported. Only simple, bracket, oco, oto and multi-leg option orders are supported."));
                     }
                     return false;
             }
@@ -580,6 +650,16 @@ namespace QuantConnect.Brokerages.Alpaca
                 return PlaceMultiLegOrder(orders);
             }
 
+            if (order.Contingency != null)
+            {
+                // contingent orders are placed together, as a single advanced order (bracket, oco or oto), once they have all arrived
+                if (ContingentOrderCache.TryGetContingentCachedOrders(order, out var contingentOrders))
+                {
+                    PlaceContingentOrders(contingentOrders);
+                }
+                return true;
+            }
+
             try
             {
                 ExecuteWhenReconnectedAndStreamLocked(nameof(PlaceOrder), () =>
@@ -652,6 +732,117 @@ namespace QuantConnect.Brokerages.Alpaca
             return true;
         }
 
+        /// <summary>
+        /// Places a set of contingent orders as a single advanced order:
+        ///  - bracket: an entry order which triggers a take profit limit order and a stop loss order where one cancels the other
+        ///  - oto: an entry order which triggers a take profit limit order or a stop loss order
+        ///  - oco: a take profit limit order and a stop loss order where one cancels the other
+        /// </summary>
+        /// <param name="contingentOrders">All the orders of the set</param>
+        private void PlaceContingentOrders(List<Order> contingentOrders)
+        {
+            try
+            {
+                ExecuteWhenReconnectedAndStreamLocked(nameof(PlaceOrder), () =>
+                {
+                    var entry = contingentOrders.SingleOrDefault(order => order.GetContingencyLink(ContingencyRole.Parent) != null);
+                    var exits = contingentOrders.Where(order => order != entry).ToList();
+                    var takeProfit = exits.SingleOrDefault(order => order.Type == Orders.OrderType.Limit) as Orders.LimitOrder;
+                    var stopLoss = exits.SingleOrDefault(order => order.Type == Orders.OrderType.StopMarket || order.Type == Orders.OrderType.StopLimit);
+                    if (takeProfit == null && stopLoss == null || exits.Count != (takeProfit == null ? 0 : 1) + (stopLoss == null ? 0 : 1)
+                        || entry == null && (takeProfit == null || stopLoss == null))
+                    {
+                        throw new NotSupportedException("Unsupported set of contingent orders, expected a bracket, a one triggers other or a one cancels other.");
+                    }
+
+                    var stopLossStopPrice = (stopLoss as StopMarketOrder)?.StopPrice ?? (stopLoss as Orders.StopLimitOrder)?.StopPrice ?? 0;
+                    var stopLossLimitPrice = (stopLoss as Orders.StopLimitOrder)?.LimitPrice;
+
+                    // the base order is the entry, or the take profit for a one cancels other
+                    var baseLeanOrder = entry ?? takeProfit;
+                    var baseOrder = baseLeanOrder.CreateAlpacaOrder(baseLeanOrder.AbsoluteQuantity, _symbolMapper, baseLeanOrder.Type);
+
+                    AlpacaMarket.OrderBase orderRequest;
+                    if (entry == null)
+                    {
+                        var limitOrder = (AlpacaMarket.LimitOrder)baseOrder;
+                        orderRequest = stopLossLimitPrice.HasValue
+                            ? limitOrder.OneCancelsOther(stopLossStopPrice, stopLossLimitPrice.Value)
+                            : limitOrder.OneCancelsOther(stopLossStopPrice);
+                    }
+                    else
+                    {
+                        var simpleOrder = baseOrder as AlpacaMarket.SimpleOrderBase
+                            ?? throw new NotSupportedException($"The order type '{entry.Type}' can not trigger other orders.");
+                        if (takeProfit != null && stopLoss != null)
+                        {
+                            orderRequest = stopLossLimitPrice.HasValue
+                                ? simpleOrder.Bracket(takeProfit.LimitPrice, stopLossStopPrice, stopLossLimitPrice.Value)
+                                : simpleOrder.Bracket(takeProfit.LimitPrice, stopLossStopPrice);
+                        }
+                        else if (takeProfit != null)
+                        {
+                            orderRequest = simpleOrder.TakeProfit(takeProfit.LimitPrice);
+                        }
+                        else
+                        {
+                            orderRequest = stopLossLimitPrice.HasValue
+                                ? simpleOrder.StopLoss(stopLossStopPrice, stopLossLimitPrice.Value)
+                                : simpleOrder.StopLoss(stopLossStopPrice);
+                        }
+                    }
+
+                    // the advanced order overrides these values of its base order
+                    orderRequest = orderRequest.WithLeanOrderSettings(baseLeanOrder);
+
+                    var response = _tradingClient.PostOrderAsync(orderRequest).SynchronouslyAwaitTaskResult();
+                    if (response == null || response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
+                    {
+                        throw new InvalidOperationException($"{nameof(AlpacaBrokerage)} Place Order Failed");
+                    }
+
+                    // the base order is the response itself, the rest come as its legs
+                    var brokerageOrders = new List<(Order LeanOrder, IOrder BrokerageOrder)> { (baseLeanOrder, (IOrder)response) };
+                    var legs = response.Legs ?? [];
+                    foreach (var exit in exits.Where(order => order != baseLeanOrder))
+                    {
+                        var leg = legs.FirstOrDefault(x => exit.Type == Orders.OrderType.Limit
+                            ? x.OrderType == AlpacaMarket.OrderType.Limit
+                            : x.OrderType == AlpacaMarket.OrderType.Stop || x.OrderType == AlpacaMarket.OrderType.StopLimit);
+                        if (leg == null)
+                        {
+                            // we can not track it: do not leave anything behind
+                            _tradingClient.CancelOrderAsync(response.OrderId).SynchronouslyAwaitTaskResult();
+                            throw new InvalidOperationException($"Failed to find the brokerage order of the {exit.Type} order in the response.");
+                        }
+                        brokerageOrders.Add((exit, leg));
+                    }
+
+                    foreach (var (leanOrder, brokerageOrder) in brokerageOrders)
+                    {
+                        leanOrder.BrokerId.Add(brokerageOrder.OrderId.ToString());
+                        if (leanOrder.IsWaitingForTrigger())
+                        {
+                            // held orders do not get a new event until they are triggered, but they can be canceled before
+                            _duplicationExecutionOrderIdByBrokerageOrderId.TryAdd(brokerageOrder.OrderId, []);
+                        }
+                    }
+
+                    OnOrderEvents(contingentOrders.Select(order => new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event")
+                    {
+                        Status = Orders.OrderStatus.Submitted
+                    }).ToList());
+                });
+            }
+            catch (Exception ex)
+            {
+                OnOrderEvents(contingentOrders.Select(order => new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, ex.Message)
+                {
+                    Status = Orders.OrderStatus.Invalid
+                }).ToList());
+            }
+        }
+
         internal void HandleTradeUpdate(ITradeUpdate obj)
         {
             try
@@ -710,6 +901,15 @@ namespace QuantConnect.Brokerages.Alpaca
                 if (leanOrders.Count == 0)
                 {
                     return;
+                }
+
+                // contingent orders are single orders, never the legs of a combo
+                var contingentOrder = leanOrders[0];
+                if (contingentOrder.Contingency != null && obj.Order.Quantity.HasValue && obj.Order.Quantity.Value != 0
+                    && obj.Order.Quantity.Value != contingentOrder.AbsoluteQuantity)
+                {
+                    // the legs of advanced orders are sized by the brokerage, for example when the entry order gets partially filled and canceled
+                    OnOrderUpdated(new OrderUpdateEvent { OrderId = contingentOrder.Id, Quantity = Math.Sign(contingentOrder.Quantity) * obj.Order.Quantity.Value });
                 }
 
                 switch (obj.Event)
@@ -825,6 +1025,9 @@ namespace QuantConnect.Brokerages.Alpaca
                 if (!TryHandleRemainingCrossZeroOrder(leanOrders[0], orderEvents[0]))
                 {
                     OnOrderEvents(orderEvents);
+
+                    // contingent orders: the orders triggered by the one which filled are no longer held
+                    OnContingentOrdersTriggered(orderEvents, _orderProvider);
                 }
             }
             catch (Exception ex)

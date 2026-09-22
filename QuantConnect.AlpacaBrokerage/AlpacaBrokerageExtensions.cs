@@ -53,6 +53,18 @@ public static class AlpacaBrokerageExtensions
         {
             throw new InvalidOperationException($"Can't create order for direction {order.Direction}");
         }
+        return orderRequest.WithLeanOrderSettings(order);
+    }
+
+    /// <summary>
+    /// Applies the time in force and extended hours settings of the given Lean order to the Alpaca order request.
+    /// Advanced orders (bracket, oco, oto) override these settings of their base order, so they have to be applied to them too.
+    /// </summary>
+    /// <param name="orderRequest">The Alpaca order request</param>
+    /// <param name="order">The Lean order</param>
+    /// <returns>The Alpaca order request</returns>
+    public static AlpacaMarket.OrderBase WithLeanOrderSettings(this AlpacaMarket.OrderBase orderRequest, Order order)
+    {
         return orderRequest
             .WithDuration(order.TimeInForce.ConvertLeanTimeInForceToBrokerage(order.SecurityType, order.Type))
             .WithExtendedHours((order.Properties as AlpacaOrderProperties)?.OutsideRegularTradingHours ?? false);
