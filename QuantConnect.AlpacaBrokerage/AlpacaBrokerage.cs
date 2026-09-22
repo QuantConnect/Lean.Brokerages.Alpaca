@@ -575,8 +575,7 @@ namespace QuantConnect.Brokerages.Alpaca
 
             if (orders.Count > 1)
             {
-                PlaceMultiLegOrder(orders);
-                return true;
+                return PlaceMultiLegOrder(orders);
             }
 
             try
@@ -589,7 +588,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     {
                         var orderRequest = order.CreateAlpacaOrder(order.AbsoluteQuantity, _symbolMapper, order.Type);
                         var response = _tradingClient.PostOrderAsync(orderRequest).SynchronouslyAwaitTaskResult();
-                        if (response == null || response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
+                        if (response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
                         {
                             OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Place Order Failed") { Status = Orders.OrderStatus.Invalid });
                             return;
@@ -613,51 +612,42 @@ namespace QuantConnect.Brokerages.Alpaca
         /// The request and the submitted events run inside the stream lock, so a fill cannot be handled before the legs carry the id.
         /// </summary>
         /// <param name="orders">The Lean combo orders, one per leg, all sharing one group order manager.</param>
-        private void PlaceMultiLegOrder(List<Order> orders)
+        /// <returns>True if Alpaca took the order, false if it was rejected or the request failed.</returns>
+        private bool PlaceMultiLegOrder(List<Order> orders)
         {
+            var orderRequest = orders.CreateAlpacaMultiLegOrder(_symbolMapper, _securityProvider);
             try
             {
                 ExecuteWhenReconnectedAndStreamLocked(nameof(PlaceOrder), () =>
                 {
-                    var orderRequest = orders.CreateAlpacaMultiLegOrder(_symbolMapper, _securityProvider);
                     var response = _tradingClient.PostOrderAsync(orderRequest).SynchronouslyAwaitTaskResult();
-                    if (response == null || response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
+
+                    if (response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
                     {
-                        OnOrderEvents(CreateOrderEvents(orders, Orders.OrderStatus.Invalid, $"{nameof(AlpacaBrokerage)} Place Order Failed"));
+                        OnOrderEvents(orders.CreateOrderEvents(Orders.OrderStatus.Invalid, $"Alpaca rejected the combo order {response.OrderId}"));
                         return;
                     }
 
                     var brokerageOrderId = response.OrderId.ToString();
+                    var orderEvents = new List<OrderEvent>(orders.Count);
                     foreach (var order in orders)
                     {
                         order.BrokerId.Add(brokerageOrderId);
+                        orderEvents.Add(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero)
+                        {
+                            Status = Orders.OrderStatus.Submitted
+                        });
                     }
 
-                    OnOrderEvents(CreateOrderEvents(orders, Orders.OrderStatus.Submitted, $"{nameof(AlpacaBrokerage)} Order Event"));
+                    OnOrderEvents(orderEvents);
                 });
             }
             catch (Exception ex)
             {
-                OnOrderEvents(CreateOrderEvents(orders, Orders.OrderStatus.Invalid, ex.Message));
+                OnOrderEvents(orders.CreateOrderEvents(Orders.OrderStatus.Invalid, ex.Message));
             }
-        }
 
-        /// <summary>
-        /// Creates one order event with the same status and message for each of the given orders.
-        /// The legs of a combo change status together, so their events go to Lean in one batch.
-        /// </summary>
-        /// <param name="orders">The Lean orders to report.</param>
-        /// <param name="status">The new status of the orders.</param>
-        /// <param name="message">The message of the order events.</param>
-        /// <returns>One order event per order.</returns>
-        private static List<OrderEvent> CreateOrderEvents(List<Order> orders, Orders.OrderStatus status, string message)
-        {
-            var orderEvents = new List<OrderEvent>(orders.Count);
-            foreach (var order in orders)
-            {
-                orderEvents.Add(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, message) { Status = status });
-            }
-            return orderEvents;
+            return true;
         }
 
         internal void HandleTradeUpdate(ITradeUpdate obj)
@@ -836,7 +826,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     }
                 }
 
-                OnOrderEvents(CreateOrderEvents(leanOrders, Orders.OrderStatus.Submitted, "Order was submitted outside Lean"));
+                OnOrderEvents(leanOrders.CreateOrderEvents(Orders.OrderStatus.Submitted, "Order was submitted outside Lean"));
 
                 if (newLeanOrderStatus == Orders.OrderStatus.Submitted)
                 {
@@ -880,7 +870,7 @@ namespace QuantConnect.Brokerages.Alpaca
                             message = $"{nameof(AlpacaBrokerage)} Order Event";
                         }
 
-                        OnOrderEvents(CreateOrderEvents(openLeanOrders, newLeanOrderStatus, message));
+                        OnOrderEvents(openLeanOrders.CreateOrderEvents(newLeanOrderStatus, message));
                     }
                     return;
                 case TradeEvent.Fill:
@@ -1024,7 +1014,7 @@ namespace QuantConnect.Brokerages.Alpaca
                 ExecuteWhenReconnectedAndStreamLocked(nameof(UpdateOrder), () =>
                 {
                     response = _tradingClient.PatchOrderAsync(pathOrderRequest).SynchronouslyAwaitTaskResult();
-                    if (response == null || response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
+                    if (response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
                     {
                         OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event") { Status = Orders.OrderStatus.Invalid });
                         return;
@@ -1140,7 +1130,7 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             var orderRequest = crossZeroOrderRequest.LeanOrder.CreateAlpacaOrder(crossZeroOrderRequest.AbsoluteOrderQuantity, _symbolMapper, crossZeroOrderRequest.OrderType);
             var response = _tradingClient.PostOrderAsync(orderRequest).SynchronouslyAwaitTaskResult();
-            if (response == null || response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
+            if (response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
             {
                 return new CrossZeroOrderResponse(string.Empty, false);
             }
