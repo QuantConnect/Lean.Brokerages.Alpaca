@@ -348,11 +348,11 @@ namespace QuantConnect.Brokerages.Alpaca
         /// carries the id of the Alpaca order as its brokerage id, because Alpaca reports all legs under that id.
         /// </summary>
         /// <param name="brokerageOrder">The Alpaca order.</param>
-        /// <param name="leanOrders">When this method returns <c>true</c>, the Lean orders; otherwise empty.</param>
+        /// <param name="leanOrders">When this method returns <c>true</c>, the Lean orders; otherwise <c>null</c>.</param>
         /// <returns><c>true</c> when the order was converted; otherwise <c>false</c>.</returns>
         private bool TryConvertToLeanOrders(IOrder brokerageOrder, out List<Order> leanOrders)
         {
-            leanOrders = [];
+            leanOrders = null;
             if (brokerageOrder.OrderClass is not (OrderClass.Simple or OrderClass.MultiLegOptions))
             {
                 if (_unsupportedOrderClassOrderIds.Add(brokerageOrder.OrderId))
@@ -373,7 +373,7 @@ namespace QuantConnect.Brokerages.Alpaca
 
             if (brokerageOrder.OrderClass == OrderClass.Simple)
             {
-                leanOrders.Add(CreateLeanOrder(brokerageOrder, brokerageOrder, orderProperties));
+                leanOrders = [CreateLeanOrder(brokerageOrder, brokerageOrder, orderProperties)];
                 _duplicationExecutionOrderIdByBrokerageOrderId[brokerageOrder.OrderId] = [];
                 return true;
             }
@@ -395,6 +395,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(TryConvertToLeanOrders)}: Order type '{brokerageOrder.OrderType}' is not supported for multi-leg orders.");
             }
 
+            leanOrders = new List<Order>(brokerageOrder.Legs.Count);
             foreach (var leg in brokerageOrder.Legs)
             {
                 leanOrders.Add(CreateLeanOrder(brokerageOrder, leg, orderProperties, groupOrderManager));
@@ -585,7 +586,7 @@ namespace QuantConnect.Brokerages.Alpaca
 
         /// <summary>
         /// Places the legs of a Lean combo order as one Alpaca multi-leg options order. Every leg gets the id of that
-        /// Alpaca order as its brokerage id, because Alpaca reports the updates of all legs under it.
+        /// Alpaca order as its brokerage id, because Alpaca cancels and replaces a multi-leg order only by that id.
         /// The request and the submitted events run inside the stream lock, so a fill cannot be handled before the legs carry the id.
         /// </summary>
         /// <param name="orders">The Lean combo orders, one per leg, all sharing one group order manager.</param>
