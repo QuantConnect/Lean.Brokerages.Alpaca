@@ -113,6 +113,12 @@ namespace QuantConnect.Brokerages.Alpaca
         private readonly HashSet<AlpacaMarket.TimeInForce> _unsupportedTimeInForce = [];
 
         /// <summary>
+        /// Tracks the Alpaca orders with an unsupported order class, so their warning is sent once per order
+        /// instead of every time the open orders are read.
+        /// </summary>
+        private readonly HashSet<Guid> _unsupportedOrderClassOrderIds = [];
+
+        /// <summary>
         /// Returns true if we're currently connected to the broker
         /// </summary>
         public override bool IsConnected => _connected;
@@ -337,18 +343,6 @@ namespace QuantConnect.Brokerages.Alpaca
         }
 
         /// <summary>
-        /// Tells an Alpaca multi-leg options order from the other orders that carry legs (bracket, OCO, OTO):
-        /// only the multi-leg order has no symbol of its own. <see cref="IOrder.OrderClass"/> cannot tell them apart,
-        /// it reads <see cref="OrderClass.Simple"/> for every order.
-        /// </summary>
-        /// <param name="brokerageOrder">The Alpaca order.</param>
-        /// <returns><c>true</c> when the order is a multi-leg options order; otherwise <c>false</c>.</returns>
-        private static bool IsMultiLegOptionsOrder(IOrder brokerageOrder)
-        {
-            return brokerageOrder.Legs.Count > 1 && string.IsNullOrEmpty(brokerageOrder.Symbol);
-        }
-
-        /// <summary>
         /// Converts an Alpaca order to the matching Lean orders: one order for a single order, one combo order per leg
         /// for a multi-leg options order. The combo orders share one <see cref="GroupOrderManager"/> and every one of them
         /// carries the id of the Alpaca order as its brokerage id, because Alpaca reports all legs under that id.
@@ -359,6 +353,14 @@ namespace QuantConnect.Brokerages.Alpaca
         private bool TryConvertToLeanOrders(IOrder brokerageOrder, out List<Order> leanOrders)
         {
             leanOrders = [];
+            if (brokerageOrder.OrderClass is not (OrderClass.Simple or OrderClass.MultiLegOptions))
+            {
+                if (_unsupportedOrderClassOrderIds.Add(brokerageOrder.OrderId))
+                {
+                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "NotSupportedOrderType", $"The {brokerageOrder.OrderClass} order {brokerageOrder.OrderId} is not supported. Only simple orders and multi-leg option orders are supported."));
+                }
+                return false;
+            }
 
             var orderProperties = new AlpacaOrderProperties();
             if (!orderProperties.TryGetLeanTimeInForceByAlpacaTimeInForce(brokerageOrder.TimeInForce))
@@ -369,16 +371,8 @@ namespace QuantConnect.Brokerages.Alpaca
                 }
             }
 
-
-
-            if (!IsMultiLegOptionsOrder(brokerageOrder))
+            if (brokerageOrder.OrderClass == OrderClass.Simple)
             {
-                if (brokerageOrder.Legs.Count > 1)
-                {
-                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "NotSupportedOrderType", "Orders with attached legs (bracket, OCO, OTO) are not currently supported."));
-                    return false;
-                }
-
                 leanOrders.Add(CreateLeanOrder(brokerageOrder, brokerageOrder, orderProperties));
                 _duplicationExecutionOrderIdByBrokerageOrderId[brokerageOrder.OrderId] = [];
                 return true;
@@ -652,7 +646,7 @@ namespace QuantConnect.Brokerages.Alpaca
                 var brokerageOrderId = obj.Order.OrderId.ToString();
 
                 // A multi-leg order is one Alpaca order but one Lean order per leg, so the single order lookup below cannot serve it.
-                if (IsMultiLegOptionsOrder(obj.Order))
+                if (obj.Order.OrderClass == OrderClass.MultiLegOptions)
                 {
                     HandleMultiLegTradeUpdate(obj, _orderProvider.GetOrdersByBrokerageId(brokerageOrderId));
                     return;
