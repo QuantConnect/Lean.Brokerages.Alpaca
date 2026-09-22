@@ -330,7 +330,7 @@ namespace QuantConnect.Brokerages.Alpaca
             {
                 if (Log.DebuggingEnabled)
                 {
-                    Log.Debug($"{nameof(AlpacaBrokerage)}.{nameof(GetOpenOrders)}: {brokerageOrder}"); 
+                    Log.Debug($"{nameof(AlpacaBrokerage)}.{nameof(GetOpenOrders)}: {brokerageOrder}");
                 }
 
                 if (TryConvertToLeanOrders(brokerageOrder, out var convertedOrders))
@@ -367,18 +367,18 @@ namespace QuantConnect.Brokerages.Alpaca
             {
                 case OrderClass.Simple:
                     leanOrders = [CreateLeanOrder(brokerageOrder, orderProperties)];
-                _duplicationExecutionOrderIdByBrokerageOrderId[brokerageOrder.OrderId] = [];
-                return true;
+                    _duplicationExecutionOrderIdByBrokerageOrderId[brokerageOrder.OrderId] = [];
+                    return true;
                 case OrderClass.MultiLegOptions:
                     leanOrders = CreateComboLeanOrders(brokerageOrder, orderProperties);
                     return true;
                 default:
                     if (_unsupportedOrderClassOrderIds.Add(brokerageOrder.OrderId))
-            {
+                    {
                         OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "NotSupportedOrderType", $"The {brokerageOrder.OrderClass} order {brokerageOrder.OrderId} is not supported. Only simple orders and multi-leg option orders are supported."));
-            }
+                    }
                     return false;
-        }
+            }
         }
 
         /// <summary>
@@ -481,15 +481,15 @@ namespace QuantConnect.Brokerages.Alpaca
                 else
                 {
                     leanOrder = new ComboLimitOrder(leanSymbol, quantity, groupOrderManager.LimitPrice, brokerageOrder.SubmittedAtUtc.Value, groupOrderManager, properties: orderProperties);
-            }
+                }
 
-            leanOrder.Status = Orders.OrderStatus.Submitted;
-            if (leg.FilledQuantity > 0 && leg.FilledQuantity != leg.Quantity)
-            {
-                leanOrder.Status = Orders.OrderStatus.PartiallyFilled;
-            }
+                leanOrder.Status = Orders.OrderStatus.Submitted;
+                if (leg.FilledQuantity > 0 && leg.FilledQuantity != leg.Quantity)
+                {
+                    leanOrder.Status = Orders.OrderStatus.PartiallyFilled;
+                }
 
-            leanOrder.BrokerId.Add(brokerageOrder.OrderId.ToString());
+                leanOrder.BrokerId.Add(brokerageOrder.OrderId.ToString());
                 leanOrders.Add(leanOrder);
             }
 
@@ -548,7 +548,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, -1, $"Unable to decompose crypto pair {leanSymbol} into base/quote currencies."));
                     continue;
                 }
-                balances.Add(new CashAmount(position.Quantity, baseCurrency));  
+                balances.Add(new CashAmount(position.Quantity, baseCurrency));
             }
 
             return balances;
