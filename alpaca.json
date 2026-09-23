@@ -13,7 +13,7 @@
         }
     ],
     "order-types": ["Market", "Limit", "Stop Market", "Stop Limit", "Trailing", "Market On Open", "Market On Close", "Combo Market", "Combo Limit"],
-	"assets": ["Equity", "Equity Options", "Crypto"], 
+	"assets": ["Equity", "Equity Options", "Index Options", "Crypto"],
 	"brokerage-url": "https://alpaca.markets/",
 	"landing-page-url": "/brokerages/alpaca",
   	"documentation": "/docs/v2/cloud-platform/live-trading/brokerages/alpaca",
@@ -34,6 +34,7 @@
 			"security-types": [
 				"Equity",
 				"Option",
+				"IndexOption",
                 		"Crypto"
 			],
 			"markets": [

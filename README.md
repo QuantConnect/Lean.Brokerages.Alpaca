@@ -137,16 +137,16 @@ Follow these steps to start local live trading with the [Alpaca](http://qnt.co/a
 
 The following table describes the available order types for each asset class that our Alpaca integration supports.
 
-| Order Type / Security Type | Equity | Equity Options | Crypto  |
-|:--------------------------:|:------:|:--------------:|:-------:|
-|         MarketOrder        |   Yes  |       Yes      |   Yes   |
-|         LimitOrder         |   Yes  |       Yes      |   Yes   |
-|       StopMarketOrder      |   Yes  |       Yes      |   Yes   |
-|       StopLimitOrder       |   Yes  |       Yes      |   Yes   |
-|        MarketOnOpen        |   Yes  |                |         |
-|        MarketOnClose       |   Yes  |                |         |
-|      ComboMarketOrder      |        |       Yes      |         |
-|       ComboLimitOrder      |        |       Yes      |         |
+| Order Type / Security Type | Equity | Equity Options | Index Options | Crypto  |
+|:--------------------------:|:------:|:--------------:|:-------------:|:-------:|
+|         MarketOrder        |   Yes  |       Yes      |      Yes      |   Yes   |
+|         LimitOrder         |   Yes  |       Yes      |      Yes      |   Yes   |
+|       StopMarketOrder      |   Yes  |                |               |   Yes   |
+|       StopLimitOrder       |   Yes  |                |               |   Yes   |
+|        MarketOnOpen        |   Yes  |                |               |         |
+|        MarketOnClose       |   Yes  |                |               |         |
+|      ComboMarketOrder      |        |       Yes      |      Yes      |         |
+|       ComboLimitOrder      |        |       Yes      |      Yes      |         |
 
 
 ## Downloading Data
@@ -157,6 +157,7 @@ For local deployment, the algorithm needs to download the following datasets:
 - [US Equities](https://www.quantconnect.com/datasets/algoseek-us-equities)
 - [US Coarse Universe](https://www.quantconnect.com/datasets/quantconnect-us-coarse-universe-constituents)
 - [US Equity Options](https://www.quantconnect.com/datasets/algoseek-us-equity-options)
+- [US Index Options](https://www.quantconnect.com/datasets/algoseek-us-index-options)
 - Crypto (e.g. [Coinbase](https://www.quantconnect.com/datasets/coinbase-crypto-price-data))
 
 ## Brokerage Model
