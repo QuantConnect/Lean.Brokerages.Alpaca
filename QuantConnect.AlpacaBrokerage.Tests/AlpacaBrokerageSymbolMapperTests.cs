@@ -18,6 +18,7 @@ using Alpaca.Markets;
 using NUnit.Framework;
 using QuantConnect.Tests;
 using QuantConnect.Securities;
+using QuantConnect.Securities.IndexOption;
 
 namespace QuantConnect.Brokerages.Alpaca.Tests
 {
@@ -42,6 +43,8 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         [TestCase(AssetClass.UsOption, "AAPL240614C00235000", "AAPL", "2024/06/14", OptionRight.Call, 235)]
         [TestCase(AssetClass.UsOption, "QQQ240613C00484000", "QQQ", "2024/06/13", OptionRight.Call, 484)]
         [TestCase(AssetClass.UsOption, "QQQ240613C00484000", "QQQ", "2024/06/13", OptionRight.Call, 484)]
+        [TestCase(AssetClass.UsOption, "SPX241220C05000000", "SPX", "2024/12/20", OptionRight.Call, 5000)]
+        [TestCase(AssetClass.UsOption, "SPXW241220P05000000", "SPXW", "2024/12/20", OptionRight.Put, 5000)]
         public void ReturnsCorrectLeanSymbol(AssetClass brokerageAssetClass, string brokerageTicker, string expectedSymbol, DateTime expectedDateTime, OptionRight optionRight, decimal expectedStrike)
         {
             var leanSymbol = _symbolMapper.GetLeanSymbol(brokerageAssetClass, brokerageTicker);
@@ -51,6 +54,20 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             Assert.That(leanSymbol.ID.OptionRight, Is.EqualTo(optionRight));
             Assert.That(leanSymbol.ID.StrikePrice, Is.EqualTo(expectedStrike));
             Assert.That(leanSymbol.ID.Symbol, Is.EqualTo(expectedSymbol));
+        }
+
+        // Alpaca sends an index option under the same asset class as an equity option, only the root tells them apart.
+        [TestCase("SPX241220C05000000", "SPX")]
+        [TestCase("SPXW241220C05000000", "SPX")]
+        [TestCase("VIXW241218P00020000", "VIX")]
+        public void ReturnsIndexOptionOnItsIndex(string brokerageTicker, string expectedIndex)
+        {
+            var leanSymbol = _symbolMapper.GetLeanSymbol(AssetClass.UsOption, brokerageTicker);
+
+            Assert.That(leanSymbol.SecurityType, Is.EqualTo(SecurityType.IndexOption));
+            Assert.That(leanSymbol.ID.OptionStyle, Is.EqualTo(OptionStyle.European));
+            Assert.That(leanSymbol.Underlying.SecurityType, Is.EqualTo(SecurityType.Index));
+            Assert.That(leanSymbol.Underlying.Value, Is.EqualTo(expectedIndex));
         }
 
         [Test]
@@ -64,6 +81,8 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         [TestCase("AAPL", SecurityType.Option, OptionRight.Call, 100, "2024/06/14", "AAPL240614C00100000")]
         [TestCase("AAPL", SecurityType.Option, OptionRight.Call, 105, "2024/06/14", "AAPL240614C00105000")]
         [TestCase("AAPL", SecurityType.Option, OptionRight.Put, 265, "2024/06/14", "AAPL240614P00265000")]
+        [TestCase("SPX", SecurityType.IndexOption, OptionRight.Call, 5000, "2024/12/20", "SPX241220C05000000")]
+        [TestCase("SPXW", SecurityType.IndexOption, OptionRight.Put, 5000, "2024/12/20", "SPXW241220P05000000")]
         [TestCase("BTCUSDT", SecurityType.Crypto, null, null, null, "BTC/USDT")]
         [TestCase("ETHUSD", SecurityType.Crypto, null, null, null, "ETH/USD")]
         public void ReturnsCorrectBrokerageSymbol(string symbol, SecurityType securityType, OptionRight? optionRight, decimal? strike, DateTime? expiryDate, string expectedBrokerageSymbol)
@@ -126,6 +145,10 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 case SecurityType.Option:
                     var underlying = Symbol.Create(symbol, SecurityType.Equity, Market.USA);
                     return Symbol.CreateOption(underlying, Market.USA, optionStyle.Value, optionRight.Value, strike.Value, expiryDate.Value);
+                case SecurityType.IndexOption:
+                    // the symbol is the option root (SPX, SPXW), the index comes from it
+                    var index = Symbol.Create(IndexOptionSymbol.MapToUnderlying(symbol), SecurityType.Index, Market.USA);
+                    return Symbol.CreateOption(index, symbol, Market.USA, OptionStyle.European, optionRight.Value, strike.Value, expiryDate.Value);
                 case SecurityType.Crypto:
                     return Symbol.Create(symbol, securityType, Market.USA);
                 default:

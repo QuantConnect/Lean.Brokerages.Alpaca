@@ -60,6 +60,13 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 yield return new TestCaseData(AAPLOption, Resolution.Hour, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 21, 16, 0, 0));
                 yield return new TestCaseData(AAPLOption, Resolution.Daily, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 21, 16, 0, 0));
 
+                var SPXOption = Symbol.CreateOption(Symbol.Create("SPX", SecurityType.Index, Market.USA), "SPX", Market.USA, OptionStyle.European, OptionRight.Call, 5000, new DateTime(2024, 06, 21));
+                yield return new TestCaseData(SPXOption, Resolution.Tick, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 21, 16, 0, 0));
+                yield return new TestCaseData(SPXOption, Resolution.Second, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 21, 16, 0, 0));
+                yield return new TestCaseData(SPXOption, Resolution.Minute, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 21, 16, 0, 0));
+                yield return new TestCaseData(SPXOption, Resolution.Hour, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 21, 16, 0, 0));
+                yield return new TestCaseData(SPXOption, Resolution.Daily, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 21, 16, 0, 0));
+
                 yield return new TestCaseData(Symbols.BTCUSD, Resolution.Tick, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
                 yield return new TestCaseData(Symbols.BTCUSD, Resolution.Second, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
                 yield return new TestCaseData(Symbols.BTCUSD, Resolution.Minute, TickType.Trade, new DateTime(2024, 6, 12, 9, 30, 0), new DateTime(2024, 6, 17, 16, 0, 0));
