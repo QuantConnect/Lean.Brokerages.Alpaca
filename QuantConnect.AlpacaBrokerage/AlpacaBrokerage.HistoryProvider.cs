@@ -105,6 +105,7 @@ public partial class AlpacaBrokerage
                 data = GetEquityHistory(request, brokerageSymbol);
                 break;
             case SecurityType.Option:
+            case SecurityType.IndexOption:
                 data = GetOptionHistory(request, brokerageSymbol);
                 break;
             case SecurityType.Crypto:

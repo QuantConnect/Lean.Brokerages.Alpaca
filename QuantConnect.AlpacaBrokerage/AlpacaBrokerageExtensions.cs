@@ -314,7 +314,7 @@ public static class AlpacaBrokerageExtensions
     /// <exception cref="NotSupportedException">Thrown when the provided TimeInForce type is not supported.</exception>
     private static AlpacaMarket.TimeInForce ConvertLeanTimeInForceToBrokerage(this TimeInForce timeInForce, SecurityType securityType, OrderType leanOrderType)
     {
-        if (securityType == SecurityType.Option && timeInForce is not DayTimeInForce)
+        if (securityType is SecurityType.Option or SecurityType.IndexOption && timeInForce is not DayTimeInForce)
         {
             Log.Error($"{nameof(AlpacaBrokerageExtensions)}.{nameof(ConvertLeanTimeInForceToBrokerage)}: Invalid TimeInForce '{timeInForce.GetType().Name}' for Option security type. Only 'DayTimeInForce' is supported for options.");
             return AlpacaMarket.TimeInForce.Day;

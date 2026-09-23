@@ -18,6 +18,7 @@ using System.Linq;
 using Alpaca.Markets;
 using QuantConnect.Securities;
 using System.Collections.Generic;
+using QuantConnect.Securities.IndexOption;
 using System.Text.RegularExpressions;
 
 namespace QuantConnect.Brokerages.Alpaca;
@@ -66,7 +67,7 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
     /// <remarks>
     /// This HashSet contains the supported security types that are allowed within the system.
     /// </remarks>
-    public readonly HashSet<SecurityType> SupportedSecurityType = new() { SecurityType.Equity, SecurityType.Option, SecurityType.Crypto };
+    public readonly HashSet<SecurityType> SupportedSecurityType = new() { SecurityType.Equity, SecurityType.Option, SecurityType.IndexOption, SecurityType.Crypto };
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AlpacaBrokerageSymbolMapper"/> class.
@@ -131,7 +132,7 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
         // Equity tickers change over the life of a SID (e.g. GOOCV -> GOOG). Resolve the
         // ticker that is current today, since Symbol.Value can still carry the old one.
         SecurityType.Equity => SecurityIdentifier.Ticker(symbol, DateTime.UtcNow),
-        SecurityType.Option => GenerateBrokerageOptionSymbol(symbol),
+        SecurityType.Option or SecurityType.IndexOption => GenerateBrokerageOptionSymbol(symbol),
         SecurityType.Crypto => _brokerageSymbolByLeanSymbol.TryGetValue(symbol.Value, out var cryptoSymbol)
         ? cryptoSymbol 
         : throw new ArgumentException($"The symbol '{symbol.Value}' is not found in the brokerage symbol mappings for crypto."),
@@ -168,6 +169,9 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
             case SecurityType.Option:
                 var underlying = Symbol.Create(brokerageSymbol, SecurityType.Equity, market);
                 return Symbol.CreateOption(underlying, market, SecurityType.Option.DefaultOptionStyle(), optionRight, strike, expirationDate);
+            case SecurityType.IndexOption:
+                var index = Symbol.Create(IndexOptionSymbol.MapToUnderlying(brokerageSymbol), SecurityType.Index, market);
+                return Symbol.CreateOption(index, brokerageSymbol, market, SecurityType.IndexOption.DefaultOptionStyle(), optionRight, strike, expirationDate);
             default:
                 throw new NotImplementedException($"{nameof(AlpacaBrokerageSymbolMapper)}.{nameof(GetLeanSymbol)}: " +
                     $"The security type '{securityType}' with brokerage symbol '{brokerageSymbol}' is not supported.");
@@ -193,6 +197,12 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
         var expiryDate = ParseDate(match.Groups["year"].Value, match.Groups["month"].Value, match.Groups["day"].Value);
         var optionRight = match.Groups["right"].Value == "C" ? OptionRight.Call : OptionRight.Put;
         var strike = decimal.Parse(match.Groups["strike"].Value) / 1000m;
+
+        if (IndexOptionSymbol.IsIndexOption(ticker))
+        {
+            var index = Symbol.Create(IndexOptionSymbol.MapToUnderlying(ticker), SecurityType.Index, Market.USA);
+            return Symbol.CreateOption(index, ticker, Market.USA, SecurityType.IndexOption.DefaultOptionStyle(), optionRight, strike, expiryDate);
+        }
 
         var underlying = Symbol.Create(ticker, SecurityType.Equity, Market.USA);
         return Symbol.CreateOption(underlying, Market.USA, SecurityType.Option.DefaultOptionStyle(), optionRight, strike, expiryDate);
@@ -221,13 +231,14 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
     /// <exception cref="ArgumentException">Thrown when the provided symbol is not of type Option.</exception>
     private string GenerateBrokerageOptionSymbol(Symbol symbol)
     {
-        if (symbol.SecurityType != SecurityType.Option)
+        if (symbol.SecurityType is not (SecurityType.Option or SecurityType.IndexOption))
         {
-            throw new ArgumentException($"{nameof(AlpacaBrokerageSymbolMapper)}.{nameof(GenerateBrokerageOptionSymbol)}: The provided symbol must be of type Option.", nameof(symbol));
+            throw new ArgumentException("The provided symbol must be of type Option or IndexOption.", nameof(symbol));
         }
 
-        var strikePriceString = (Convert.ToInt32(symbol.ID.StrikePrice * 1000)).ToStringInvariant("D8");
+        // An index option can trade under a root of its own (SPXW on SPX), which the option ticker carries and the index does not.
+        var root = symbol.SecurityType == SecurityType.IndexOption ? symbol.ID.Symbol : SecurityIdentifier.Ticker(symbol.Underlying, DateTime.UtcNow);
 
-        return $"{SecurityIdentifier.Ticker(symbol.Underlying, DateTime.UtcNow)}{symbol.ID.Date:yyMMdd}{symbol.ID.OptionRight.ToString()[0]}{strikePriceString}";
+        return SymbolRepresentation.GenerateOptionTickerOSICompact(root, symbol.ID.OptionRight, symbol.ID.StrikePrice, symbol.ID.Date);
     }
 }

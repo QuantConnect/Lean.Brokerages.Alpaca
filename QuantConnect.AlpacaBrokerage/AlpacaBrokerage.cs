@@ -1148,6 +1148,7 @@ namespace QuantConnect.Brokerages.Alpaca
                 case SecurityType.Equity:
                     return _equityHistoricalDataClient.GetLatestQuoteAsync(new LatestMarketDataRequest(brokerageSymbol)).SynchronouslyAwaitTaskResult();
                 case SecurityType.Option:
+                case SecurityType.IndexOption:
                     return _optionsHistoricalDataClient.ListLatestQuotesAsync(new LatestOptionsDataRequest(new string[] { brokerageSymbol })).SynchronouslyAwaitTaskResult()[brokerageSymbol];
                 case SecurityType.Crypto:
                     return _cryptoHistoricalDataClient.ListLatestQuotesAsync(new LatestDataListRequest(new string[] { brokerageSymbol })).SynchronouslyAwaitTaskResult()[brokerageSymbol];

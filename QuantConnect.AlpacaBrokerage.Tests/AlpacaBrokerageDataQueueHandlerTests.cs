@@ -37,6 +37,8 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                     new TestCaseData(Symbols.AAPL, Resolution.Minute, false),
                     new TestCaseData(Symbols.AAPL, Resolution.Second, false),
                     new TestCaseData(Symbol.CreateOption(Symbols.AAPL, Symbols.AAPL.ID.Market, OptionStyle.American, OptionRight.Call, 230, new DateTime(2024, 12, 20)), Resolution.Second, false),
+                    new TestCaseData(Symbol.CreateOption(Symbol.Create("SPX", SecurityType.Index, Market.USA), "SPX", Market.USA, OptionStyle.European, OptionRight.Call, 6500, new DateTime(2026, 12, 18)), Resolution.Second, false),
+                    new TestCaseData(Symbol.CreateOption(Symbol.Create("SPX", SecurityType.Index, Market.USA), "SPXW", Market.USA, OptionStyle.European, OptionRight.Call, 7700, new DateTime(2026, 9, 25)), Resolution.Second, false),
                 };
             }
         }

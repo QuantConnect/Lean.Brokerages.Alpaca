@@ -86,6 +86,10 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 yield return new TestCaseData(new MarketOrderTestParameters(option));
                 yield return new TestCaseData(new LimitOrderTestParameters(option, 20m, 10m));
 
+                var indexOption = Symbol.CreateOption(Symbol.Create("SPX", SecurityType.Index, Market.USA), "SPXW", Market.USA, OptionStyle.European, OptionRight.Call, 7700, new DateTime(2026, 9, 25));
+                yield return new TestCaseData(new MarketOrderTestParameters(indexOption));
+                yield return new TestCaseData(new LimitOrderTestParameters(indexOption, 32m, 36m));
+
                 // see https://docs.alpaca.markets/docs/options-trading-overview
                 yield return new TestCaseData(new StopMarketOrderTestParameters(option, 20m, 10m)).Explicit("Not supported by alpaca");
                 yield return new TestCaseData(new StopLimitOrderTestParameters(option, 20m, 10m)).Explicit("Not supported by alpaca");
@@ -123,6 +127,22 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                     askPrice: 20m,
                     bidPrice: 0.05m,
                     limitPriceAdjustmentFactor: 1.3m)).SetArgDisplayNames("AAPL bull call spread 250/260 2026-12-18");
+
+                // Index option: the strikes must be listed contracts near the index level on the run day.
+                var spx = Symbol.CreateCanonicalOption(Symbol.Create("SPX", SecurityType.Index, Market.USA));
+                yield return new TestCaseData(new ComboLimitOrderTestParameters(
+                    OptionStrategies.BullCallSpread(spx, leg1Strike: 6500m, leg2Strike: 6600m, new DateTime(2026, 12, 18)),
+                    askPrice: 200m,
+                    bidPrice: 0.05m,
+                    limitPriceAdjustmentFactor: 1.3m)).SetArgDisplayNames("SPX bull call spread 6500/6600 2026-12-18");
+
+                // Weekly: the SPXW root on the SPX index; the order goes to Alpaca as SPXW260925C..., not SPX260925C...
+                var spxw = Symbol.CreateCanonicalOption(Symbol.Create("SPX", SecurityType.Index, Market.USA), "SPXW", Market.USA, null);
+                yield return new TestCaseData(new ComboLimitOrderTestParameters(
+                    OptionStrategies.BullCallSpread(spxw, leg1Strike: 6500m, leg2Strike: 6600m, new DateTime(2026, 9, 25)),
+                    askPrice: 200m,
+                    bidPrice: 0.05m,
+                    limitPriceAdjustmentFactor: 1.3m)).SetArgDisplayNames("SPXW bull call spread 6500/6600 2026-09-25");
             }
         }
 
