@@ -145,6 +145,8 @@ The following table describes the available order types for each asset class tha
 |       StopLimitOrder       |   Yes  |       Yes      |   Yes   |
 |        MarketOnOpen        |   Yes  |                |         |
 |        MarketOnClose       |   Yes  |                |         |
+|      ComboMarketOrder      |        |       Yes      |         |
+|       ComboLimitOrder      |        |       Yes      |         |
 
 
 ## Downloading Data
