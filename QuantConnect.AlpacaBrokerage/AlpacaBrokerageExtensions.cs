@@ -106,17 +106,38 @@ public static class AlpacaBrokerageExtensions
     }
 
     /// <summary>
-    /// Creates the Alpaca request that changes the quantity and the limit price of a multi-leg options order.
+    /// Creates the Alpaca request that changes the quantity and the prices of an order.
+    /// For a combo leg the request changes the whole multi-leg order: the group quantity and the net price of the combo.
     /// </summary>
-    /// <param name="orders">The Lean combo orders, one per leg, all sharing one group order manager.</param>
-    /// <param name="brokerageOrderId">The id of the Alpaca multi-leg order to change.</param>
+    /// <param name="order">The Lean order that carries the new prices; for a combo, any of its legs.</param>
+    /// <param name="brokerageOrderId">The id of the Alpaca order to change.</param>
+    /// <param name="quantity">The new quantity of a single order; for a cross zero order only its first part, see <see cref="Brokerage.TryGetUpdateCrossZeroOrderQuantity"/>.</param>
     /// <returns>The Alpaca change order request.</returns>
-    public static AlpacaMarket.ChangeOrderRequest CreateAlpacaMultiLegChangeOrder(this List<Order> orders, Guid brokerageOrderId)
+    public static AlpacaMarket.ChangeOrderRequest CreateAlpacaChangeOrder(this Order order, string brokerageOrderId, decimal quantity)
     {
-        var changeOrderRequest = new AlpacaMarket.ChangeOrderRequest(brokerageOrderId) { Quantity = Convert.ToInt64(orders[0].GroupOrderManager.AbsoluteQuantity) };
-        if (orders[0] is ComboLimitOrder)
+        var alpacaQuantity = order is ComboOrder ? order.GroupOrderManager.AbsoluteQuantity : Math.Abs(quantity);
+        var changeOrderRequest = new AlpacaMarket.ChangeOrderRequest(new Guid(brokerageOrderId))
         {
-            changeOrderRequest.LimitPrice = orders[0].GroupOrderManager.GetAlpacaNetLimitPrice();
+            Quantity = Convert.ToInt64(alpacaQuantity)
+        };
+        switch (order)
+        {
+            case LimitOrder lo:
+                changeOrderRequest.LimitPrice = lo.LimitPrice;
+                break;
+            case TrailingStopOrder sto:
+                changeOrderRequest.Trail = sto.GetTrailOffsetValue().Value;
+                break;
+            case StopMarketOrder smo:
+                changeOrderRequest.StopPrice = smo.StopPrice;
+                break;
+            case StopLimitOrder slo:
+                changeOrderRequest.LimitPrice = slo.LimitPrice;
+                changeOrderRequest.StopPrice = slo.StopPrice;
+                break;
+            case ComboLimitOrder clo:
+                changeOrderRequest.LimitPrice = clo.GroupOrderManager.GetAlpacaNetLimitPrice();
+                break;
         }
         return changeOrderRequest;
     }

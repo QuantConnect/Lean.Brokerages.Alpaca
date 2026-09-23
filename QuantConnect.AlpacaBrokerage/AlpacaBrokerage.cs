@@ -971,103 +971,47 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <returns>True if the request was made for the order to be updated, false otherwise</returns>
         public override bool UpdateOrder(Order order)
         {
-            // The legs of a combo share one Alpaca order, so the change goes out once, when Lean has sent every leg.
             if (!_groupOrderCacheManager.TryGetGroupCachedOrders(order, out var orders))
             {
                 return true;
             }
 
-            if (orders.Count > 1)
-            {
-                return UpdateMultiLegOrder(orders);
-            }
-
             if (!TryGetUpdateCrossZeroOrderQuantity(order, out var orderQuantity))
             {
-                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, $"{nameof(AlpacaBrokerage)}.{nameof(UpdateOrder)}: Unable to modify order quantities."));
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "UpdateOrderFailed", $"The quantity of the order {order.Id} cannot be changed because it crosses zero"));
                 return false;
             }
 
             var brokerageOrderId = order.BrokerId.Last();
-            var pathOrderRequest = new ChangeOrderRequest(new Guid(brokerageOrderId)) { Quantity = Convert.ToInt64(Math.Abs(orderQuantity)) };
-
-            switch (order)
-            {
-                case Orders.LimitOrder lo:
-                    pathOrderRequest.LimitPrice = lo.LimitPrice;
-                    break;
-                case Orders.TrailingStopOrder sto:
-                    pathOrderRequest.Trail = AlpacaBrokerageExtensions.GetTrailOffsetValue(sto).Value;
-                    break;
-                case StopMarketOrder smo:
-                    pathOrderRequest.StopPrice = smo.StopPrice;
-                    break;
-                case Orders.StopLimitOrder slo:
-                    pathOrderRequest.LimitPrice = slo.LimitPrice;
-                    pathOrderRequest.StopPrice = slo.StopPrice;
-                    break;
-            }
-
+            var changeOrderRequest = order.CreateAlpacaChangeOrder(brokerageOrderId, orderQuantity);
+            var isOrderUpdated = false;
             try
             {
-                IOrder response = null;
                 ExecuteWhenReconnectedAndStreamLocked(nameof(UpdateOrder), () =>
                 {
-                    response = _tradingClient.PatchOrderAsync(pathOrderRequest).SynchronouslyAwaitTaskResult();
+                    var response = _tradingClient.PatchOrderAsync(changeOrderRequest).SynchronouslyAwaitTaskResult();
                     if (response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
                     {
-                        OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"{nameof(AlpacaBrokerage)} Order Event") { Status = Orders.OrderStatus.Invalid });
+                        OnOrderEvents(orders.CreateOrderEvents(Orders.OrderStatus.Invalid, $"Alpaca rejected the update of the order {brokerageOrderId}"));
                         return;
                     }
 
-                    var brokerageOrderId = response.OrderId.ToString();
-                    if (!order.BrokerId.Contains(brokerageOrderId))
-                    {
-                        order.BrokerId.Add(brokerageOrderId);
-                    }
-                });
-                return response != null && response.OrderStatus != AlpacaMarket.OrderStatus.Rejected;
-            }
-            catch (Exception ex)
-            {
-                OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, ex.Message) { Status = Orders.OrderStatus.Invalid });
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Changes the quantity and the limit price of the Alpaca multi-leg options order behind the legs of a Lean combo order.
-        /// Alpaca replaces the order with a new one, so every leg gets the id of the new order as well;
-        /// the update submitted events come later, with the replaced trade update of the old order.
-        /// </summary>
-        /// <param name="orders">The Lean combo orders, one per leg, all sharing one group order manager.</param>
-        /// <returns>True if Alpaca took the change, false otherwise</returns>
-        private bool UpdateMultiLegOrder(List<Order> orders)
-        {
-            var brokerageOrderId = orders[0].BrokerId.Last();
-            try
-            {
-                IOrder response = null;
-                ExecuteWhenReconnectedAndStreamLocked(nameof(UpdateOrder), () =>
-                {
-                    var changeOrderRequest = orders.CreateAlpacaMultiLegChangeOrder(new Guid(brokerageOrderId));
-                    response = _tradingClient.PatchOrderAsync(changeOrderRequest).SynchronouslyAwaitTaskResult();
-
                     var newBrokerageOrderId = response.OrderId.ToString();
-                    foreach (var order in orders)
+                    foreach (var groupOrder in orders)
                     {
-                        if (!order.BrokerId.Contains(newBrokerageOrderId))
+                        if (!groupOrder.BrokerId.Contains(newBrokerageOrderId))
                         {
-                            order.BrokerId.Add(newBrokerageOrderId);
+                            groupOrder.BrokerId.Add(newBrokerageOrderId);
                         }
                     }
+
+                    isOrderUpdated = true;
                 });
-                return true;
+                return isOrderUpdated;
             }
             catch (Exception ex)
             {
-                // A refused change leaves the order open at Alpaca as it was, so the legs must stay open in Lean too.
-                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "UpdateOrderFailed", $"Update of the multi-leg order {brokerageOrderId} failed: {ex.Message}"));
+                OnOrderEvents(orders.CreateOrderEvents(Orders.OrderStatus.Invalid, ex.Message));
                 return false;
             }
         }
