@@ -424,7 +424,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     leanOrder = new Orders.TrailingStopOrder(leanSymbol, quantity, brokerageOrder.StopPrice.Value, trailingAmount, trailingAsPercent, brokerageOrder.SubmittedAtUtc.Value, properties: orderProperties);
                     break;
                 default:
-                    throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(CreateLeanOrder)}: Order type '{brokerageOrder.OrderType}' is not supported.");
+                    throw new NotSupportedException($"The Order type '{brokerageOrder.OrderType}' is not supported.");
             }
 
             leanOrder.Status = Orders.OrderStatus.Submitted;
@@ -463,7 +463,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     groupOrderManager = new GroupOrderManager(brokerageOrder.Legs.Count, groupQuantity, Math.Abs(brokerageOrder.LimitPrice.Value));
                     break;
                 default:
-                    throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(CreateComboLeanOrders)}: Order type '{brokerageOrder.OrderType}' is not supported for multi-leg orders.");
+                    throw new NotSupportedException($"The Order type '{brokerageOrder.OrderType}' is not supported for multi-leg orders.");
             }
 
             var leanOrders = new List<Order>(brokerageOrder.Legs.Count);
