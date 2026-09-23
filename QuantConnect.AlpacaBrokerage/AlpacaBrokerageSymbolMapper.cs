@@ -233,14 +233,12 @@ public class AlpacaBrokerageSymbolMapper : ISymbolMapper
     {
         if (symbol.SecurityType is not (SecurityType.Option or SecurityType.IndexOption))
         {
-            throw new ArgumentException($"{nameof(AlpacaBrokerageSymbolMapper)}.{nameof(GenerateBrokerageOptionSymbol)}: The provided symbol must be of type Option or IndexOption.", nameof(symbol));
+            throw new ArgumentException("The provided symbol must be of type Option or IndexOption.", nameof(symbol));
         }
-
-        var strikePriceString = (Convert.ToInt32(symbol.ID.StrikePrice * 1000)).ToStringInvariant("D8");
 
         // An index option can trade under a root of its own (SPXW on SPX), which the option ticker carries and the index does not.
         var root = symbol.SecurityType == SecurityType.IndexOption ? symbol.ID.Symbol : SecurityIdentifier.Ticker(symbol.Underlying, DateTime.UtcNow);
 
-        return $"{root}{symbol.ID.Date:yyMMdd}{symbol.ID.OptionRight.ToString()[0]}{strikePriceString}";
+        return SymbolRepresentation.GenerateOptionTickerOSICompact(root, symbol.ID.OptionRight, symbol.ID.StrikePrice, symbol.ID.Date);
     }
 }
