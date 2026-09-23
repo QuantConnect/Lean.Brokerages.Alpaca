@@ -614,7 +614,7 @@ namespace QuantConnect.Brokerages.Alpaca
         /// The request and the submitted events run inside the stream lock, so a fill cannot be handled before the legs carry the id.
         /// </summary>
         /// <param name="orders">The Lean combo orders, one per leg, all sharing one group order manager.</param>
-        /// <returns>True if Alpaca took the order, false if it was rejected or the request failed.</returns>
+        /// <returns>Always true; a rejected or failed request reaches Lean as Invalid order events, like a single order.</returns>
         private bool PlaceMultiLegOrder(List<Order> orders)
         {
             var orderRequest = orders.CreateAlpacaMultiLegOrder(_symbolMapper, _securityProvider);
@@ -811,7 +811,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     orderEvents.Add(new OrderEvent(leanOrder, obj.TimestampUtc ?? DateTime.UtcNow, fee)
                     {
                         Status = newLeanOrderStatus,
-                        FillPrice = isMultiLegOrder ? leg.AverageFillPrice ?? 0m : obj.Price ?? 0m,
+                        FillPrice = isMultiLegOrder ? GetComboLegFillPrice(leg, leanOrder) : obj.Price ?? 0m,
                         FillQuantity = accumulativeFilledQuantity - previouslyFilledAmount,
                     });
                 }
@@ -832,6 +832,28 @@ namespace QuantConnect.Brokerages.Alpaca
                 Log.Error(ex, $"TradeUpdate: {obj}");
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Gets the price of the contracts a combo leg filled since Lean last booked it. The leg carries the average price
+        /// of everything it filled, so the price of the new quantity is what is left once the money Lean already booked
+        /// is taken out of it. With no new quantity, Alpaca's average stays.
+        /// </summary>
+        /// <param name="leg">The Alpaca leg with its total filled quantity and average fill price.</param>
+        /// <param name="leanOrder">The Lean order of the leg.</param>
+        /// <returns>The fill price of the new quantity.</returns>
+        private decimal GetComboLegFillPrice(IOrder leg, Order leanOrder)
+        {
+            // The ticket keeps a signed quantity, the Alpaca leg counts up from zero.
+            var orderTicket = _orderProvider.GetOrderTicket(leanOrder.Id);
+            var reportedQuantity = Math.Abs(orderTicket?.QuantityFilled ?? 0m);
+            var newQuantity = leg.FilledQuantity - reportedQuantity;
+            if (newQuantity <= 0)
+            {
+                return leg.AverageFillPrice.Value;
+            }
+
+            return (leg.FilledQuantity * leg.AverageFillPrice.Value - reportedQuantity * (orderTicket?.AverageFillPrice ?? 0m)) / newQuantity;
         }
 
         /// <summary>
@@ -894,7 +916,7 @@ namespace QuantConnect.Brokerages.Alpaca
         public override bool CancelOrder(Order order)
         {
             // The legs of a combo share one Alpaca order, so the cancel request goes out once, when Lean has asked to cancel every leg.
-            if (!_groupOrderCacheManager.TryGetGroupCachedOrders(order, out _))
+            if (!_groupOrderCacheManager.TryGetGroupCachedOrders(order, out var orders))
             {
                 return true;
             }
@@ -923,7 +945,7 @@ namespace QuantConnect.Brokerages.Alpaca
             }
             catch (Exception ex)
             {
-                OnOrderEvent(new OrderEvent(order, DateTime.UtcNow, OrderFee.Zero, $"Cancel order {order.Id} failed: {ex.Message}") { Status = Orders.OrderStatus.Invalid });
+                OnOrderEvents(orders.CreateOrderEvents(Orders.OrderStatus.Invalid, ex.Message));
                 return false;
             }
         }
