@@ -493,6 +493,8 @@ namespace QuantConnect.Brokerages.Alpaca
                 leanOrders.Add(leanOrder);
             }
 
+            _duplicationExecutionOrderIdByBrokerageOrderId[brokerageOrder.OrderId] = [];
+
             return leanOrders;
         }
 
@@ -658,27 +660,26 @@ namespace QuantConnect.Brokerages.Alpaca
                 Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}: {obj}");
 
                 var brokerageOrderId = obj.Order.OrderId.ToString();
-
-                // A multi-leg order is one Alpaca order but one Lean order per leg, so the single order lookup below cannot serve it.
-                if (obj.Order.OrderClass == OrderClass.MultiLegOptions)
-                {
-                    HandleMultiLegTradeUpdate(obj, _orderProvider.GetOrdersByBrokerageId(brokerageOrderId));
-                    return;
-                }
-
                 var newLeanOrderStatus = GetOrderStatus(obj.Event);
-                if (!TryGetOrRemoveCrossZeroOrder(brokerageOrderId, newLeanOrderStatus, out var leanOrder))
+                // A multi-leg order is one Alpaca order but one Lean order per leg, so the update works on a list; a single order is a list of one.
+                var leanOrders = default(List<Order>);
+                if (TryGetOrRemoveCrossZeroOrder(brokerageOrderId, newLeanOrderStatus, out var crossZeroLeanOrder))
                 {
-                    leanOrder = _orderProvider.GetOrdersByBrokerageId(brokerageOrderId)?.SingleOrDefault();
-                    if (leanOrder == null && TryConvertToLeanOrders(obj.Order, out var convertedOrders))
+                    leanOrders = [crossZeroLeanOrder];
+                }
+                else
+                {
+                    leanOrders = _orderProvider.GetOrdersByBrokerageId(brokerageOrderId);
+                    if ((leanOrders == null || leanOrders.Count == 0) && TryConvertToLeanOrders(obj.Order, out leanOrders))
                     {
-                        leanOrder = convertedOrders[0];
-                        OnNewBrokerageOrderNotification(new(leanOrder));
-
-                        if (leanOrder.Id != 0)
+                        foreach (var leanOrder in leanOrders)
                         {
-                            OnOrderEvent(new OrderEvent(leanOrder, DateTime.UtcNow, OrderFee.Zero, $"Order was submitted outside Lean")
-                            { Status = Orders.OrderStatus.Submitted });
+                            OnNewBrokerageOrderNotification(new(leanOrder));
+                        }
+
+                        if (leanOrders.All(leanOrder => leanOrder.Id != 0))
+                        {
+                            OnOrderEvents(leanOrders.CreateOrderEvents(Orders.OrderStatus.Submitted, "Order was submitted outside Lean"));
 
                             if (newLeanOrderStatus == Orders.OrderStatus.Submitted)
                             {
@@ -687,11 +688,11 @@ namespace QuantConnect.Brokerages.Alpaca
                         }
                         else
                         {
-                            leanOrder = null;
+                            leanOrders = null;
                         }
                     }
                 }
-                if (leanOrder == null)
+                if (leanOrders == null || leanOrders.Count == 0)
                 {
                     Log.Error($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}: order id not found: {obj.Order.OrderId}");
                     return;
@@ -699,7 +700,9 @@ namespace QuantConnect.Brokerages.Alpaca
 
                 // Alpaca can replay trade updates (new/fill) after a terminal event. Once the Lean
                 // order is in a closed state, discard any further updates to avoid duplicate events.
-                if (leanOrder.Status.IsClosed())
+                // A leg of a combo can be done while the others still wait, so only the open ones go on.
+                leanOrders.RemoveAll(leanOrder => leanOrder.Status.IsClosed());
+                if (leanOrders.Count == 0)
                 {
                     return;
                 }
@@ -722,9 +725,12 @@ namespace QuantConnect.Brokerages.Alpaca
                                 var replacedBrokerageOrderId = obj.Order.ReplacedByOrderId.Value;
                                 // If the order already exists in the BrokerId list, it means the update was initiated by Lean.
                                 // Otherwise, the order was updated outside of Lean and we need to notify about the new brokerage ID.
-                                if (!leanOrder.BrokerId.Contains(replacedBrokerageOrderId.ToString()))
+                                foreach (var leanOrder in leanOrders)
                                 {
-                                    OnOrderIdChangedEvent(new() { OrderId = leanOrder.Id, BrokerId = [replacedBrokerageOrderId.ToString()] });
+                                    if (!leanOrder.BrokerId.Contains(replacedBrokerageOrderId.ToString()))
+                                    {
+                                        OnOrderIdChangedEvent(new() { OrderId = leanOrder.Id, BrokerId = [replacedBrokerageOrderId.ToString()] });
+                                    }
                                 }
                                 _duplicationExecutionOrderIdByBrokerageOrderId[replacedBrokerageOrderId] = [];
                             }
@@ -734,7 +740,7 @@ namespace QuantConnect.Brokerages.Alpaca
                                 message = $"{nameof(AlpacaBrokerage)} Order Event";
                             }
 
-                            OnOrderEvent(new OrderEvent(leanOrder, DateTime.UtcNow, OrderFee.Zero, message) { Status = newLeanOrderStatus });
+                            OnOrderEvents(leanOrders.CreateOrderEvents(newLeanOrderStatus, message));
                         }
                         return;
                     case TradeEvent.Fill:
@@ -744,7 +750,8 @@ namespace QuantConnect.Brokerages.Alpaca
                         }
                         return;
                     case TradeEvent.PartialFill:
-                        if (_duplicationExecutionOrderIdByBrokerageOrderId[obj.Order.OrderId].Add(obj.ExecutionId.Value))
+                        // A multi-leg update has no execution id; a replayed one is caught below by the unchanged filled quantity of its legs.
+                        if (!obj.ExecutionId.HasValue || _duplicationExecutionOrderIdByBrokerageOrderId[obj.Order.OrderId].Add(obj.ExecutionId.Value))
                         {
                             break;
                         }
@@ -759,37 +766,77 @@ namespace QuantConnect.Brokerages.Alpaca
                         return;
                 }
 
-                var leanSymbol = _symbolMapper.GetLeanSymbol(obj.Order.AssetClass, obj.Order.Symbol);
-
-                // alpaca sends the accumulative filled quantity but we need the partial amount for our event
-                _orderIdToFillQuantity.TryGetValue(leanOrder.Id, out var previouslyFilledAmount);
-                var accumulativeFilledQuantity = _orderIdToFillQuantity[leanOrder.Id] =
-                    obj.Order.OrderSide == OrderSide.Buy ? obj.Order.FilledQuantity : decimal.Negate(obj.Order.FilledQuantity);
-
-                if (newLeanOrderStatus.IsClosed())
+                // A multi-leg update carries the fills on its legs, a single order carries them on itself.
+                IReadOnlyList<IOrder> legs = obj.Order.OrderClass == OrderClass.MultiLegOptions ? obj.Order.Legs : [obj.Order];
+                var orderEvents = new List<OrderEvent>(legs.Count);
+                foreach (var leg in legs)
                 {
-                    // cleanup
-                    _orderIdToFillQuantity.TryRemove(leanOrder.Id, out _);
+                    var leanOrder = legs.Count == 1 ? leanOrders[0] : leanOrders.Find(order => order.Symbol == _symbolMapper.GetLeanSymbol(leg.AssetClass, leg.Symbol));
+                    if (leanOrder == null)
+                    {
+                        // The leg is done already: it left the list with the closed orders above.
+                        continue;
+                    }
+
+                    // alpaca sends the accumulative filled quantity but we need the partial amount for our event
+                    _orderIdToFillQuantity.TryGetValue(leanOrder.Id, out var previouslyFilledAmount);
+                    var accumulativeFilledQuantity = _orderIdToFillQuantity[leanOrder.Id] =
+                        leg.OrderSide == OrderSide.Buy ? leg.FilledQuantity : decimal.Negate(leg.FilledQuantity);
+
+                    if (newLeanOrderStatus.IsClosed())
+                    {
+                        // cleanup
+                        _orderIdToFillQuantity.TryRemove(leanOrder.Id, out _);
+                    }
+
+                    // A leg of the combo that did not trade this time, or a replayed update, brings nothing new.
+                    if (legs.Count > 1 && newLeanOrderStatus == Orders.OrderStatus.PartiallyFilled && accumulativeFilledQuantity == previouslyFilledAmount)
+                    {
+                        continue;
+                    }
+
+                    // A multi-leg update carries the net price of the whole order at the top, so the price of a leg
+                    // comes from the change of its average price against what the Lean order ticket already holds.
+                    var fillPrice = obj.Price ?? 0m;
+                    if (legs.Count > 1)
+                    {
+                        if (!leg.AverageFillPrice.HasValue)
+                        {
+                            Log.Error($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}: the leg '{leg.Symbol}' of the order {obj.Order.OrderId} shows a fill without an average fill price. TradeUpdate: {obj}");
+                            continue;
+                        }
+
+                        var orderTicket = _orderProvider.GetOrderTicket(leanOrder.Id);
+                        var ticketFilledQuantity = orderTicket?.QuantityFilled ?? 0m;
+                        fillPrice = accumulativeFilledQuantity == ticketFilledQuantity
+                            ? leg.AverageFillPrice.Value
+                            : (leg.AverageFillPrice.Value * accumulativeFilledQuantity - (orderTicket?.AverageFillPrice ?? 0m) * ticketFilledQuantity) / (accumulativeFilledQuantity - ticketFilledQuantity);
+                    }
+
+                    var fee = new OrderFee(new CashAmount(0, Currencies.USD));
+                    if (newLeanOrderStatus == Orders.OrderStatus.Filled)
+                    {
+                        var security = _securityProvider.GetSecurity(leanOrder.Symbol);
+                        fee = security.FeeModel.GetOrderFee(new OrderFeeParameters(security, leanOrder));
+                    }
+
+                    orderEvents.Add(new OrderEvent(leanOrder, obj.TimestampUtc.HasValue ? obj.TimestampUtc.Value : DateTime.UtcNow, fee)
+                    {
+                        Status = newLeanOrderStatus,
+                        FillPrice = fillPrice,
+                        FillQuantity = accumulativeFilledQuantity - previouslyFilledAmount,
+                    });
                 }
 
-                var fee = new OrderFee(new CashAmount(0, Currencies.USD));
-                if (newLeanOrderStatus == Orders.OrderStatus.Filled)
+                if (orderEvents.Count == 0)
                 {
-                    var security = _securityProvider.GetSecurity(leanOrder.Symbol);
-                    fee = security.FeeModel.GetOrderFee(new OrderFeeParameters(security, leanOrder));
+                    return;
                 }
-
-                var orderEvent = new OrderEvent(leanOrder, obj.TimestampUtc.HasValue ? obj.TimestampUtc.Value : DateTime.UtcNow, fee)
-                {
-                    Status = newLeanOrderStatus,
-                    FillPrice = obj.Price ?? 0m,
-                    FillQuantity = accumulativeFilledQuantity - previouslyFilledAmount,
-                };
 
                 // if we filled the order and have another contingent order waiting, submit it
-                if (!TryHandleRemainingCrossZeroOrder(leanOrder, orderEvent))
+                if (!TryHandleRemainingCrossZeroOrder(leanOrders[0], orderEvents[0]))
                 {
-                    OnOrderEvent(orderEvent);
+                    OnOrderEvents(orderEvents);
                 }
             }
             catch (Exception ex)
@@ -797,171 +844,6 @@ namespace QuantConnect.Brokerages.Alpaca
                 Log.Error(ex, $"TradeUpdate: {obj}");
                 throw;
             }
-        }
-
-        /// <summary>
-        /// Handles a trade update of an Alpaca multi-leg options order. The update comes for the whole order,
-        /// and each of its legs is reported to Lean through the combo order of that leg.
-        /// </summary>
-        /// <param name="obj">The trade update of the multi-leg order.</param>
-        /// <param name="leanOrders">The Lean combo orders that carry the id of the multi-leg order; empty when Lean does not know the order.</param>
-        private void HandleMultiLegTradeUpdate(ITradeUpdate obj, List<Order> leanOrders)
-        {
-            var newLeanOrderStatus = GetOrderStatus(obj.Event);
-            if (leanOrders.Count == 0)
-            {
-                // An outside order first seen on a closing event would be offered to the algorithm only to close at once.
-                if (newLeanOrderStatus is not (Orders.OrderStatus.Submitted or Orders.OrderStatus.PartiallyFilled or Orders.OrderStatus.Filled)
-                    || !TryConvertToLeanOrders(obj.Order, out leanOrders))
-                {
-                    return;
-                }
-
-                foreach (var leanOrder in leanOrders)
-                {
-                    OnNewBrokerageOrderNotification(new(leanOrder));
-                    if (leanOrder.Id == 0)
-                    {
-                        return;
-                    }
-                }
-
-                OnOrderEvents(leanOrders.CreateOrderEvents(Orders.OrderStatus.Submitted, "Order was submitted outside Lean"));
-
-                if (newLeanOrderStatus == Orders.OrderStatus.Submitted)
-                {
-                    return;
-                }
-            }
-
-            switch (obj.Event)
-            {
-                case TradeEvent.Rejected:
-                case TradeEvent.Canceled:
-                case TradeEvent.Replaced:
-                case TradeEvent.Expired:
-                    var openLeanOrders = new List<Order>(leanOrders.Count);
-                    foreach (var leanOrder in leanOrders)
-                    {
-                        // Alpaca can replay a trade update after a terminal event; a closed leg must not get a second event.
-                        if (leanOrder.Status.IsClosed())
-                        {
-                            continue;
-                        }
-
-                        if (newLeanOrderStatus == Orders.OrderStatus.UpdateSubmitted)
-                        {
-                            var replacedBrokerageOrderId = obj.Order.ReplacedByOrderId.Value.ToString();
-                            // If the order already exists in the BrokerId list, it means the update was initiated by Lean.
-                            // Otherwise, the order was updated outside of Lean and we need to notify about the new brokerage ID.
-                            if (!leanOrder.BrokerId.Contains(replacedBrokerageOrderId))
-                            {
-                                OnOrderIdChangedEvent(new() { OrderId = leanOrder.Id, BrokerId = [replacedBrokerageOrderId] });
-                            }
-                        }
-
-                        openLeanOrders.Add(leanOrder);
-                    }
-
-                    if (openLeanOrders.Count > 0)
-                    {
-                        if (!_tradeEventReason.TryGetValue(obj.Event, out var message))
-                        {
-                            message = $"{nameof(AlpacaBrokerage)} Order Event";
-                        }
-
-                        OnOrderEvents(openLeanOrders.CreateOrderEvents(newLeanOrderStatus, message));
-                    }
-                    return;
-                case TradeEvent.Fill:
-                case TradeEvent.PartialFill:
-                    var fillEvents = CreateMultiLegFillEvents(obj, leanOrders);
-                    if (fillEvents.Count > 0)
-                    {
-                        OnOrderEvents(fillEvents);
-                    }
-                    return;
-                case TradeEvent.New:
-                case TradeEvent.PendingNew:
-                case TradeEvent.Accepted:
-                case TradeEvent.PendingReplace:
-                case TradeEvent.PendingCancel:
-                    // we don't send anything for these events
-                    return;
-                default:
-                    Log.Trace($"{nameof(AlpacaBrokerage)}.{nameof(HandleMultiLegTradeUpdate)}.Event: {obj.Event}. TradeUpdate: {obj}");
-                    return;
-            }
-        }
-
-        /// <summary>
-        /// Creates the fill events of the legs of a multi-leg order from one trade update.
-        /// The update carries no execution id and only the net price of the whole order, so the fill of each leg
-        /// is worked out from the filled quantity and the average fill price Alpaca reports on that leg.
-        /// </summary>
-        /// <param name="obj">The fill or partial fill trade update of the multi-leg order.</param>
-        /// <param name="leanOrders">The Lean combo orders of the legs.</param>
-        /// <returns>One fill event for each leg whose filled quantity grew; empty when the update brings nothing new.</returns>
-        private List<OrderEvent> CreateMultiLegFillEvents(ITradeUpdate obj, List<Order> leanOrders)
-        {
-            var fillEvents = new List<OrderEvent>(leanOrders.Count);
-            foreach (var leg in obj.Order.Legs)
-            {
-                var leanSymbol = _symbolMapper.GetLeanSymbol(leg.AssetClass, leg.Symbol);
-                var leanOrder = leanOrders.FirstOrDefault(order => order.Symbol == leanSymbol);
-                if (leanOrder == null)
-                {
-                    Log.Error($"{nameof(AlpacaBrokerage)}.{nameof(CreateMultiLegFillEvents)}: no Lean order found for the leg '{leg.Symbol}' of the multi-leg order {obj.Order.OrderId}");
-                    continue;
-                }
-
-                // Alpaca can replay a trade update after a terminal event; a closed leg must not get a second fill.
-                if (leanOrder.Status.IsClosed())
-                {
-                    continue;
-                }
-
-                // Alpaca sends the running totals of the leg; what Lean was already told is on the order ticket.
-                var orderTicket = _orderProvider.GetOrderTicket(leanOrder.Id);
-                var previouslyFilledQuantity = orderTicket?.QuantityFilled ?? 0m;
-                var accumulativeFilledQuantity = leg.OrderSide == OrderSide.Buy ? leg.FilledQuantity : decimal.Negate(leg.FilledQuantity);
-                var fillQuantity = accumulativeFilledQuantity - previouslyFilledQuantity;
-
-                // Without an execution id, an unchanged filled quantity is the only sign of a replayed update or of a leg that did not trade this time.
-                if (fillQuantity == 0)
-                {
-                    continue;
-                }
-
-                if (!leg.AverageFillPrice.HasValue)
-                {
-                    Log.Error($"{nameof(AlpacaBrokerage)}.{nameof(CreateMultiLegFillEvents)}: the leg '{leg.Symbol}' of the multi-leg order {obj.Order.OrderId} shows a fill without an average fill price. TradeUpdate: {obj}");
-                    continue;
-                }
-
-                // Alpaca gives the average price of everything filled so far; the price of this fill alone comes from the change of that average.
-                var previousAverageFillPrice = orderTicket?.AverageFillPrice ?? 0m;
-                var fillPrice = (leg.AverageFillPrice.Value * accumulativeFilledQuantity - previousAverageFillPrice * previouslyFilledQuantity) / fillQuantity;
-
-                var status = Orders.OrderStatus.PartiallyFilled;
-                var fee = new OrderFee(new CashAmount(0, Currencies.USD));
-                if (accumulativeFilledQuantity == leanOrder.Quantity)
-                {
-                    status = Orders.OrderStatus.Filled;
-
-                    var security = _securityProvider.GetSecurity(leanOrder.Symbol);
-                    fee = security.FeeModel.GetOrderFee(new OrderFeeParameters(security, leanOrder));
-                }
-
-                fillEvents.Add(new OrderEvent(leanOrder, obj.TimestampUtc.HasValue ? obj.TimestampUtc.Value : DateTime.UtcNow, fee)
-                {
-                    Status = status,
-                    FillPrice = fillPrice,
-                    FillQuantity = fillQuantity
-                });
-            }
-
-            return fillEvents;
         }
 
         /// <summary>

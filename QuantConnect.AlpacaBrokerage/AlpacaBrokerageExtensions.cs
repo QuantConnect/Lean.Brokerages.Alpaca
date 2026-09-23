@@ -192,7 +192,7 @@ public static class AlpacaBrokerageExtensions
             case OrderPosition.SellToClose:
                 return AlpacaMarket.PositionIntent.SellToClose;
             default:
-                throw new NotSupportedException($"{nameof(AlpacaBrokerageExtensions)}.{nameof(GetAlpacaPositionIntent)}: The order position '{orderPosition}' is not supported.");
+                throw new NotSupportedException($"The order position '{orderPosition}' is not supported.");
         }
     }
 
@@ -262,7 +262,6 @@ public static class AlpacaBrokerageExtensions
             default:
                 throw new NotSupportedException($"{nameof(AlpacaBrokerageExtensions)}.{nameof(CreateAlpacaSellOrder)}: The order type '{order.GetType().Name}' is not supported for Alpaca sell orders.");
         }
-        ;
     }
 
     /// <summary>
@@ -303,7 +302,6 @@ public static class AlpacaBrokerageExtensions
             default:
                 throw new NotSupportedException($"{nameof(AlpacaBrokerageExtensions)}.{nameof(CreateAlpacaBuyOrder)}: The order type '{order.GetType().Name}' is not supported for Alpaca buy orders.");
         }
-        ;
     }
 
     /// <summary>
