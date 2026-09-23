@@ -98,7 +98,7 @@ public partial class AlpacaBrokerage
         {
             SecurityType.Crypto => _cryptoStreamingClient,
             SecurityType.Equity => _equityStreamingClient,
-            SecurityType.Option => _optionsStreamingClient,
+            SecurityType.Option or SecurityType.IndexOption => _optionsStreamingClient,
             _ => throw new NotSupportedException($"{nameof(AlpacaBrokerage)}.{nameof(GetStreamingDataClient)}: Security type '{securityType}' is not supported.")
         };
 
