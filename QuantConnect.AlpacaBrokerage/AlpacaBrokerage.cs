@@ -997,11 +997,11 @@ namespace QuantConnect.Brokerages.Alpaca
                     }
 
                     var newBrokerageOrderId = response.OrderId.ToString();
-                    foreach (var groupOrder in orders)
+                    foreach (var leanOrder in orders)
                     {
-                        if (!groupOrder.BrokerId.Contains(newBrokerageOrderId))
+                        if (!leanOrder.BrokerId.Contains(newBrokerageOrderId))
                         {
-                            groupOrder.BrokerId.Add(newBrokerageOrderId);
+                            leanOrder.BrokerId.Add(newBrokerageOrderId);
                         }
                     }
 
