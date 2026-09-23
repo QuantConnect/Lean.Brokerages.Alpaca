@@ -661,7 +661,6 @@ namespace QuantConnect.Brokerages.Alpaca
 
                 var brokerageOrderId = obj.Order.OrderId.ToString();
                 var newLeanOrderStatus = GetOrderStatus(obj.Event);
-                // A multi-leg order is one Alpaca order but one Lean order per leg, so the update works on a list; a single order is a list of one.
                 var leanOrders = default(List<Order>);
                 if (TryGetOrRemoveCrossZeroOrder(brokerageOrderId, newLeanOrderStatus, out var crossZeroLeanOrder))
                 {
@@ -701,7 +700,13 @@ namespace QuantConnect.Brokerages.Alpaca
                 // Alpaca can replay trade updates (new/fill) after a terminal event. Once the Lean
                 // order is in a closed state, discard any further updates to avoid duplicate events.
                 // A leg of a combo can be done while the others still wait, so only the open ones go on.
-                leanOrders.RemoveAll(leanOrder => leanOrder.Status.IsClosed());
+                for (var i = leanOrders.Count - 1; i >= 0; i--)
+                {
+                    if (leanOrders[i].Status.IsClosed())
+                    {
+                        leanOrders.RemoveAt(i);
+                    }
+                }
                 if (leanOrders.Count == 0)
                 {
                     return;
@@ -767,14 +772,15 @@ namespace QuantConnect.Brokerages.Alpaca
                 }
 
                 // A multi-leg update carries the fills on its legs, a single order carries them on itself.
-                IReadOnlyList<IOrder> legs = obj.Order.OrderClass == OrderClass.MultiLegOptions ? obj.Order.Legs : [obj.Order];
+                var isMultiLegOrder = obj.Order.OrderClass == OrderClass.MultiLegOptions;
+                IReadOnlyList<IOrder> legs = isMultiLegOrder ? obj.Order.Legs : [obj.Order];
                 var orderEvents = new List<OrderEvent>(legs.Count);
                 foreach (var leg in legs)
                 {
-                    var leanOrder = legs.Count == 1 ? leanOrders[0] : leanOrders.Find(order => order.Symbol == _symbolMapper.GetLeanSymbol(leg.AssetClass, leg.Symbol));
+                    var leanOrder = isMultiLegOrder ? leanOrders.Find(order => order.Symbol == _symbolMapper.GetLeanSymbol(leg.AssetClass, leg.Symbol)) : leanOrders[0];
                     if (leanOrder == null)
                     {
-                        // The leg is done already: it left the list with the closed orders above.
+                        Log.Error($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}: no Lean order found for the leg '{leg.Symbol}' of the order {obj.Order.OrderId}");
                         continue;
                     }
 
@@ -790,27 +796,9 @@ namespace QuantConnect.Brokerages.Alpaca
                     }
 
                     // A leg of the combo that did not trade this time, or a replayed update, brings nothing new.
-                    if (legs.Count > 1 && newLeanOrderStatus == Orders.OrderStatus.PartiallyFilled && accumulativeFilledQuantity == previouslyFilledAmount)
+                    if (isMultiLegOrder && newLeanOrderStatus == Orders.OrderStatus.PartiallyFilled && accumulativeFilledQuantity == previouslyFilledAmount)
                     {
                         continue;
-                    }
-
-                    // A multi-leg update carries the net price of the whole order at the top, so the price of a leg
-                    // comes from the change of its average price against what the Lean order ticket already holds.
-                    var fillPrice = obj.Price ?? 0m;
-                    if (legs.Count > 1)
-                    {
-                        if (!leg.AverageFillPrice.HasValue)
-                        {
-                            Log.Error($"{nameof(AlpacaBrokerage)}.{nameof(HandleTradeUpdate)}: the leg '{leg.Symbol}' of the order {obj.Order.OrderId} shows a fill without an average fill price. TradeUpdate: {obj}");
-                            continue;
-                        }
-
-                        var orderTicket = _orderProvider.GetOrderTicket(leanOrder.Id);
-                        var ticketFilledQuantity = orderTicket?.QuantityFilled ?? 0m;
-                        fillPrice = accumulativeFilledQuantity == ticketFilledQuantity
-                            ? leg.AverageFillPrice.Value
-                            : (leg.AverageFillPrice.Value * accumulativeFilledQuantity - (orderTicket?.AverageFillPrice ?? 0m) * ticketFilledQuantity) / (accumulativeFilledQuantity - ticketFilledQuantity);
                     }
 
                     var fee = new OrderFee(new CashAmount(0, Currencies.USD));
@@ -820,10 +808,10 @@ namespace QuantConnect.Brokerages.Alpaca
                         fee = security.FeeModel.GetOrderFee(new OrderFeeParameters(security, leanOrder));
                     }
 
-                    orderEvents.Add(new OrderEvent(leanOrder, obj.TimestampUtc.HasValue ? obj.TimestampUtc.Value : DateTime.UtcNow, fee)
+                    orderEvents.Add(new OrderEvent(leanOrder, obj.TimestampUtc ?? DateTime.UtcNow, fee)
                     {
                         Status = newLeanOrderStatus,
-                        FillPrice = fillPrice,
+                        FillPrice = isMultiLegOrder ? leg.AverageFillPrice ?? 0m : obj.Price ?? 0m,
                         FillQuantity = accumulativeFilledQuantity - previouslyFilledAmount,
                     });
                 }
