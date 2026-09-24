@@ -49,6 +49,12 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             base.ContingentOrdersCancel(parameters);
         }
 
+        [Test, Explicit("Requires an Alpaca account"), TestCaseSource(nameof(RestingContingentOrders))]
+        public override void ContingentOrdersGetOpenOrders(ContingentOrderTestParameters parameters)
+        {
+            base.ContingentOrdersGetOpenOrders(parameters);
+        }
+
         [Test, Explicit("Requires an Alpaca account"), TestCaseSource(nameof(TriggeredContingentOrders))]
         public override void ContingentOrdersTrigger(ContingentOrderTestParameters parameters)
         {
