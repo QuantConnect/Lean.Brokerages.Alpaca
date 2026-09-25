@@ -1087,7 +1087,8 @@ namespace QuantConnect.Brokerages.Alpaca
                     var response = _tradingClient.PatchOrderAsync(changeOrderRequest).SynchronouslyAwaitTaskResult();
                     if (response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
                     {
-                        OnOrderEvents(orders.CreateOrderEvents(Orders.OrderStatus.Invalid, $"Alpaca rejected the update of the order {brokerageOrderId}"));
+                        // the replacing order is rejected when the order filled before it reached the venue, the fill is reported by the stream
+                        OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "UpdateOrderFailed", $"Alpaca rejected the update of the order {order.Id} (BrokerId: {brokerageOrderId})"));
                         return;
                     }
 
@@ -1106,7 +1107,8 @@ namespace QuantConnect.Brokerages.Alpaca
             }
             catch (Exception ex)
             {
-                OnOrderEvents(orders.CreateOrderEvents(Orders.OrderStatus.Invalid, ex.Message));
+                // the request failed, the order is still working unchanged
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "UpdateOrderFailed", $"Failed to update the order {order.Id} (BrokerId: {brokerageOrderId}): {ex.Message}"));
                 return false;
             }
         }
