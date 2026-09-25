@@ -64,13 +64,13 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             {
                 var AAPL = Symbol.Create("AAPL", SecurityType.Equity, Market.USA);
                 yield return new TestCaseData(new MarketOrderTestParameters(AAPL));
-                yield return new TestCaseData(new LimitOrderTestParameters(AAPL, 280m, 250m));
-                yield return new TestCaseData(new StopMarketOrderTestParameters(AAPL, 280m, 250m));
-                yield return new TestCaseData(new StopLimitOrderTestParameters(AAPL, 280m, 250m));
+                yield return new TestCaseData(new LimitOrderTestParameters(AAPL, 370m, 300m));
+                yield return new TestCaseData(new StopMarketOrderTestParameters(AAPL, 370m, 300m));
+                yield return new TestCaseData(new StopLimitOrderTestParameters(AAPL, 370m, 300m));
                 var CIFR = Symbol.Create("CIFR", SecurityType.Equity, Market.USA);
-                yield return new TestCaseData(new TrailingStopOrderTestParameters(CIFR, 280m, 250m, 0.02m, trailingAsPercentage: true));
+                yield return new TestCaseData(new TrailingStopOrderTestParameters(CIFR, 20m, 16m, 0.02m, trailingAsPercentage: true));
                 var TSLA = Symbol.Create("TSLA", SecurityType.Equity, Market.USA);
-                yield return new TestCaseData(new TrailingStopOrderTestParameters(TSLA, 470m, 440m, 5m, trailingAsPercentage: false));
+                yield return new TestCaseData(new TrailingStopOrderTestParameters(TSLA, 410m, 340m, 5m, trailingAsPercentage: false));
             }
         }
 
