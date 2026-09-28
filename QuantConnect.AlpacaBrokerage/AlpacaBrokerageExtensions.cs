@@ -336,7 +336,7 @@ public static class AlpacaBrokerageExtensions
         {
             DayTimeInForce => AlpacaMarket.TimeInForce.Day,
             GoodTilCanceledTimeInForce => AlpacaMarket.TimeInForce.Gtc,
-            _ => throw new NotSupportedException($"{nameof(AlpacaBrokerageExtensions)}.{nameof(ConvertLeanTimeInForceToBrokerage)}:The provided TimeInForce type '{timeInForce.GetType().Name}' is not supported.")
+            _ => throw new NotSupportedException($"The provided TimeInForce type '{timeInForce.GetType().Name}' is not supported.")
         };
     }
 
