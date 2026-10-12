@@ -60,6 +60,13 @@ namespace QuantConnect.Brokerages.Alpaca
         private ConcurrentDictionary<int, decimal> _orderIdToFillQuantity = new();
 
         /// <summary>
+        /// The quantity Alpaca had already filled on an open order when it was imported at startup, by Alpaca order id and Lean symbol
+        /// (the legs of a multi-leg order share the Alpaca order id). That quantity is in the holdings Lean loads from the account,
+        /// so the first trade update of the order reports only what filled after the import.
+        /// </summary>
+        private readonly ConcurrentDictionary<(Guid, Symbol), decimal> _importedFilledQuantityByBrokerageOrderId = new();
+
+        /// <summary>
         /// Holds the legs of a combo order until Lean has sent all of them, because Alpaca takes them as one order.
         /// </summary>
         private readonly GroupOrderCacheManager _groupOrderCacheManager = new();
@@ -417,7 +424,7 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <param name="brokerageOrder">The Alpaca order.</param>
         /// <param name="leanOrders">When this method returns <c>true</c>, the Lean orders; otherwise <c>null</c>.</param>
         /// <returns><c>true</c> when the order was converted; otherwise <c>false</c>.</returns>
-        private bool TryConvertToLeanOrders(IOrder brokerageOrder, out List<Order> leanOrders)
+        internal bool TryConvertToLeanOrders(IOrder brokerageOrder, out List<Order> leanOrders)
         {
             leanOrders = null;
 
@@ -501,6 +508,8 @@ namespace QuantConnect.Brokerages.Alpaca
             if (brokerageOrder.FilledQuantity > 0 && brokerageOrder.FilledQuantity != brokerageOrder.Quantity)
             {
                 leanOrder.Status = Orders.OrderStatus.PartiallyFilled;
+                _importedFilledQuantityByBrokerageOrderId[(brokerageOrder.OrderId, leanSymbol)] =
+                    brokerageOrder.OrderSide == OrderSide.Buy ? brokerageOrder.FilledQuantity : decimal.Negate(brokerageOrder.FilledQuantity);
             }
 
             leanOrder.BrokerId.Add(brokerageOrder.OrderId.ToString());
@@ -557,6 +566,8 @@ namespace QuantConnect.Brokerages.Alpaca
                 if (leg.FilledQuantity > 0 && leg.FilledQuantity != leg.Quantity)
                 {
                     leanOrder.Status = Orders.OrderStatus.PartiallyFilled;
+                    _importedFilledQuantityByBrokerageOrderId[(brokerageOrder.OrderId, leanSymbol)] =
+                        leg.OrderSide == OrderSide.Buy ? leg.FilledQuantity : decimal.Negate(leg.FilledQuantity);
                 }
 
                 leanOrder.BrokerId.Add(brokerageOrder.OrderId.ToString());
@@ -925,6 +936,11 @@ namespace QuantConnect.Brokerages.Alpaca
                     case TradeEvent.Expired:
                         if (_duplicationExecutionOrderIdByBrokerageOrderId.Remove(obj.Order.OrderId))
                         {
+                            foreach (var leanOrder in leanOrders)
+                            {
+                                _importedFilledQuantityByBrokerageOrderId.TryRemove((obj.Order.OrderId, leanOrder.Symbol), out _);
+                            }
+
                             if (newLeanOrderStatus == Orders.OrderStatus.UpdateSubmitted)
                             {
                                 var replacedBrokerageOrderId = obj.Order.ReplacedByOrderId.Value;
@@ -985,7 +1001,11 @@ namespace QuantConnect.Brokerages.Alpaca
                     }
 
                     // alpaca sends the accumulative filled quantity but we need the partial amount for our event
-                    _orderIdToFillQuantity.TryGetValue(leanOrder.Id, out var previouslyFilledAmount);
+                    if (!_orderIdToFillQuantity.TryGetValue(leanOrder.Id, out var previouslyFilledAmount))
+                    {
+                        // the first update of an order imported at startup: what Alpaca filled before the import is already in the holdings
+                        _importedFilledQuantityByBrokerageOrderId.TryRemove((obj.Order.OrderId, leanOrder.Symbol), out previouslyFilledAmount);
+                    }
                     var accumulativeFilledQuantity = _orderIdToFillQuantity[leanOrder.Id] =
                         leg.OrderSide == OrderSide.Buy ? leg.FilledQuantity : decimal.Negate(leg.FilledQuantity);
 
