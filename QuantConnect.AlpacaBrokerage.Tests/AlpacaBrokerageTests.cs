@@ -894,5 +894,61 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             Assert.AreEqual(1, filledCounter);
             Assert.AreEqual(0, AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId.Count);
         }
+
+        [Test]
+        public void HandleTradeUpdateWhenFillFollowsExpiredEmitsFilled()
+        {
+            // Arrange
+            // Alpaca reported a market-on-close order expired and filled it 15 seconds later in the closing auction,
+            // then replayed the fill. Lean books the fill on the canceled order once.
+            var orderId = Guid.NewGuid();
+
+            var order = new MarketOnCloseOrder(Symbols.AAPL, -100m, default);
+            order.BrokerId.Add(orderId.ToString());
+            OrderProvider.Add(order);
+
+            // Lean holds the 100 shares the order sells
+            SecurityProvider.GetSecurity(order.Symbol).Holdings.SetHoldings(100m, 100m);
+
+            var fill = new TestTradeUpdate(TradeEvent.Fill, Guid.NewGuid(), new TestOrder(orderId, 100, OrderSide.Sell)) { Price = 109.26m };
+            var tradeUpdates = new List<TestTradeUpdate>
+            {
+                new(TradeEvent.PendingNew, null, new TestOrder(orderId)),
+                new(TradeEvent.New, Guid.NewGuid(), new TestOrder(orderId)),
+                new(TradeEvent.Expired, null, new TestOrder(orderId)),
+                fill,
+                fill
+            };
+
+            var orderEvents = new List<OrderEvent>();
+            void OnOrdersStatusChanged(object _, List<OrderEvent> oes)
+            {
+                orderEvents.AddRange(oes);
+            }
+
+            // Act
+            Brokerage.OrdersStatusChanged += OnOrdersStatusChanged;
+            try
+            {
+                foreach (var tradeUpdate in tradeUpdates)
+                {
+                    AlpacaBrokerage.HandleTradeUpdate(tradeUpdate);
+                }
+            }
+            finally
+            {
+                Brokerage.OrdersStatusChanged -= OnOrdersStatusChanged;
+            }
+
+            // Assert
+            Assert.That(orderEvents, Has.Count.EqualTo(2));
+            Assert.That(orderEvents[0].Status, Is.EqualTo(OrderStatus.Canceled));
+            Assert.That(orderEvents[1].Status, Is.EqualTo(OrderStatus.Filled));
+            Assert.That(orderEvents[1].FillQuantity, Is.EqualTo(-100m));
+            Assert.That(orderEvents[1].FillPrice, Is.EqualTo(109.26m));
+            Assert.That(order.Status, Is.EqualTo(OrderStatus.Filled));
+            Assert.That(SecurityProvider.GetSecurity(order.Symbol).Holdings.Quantity, Is.Zero);
+            Assert.That(AlpacaBrokerage._duplicationExecutionOrderIdByBrokerageOrderId, Is.Empty);
+        }
     }
 }

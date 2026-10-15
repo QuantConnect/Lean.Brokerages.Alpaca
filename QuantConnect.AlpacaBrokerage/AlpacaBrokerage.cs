@@ -893,7 +893,7 @@ namespace QuantConnect.Brokerages.Alpaca
                 // A leg of a combo can be done while the others still wait, so only the open ones go on.
                 for (var i = leanOrders.Count - 1; i >= 0; i--)
                 {
-                    if (leanOrders[i].Status.IsClosed())
+                    if (IsClosed(leanOrders[i], newLeanOrderStatus, obj.Order.OrderId))
                     {
                         leanOrders.RemoveAt(i);
                     }
@@ -1035,6 +1035,56 @@ namespace QuantConnect.Brokerages.Alpaca
                 Log.Error(ex, $"TradeUpdate: {obj}");
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Checks whether the Lean order is closed for the trade update. A fill on a market-on-open or market-on-close
+        /// order that Alpaca expired reopens the order instead, because the auction still filled it.
+        /// </summary>
+        /// <param name="leanOrder">The Lean order of the trade update.</param>
+        /// <param name="newOrderStatus">The Lean order status of the trade update.</param>
+        /// <param name="brokerageOrderId">The Alpaca order id of the trade update.</param>
+        /// <returns>True when the trade update is skipped because the order is closed.</returns>
+        private bool IsClosed(Order leanOrder, Orders.OrderStatus newOrderStatus, Guid brokerageOrderId)
+        {
+            if (!leanOrder.Status.IsClosed())
+            {
+                return false;
+            }
+
+            if (leanOrder.Status == Orders.OrderStatus.Canceled && newOrderStatus == Orders.OrderStatus.Filled
+                && leanOrder.Type is Orders.OrderType.MarketOnOpen or Orders.OrderType.MarketOnClose)
+            {
+                return !TryReopenExpiredOrder(leanOrder, brokerageOrderId);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Reopens the order when Alpaca expired it, which the last Lean order event tells by its reason text.
+        /// </summary>
+        /// <param name="leanOrder">The Lean order of the trade update.</param>
+        /// <param name="brokerageOrderId">The Alpaca order id of the trade update.</param>
+        /// <returns>True when the order was canceled by an expired trade update and is reopened.</returns>
+        private bool TryReopenExpiredOrder(Order leanOrder, Guid brokerageOrderId)
+        {
+            var orderEvents = _orderProvider.GetOrderTicket(leanOrder.Id)?.OrderEvents;
+            if (orderEvents == null || orderEvents.Count == 0)
+            {
+                return false;
+            }
+
+            var expiredMessage = _tradeEventReason[TradeEvent.Expired];
+            var lastOrderEventMessage = orderEvents[orderEvents.Count - 1].Message;
+            if (string.Equals(lastOrderEventMessage, expiredMessage, StringComparison.Ordinal))
+            {
+                // the expired update dropped the order, the fill case needs it registered again
+                _duplicationExecutionOrderIdByBrokerageOrderId.TryAdd(brokerageOrderId, []);
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
