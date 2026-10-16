@@ -55,7 +55,7 @@ namespace QuantConnect.Brokerages.Alpaca
         /// </summary>
         /// <param name="brokerageOrderId">The Alpaca id of the order, or of the leg of a multi-leg order.</param>
         /// <returns>The signed quantity filled before Lean started, or zero.</returns>
-        public decimal GetValue(Guid brokerageOrderId)
+        public decimal GetValueOrDefault(Guid brokerageOrderId)
         {
             return _filledQuantityByBrokerageOrderId.GetValueOrDefault(brokerageOrderId);
         }

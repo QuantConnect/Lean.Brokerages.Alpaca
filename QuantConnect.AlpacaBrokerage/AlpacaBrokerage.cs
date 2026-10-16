@@ -981,7 +981,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     if (!_orderIdToFillQuantity.TryGetValue(leanOrder.Id, out var previouslyFilledAmount))
                     {
                         // a partially filled order from GetOpenOrders has no filled quantity in Lean, the tracker kept it
-                        previouslyFilledAmount = _partiallyFilledOpenOrders.GetValue(leg.OrderId);
+                        previouslyFilledAmount = _partiallyFilledOpenOrders.GetValueOrDefault(leg.OrderId);
                     }
                     var accumulativeFilledQuantity = _orderIdToFillQuantity[leanOrder.Id] =
                         leg.OrderSide == OrderSide.Buy ? leg.FilledQuantity : decimal.Negate(leg.FilledQuantity);
