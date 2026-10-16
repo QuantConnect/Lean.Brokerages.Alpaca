@@ -65,10 +65,14 @@ public static class AlpacaBrokerageExtensions
     public static AlpacaMarket.OrderBase WithLeanOrderSettings(this AlpacaMarket.OrderBase orderRequest, Order order)
     {
         var orderProperties = order.Properties as AlpacaOrderProperties;
-        return orderRequest
+        orderRequest = orderRequest
             .WithDuration(order.TimeInForce.ConvertLeanTimeInForceToBrokerage(order.Type))
-            .WithExtendedHours(orderProperties?.OutsideRegularTradingHours ?? false)
-            .WithClientOrderId(orderProperties?.ClientOrderId);
+            .WithExtendedHours(orderProperties?.OutsideRegularTradingHours ?? false);
+        if (orderProperties?.ClientOrderId != null)
+        {
+            orderRequest = orderRequest.WithClientOrderId(orderProperties.ClientOrderId);
+        }
+        return orderRequest;
     }
 
     /// <summary>
