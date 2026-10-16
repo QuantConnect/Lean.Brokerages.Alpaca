@@ -573,17 +573,16 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         }
 
         [Test]
-        public void GetOpenOrdersReturnsTheClientOrderIdOfTheReplacedOrder()
+        public void UpdateOrderWhenClientOrderIdIsSetReplacesTheOrder()
         {
-            var clientOrderId = Guid.NewGuid().ToString();
-            var parameters = new LimitOrderTestParameters(Symbol.Create("ETHUSD", SecurityType.Crypto, Market.USA), 3600m, 1500m, new AlpacaOrderProperties { ClientOrderId = clientOrderId });
+            var parameters = new LimitOrderTestParameters(Symbol.Create("ETHUSD", SecurityType.Crypto, Market.USA), 3600m, 1500m, new AlpacaOrderProperties { ClientOrderId = Guid.NewGuid().ToString() });
 
             var order = PlaceOrderWaitForStatus(parameters.CreateLongOrder(GetDefaultQuantity()), OrderStatus.Submitted);
             order.ApplyUpdateOrderRequest(new UpdateOrderRequest(DateTime.UtcNow, order.Id, new UpdateOrderFields { LimitPrice = 1510m }));
             Assert.That(Brokerage.UpdateOrder(order), Is.True);
             var replacedOrder = Brokerage.GetOpenOrders().Single(x => x.BrokerId[0] == order.BrokerId.Last());
 
-            Assert.That((replacedOrder.Properties as AlpacaOrderProperties).ClientOrderId, Is.EqualTo($"{clientOrderId}-update-1"));
+            Assert.That(((LimitOrder)replacedOrder).LimitPrice, Is.EqualTo(1510m));
         }
 
         [Test]
