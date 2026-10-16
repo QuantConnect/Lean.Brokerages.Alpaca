@@ -126,6 +126,7 @@ public static class AlpacaBrokerageExtensions
     /// <summary>
     /// Creates the Alpaca request that changes the quantity and the prices of an order.
     /// For a combo leg the request changes the whole multi-leg order: the group quantity and the net price of the combo.
+    /// The replacing order is another Alpaca order, so it gets the client order id of the Lean order with an update suffix.
     /// </summary>
     /// <param name="order">The Lean order that carries the new prices; for a combo, any of its legs.</param>
     /// <param name="brokerageOrderId">The id of the Alpaca order to change.</param>
@@ -138,6 +139,11 @@ public static class AlpacaBrokerageExtensions
         {
             Quantity = Convert.ToInt64(alpacaQuantity)
         };
+        var clientOrderId = (order.Properties as AlpacaOrderProperties)?.ClientOrderId;
+        if (clientOrderId != null)
+        {
+            changeOrderRequest.ClientOrderId = $"{clientOrderId}-update-{order.BrokerId.Count}";
+        }
         switch (order)
         {
             case LimitOrder lo:
