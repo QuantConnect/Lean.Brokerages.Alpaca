@@ -421,7 +421,7 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             leanOrders = null;
 
-            var orderProperties = new AlpacaOrderProperties();
+            var orderProperties = new AlpacaOrderProperties() { ClientOrderId = brokerageOrder.ClientOrderId };
             if (!orderProperties.TryGetLeanTimeInForceByAlpacaTimeInForce(brokerageOrder.TimeInForce))
             {
                 if (_unsupportedTimeInForce.Add(brokerageOrder.TimeInForce))
@@ -1208,6 +1208,7 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <summary>
         /// Places an order that crosses zero (transitions from a short position to a long position or vice versa) and returns the response.
         /// This method implements brokerage-specific logic for placing such orders using Tradier brokerage.
+        /// The second part is another Alpaca order and goes out without the client order id of the Lean order: Alpaca refuses an id the account has already used.
         /// </summary>
         /// <param name="crossZeroOrderRequest">The request object containing details of the cross zero order to be placed.</param>
         /// <param name="isPlaceOrderWithLeanEvent">
@@ -1220,6 +1221,10 @@ namespace QuantConnect.Brokerages.Alpaca
         protected override CrossZeroOrderResponse PlaceCrossZeroOrder(CrossZeroFirstOrderRequest crossZeroOrderRequest, bool isPlaceOrderWithLeanEvent)
         {
             var orderRequest = crossZeroOrderRequest.LeanOrder.CreateAlpacaOrder(crossZeroOrderRequest.AbsoluteOrderQuantity, _symbolMapper, crossZeroOrderRequest.OrderType);
+            if (crossZeroOrderRequest is CrossZeroSecondOrderRequest)
+            {
+                orderRequest.ClientOrderId = null;
+            }
             var response = _tradingClient.PostOrderAsync(orderRequest).SynchronouslyAwaitTaskResult();
             if (response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
             {
