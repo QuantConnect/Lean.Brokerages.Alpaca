@@ -1222,7 +1222,6 @@ namespace QuantConnect.Brokerages.Alpaca
             var orderRequest = crossZeroOrderRequest.LeanOrder.CreateAlpacaOrder(crossZeroOrderRequest.AbsoluteOrderQuantity, _symbolMapper, crossZeroOrderRequest.OrderType);
             if (crossZeroOrderRequest is CrossZeroSecondOrderRequest && orderRequest.ClientOrderId != null)
             {
-                // the second part is another Alpaca order and Alpaca refuses a client order id the account has already used
                 orderRequest = orderRequest.WithClientOrderId($"{orderRequest.ClientOrderId}-cross-zero-second-part");
             }
             var response = _tradingClient.PostOrderAsync(orderRequest).SynchronouslyAwaitTaskResult();
