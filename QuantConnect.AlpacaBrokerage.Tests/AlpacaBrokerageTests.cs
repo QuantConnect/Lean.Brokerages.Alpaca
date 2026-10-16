@@ -561,6 +561,18 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         }
 
         [Test]
+        public void GetOpenOrdersReturnsTheClientOrderIdOfThePlacedOrder()
+        {
+            var clientOrderId = Guid.NewGuid().ToString();
+            var parameters = new LimitOrderTestParameters(Symbols.AAPL, 370m, 300m, new AlpacaOrderProperties { ClientOrderId = clientOrderId });
+
+            var order = PlaceOrderWaitForStatus(parameters.CreateLongOrder(GetDefaultQuantity()), OrderStatus.Submitted);
+            var openOrder = Brokerage.GetOpenOrders().Single(x => x.BrokerId[0] == order.BrokerId[0]);
+
+            Assert.That((openOrder.Properties as AlpacaOrderProperties).ClientOrderId, Is.EqualTo(clientOrderId));
+        }
+
+        [Test]
         public void HandleTradeUpdateNormalCase()
         {
             // pending_new -> new -> partial_fill -> fill

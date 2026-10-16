@@ -421,7 +421,7 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             leanOrders = null;
 
-            var orderProperties = new AlpacaOrderProperties();
+            var orderProperties = new AlpacaOrderProperties() { ClientOrderId = brokerageOrder.ClientOrderId };
             if (!orderProperties.TryGetLeanTimeInForceByAlpacaTimeInForce(brokerageOrder.TimeInForce))
             {
                 if (_unsupportedTimeInForce.Add(brokerageOrder.TimeInForce))
@@ -1220,6 +1220,11 @@ namespace QuantConnect.Brokerages.Alpaca
         protected override CrossZeroOrderResponse PlaceCrossZeroOrder(CrossZeroFirstOrderRequest crossZeroOrderRequest, bool isPlaceOrderWithLeanEvent)
         {
             var orderRequest = crossZeroOrderRequest.LeanOrder.CreateAlpacaOrder(crossZeroOrderRequest.AbsoluteOrderQuantity, _symbolMapper, crossZeroOrderRequest.OrderType);
+            if (crossZeroOrderRequest is CrossZeroSecondOrderRequest && orderRequest.ClientOrderId != null)
+            {
+                // the second part is another Alpaca order and Alpaca refuses a client order id the account has already used
+                orderRequest = orderRequest.WithClientOrderId($"{orderRequest.ClientOrderId}-1");
+            }
             var response = _tradingClient.PostOrderAsync(orderRequest).SynchronouslyAwaitTaskResult();
             if (response.OrderStatus == AlpacaMarket.OrderStatus.Rejected)
             {

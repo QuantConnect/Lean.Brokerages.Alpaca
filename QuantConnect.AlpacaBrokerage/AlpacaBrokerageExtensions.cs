@@ -56,7 +56,7 @@ public static class AlpacaBrokerageExtensions
     }
 
     /// <summary>
-    /// Applies the time in force and extended hours settings of the given Lean order to the Alpaca order request.
+    /// Applies the time in force, the extended hours and the client order id settings of the given Lean order to the Alpaca order request.
     /// Advanced orders (bracket, oco, oto) override these settings of their base order, so they have to be applied to them too.
     /// </summary>
     /// <param name="orderRequest">The Alpaca order request</param>
@@ -64,9 +64,11 @@ public static class AlpacaBrokerageExtensions
     /// <returns>The Alpaca order request</returns>
     public static AlpacaMarket.OrderBase WithLeanOrderSettings(this AlpacaMarket.OrderBase orderRequest, Order order)
     {
+        var orderProperties = order.Properties as AlpacaOrderProperties;
         return orderRequest
             .WithDuration(order.TimeInForce.ConvertLeanTimeInForceToBrokerage(order.Type))
-            .WithExtendedHours((order.Properties as AlpacaOrderProperties)?.OutsideRegularTradingHours ?? false);
+            .WithExtendedHours(orderProperties?.OutsideRegularTradingHours ?? false)
+            .WithClientOrderId(orderProperties?.ClientOrderId);
     }
 
     /// <summary>
@@ -101,6 +103,7 @@ public static class AlpacaBrokerageExtensions
                 throw new NotSupportedException($"The order type '{orders[0].GetType().Name}' is not supported for Alpaca multi-leg orders.");
         }
         orderRequest.OrderClass = AlpacaMarket.OrderClass.MultiLegOptions;
+        orderRequest.ClientOrderId = (orders[0].Properties as AlpacaOrderProperties)?.ClientOrderId;
 
         foreach (var order in orders)
         {
