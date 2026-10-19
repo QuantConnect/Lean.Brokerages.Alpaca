@@ -968,8 +968,8 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 LimitPrice = 1m,
                 SubmittedAtUtc = DateTime.UtcNow
             };
-            Assert.IsTrue(AlpacaBrokerage.TryConvertToLeanOrders(brokerageOrder, out var leanOrders));
-            Assert.AreEqual(OrderStatus.PartiallyFilled, leanOrders[0].Status);
+            Assert.That(AlpacaBrokerage.TryConvertToLeanOrders(brokerageOrder, out var leanOrders), Is.True);
+            Assert.That(leanOrders[0].Status, Is.EqualTo(OrderStatus.PartiallyFilled));
             OrderProvider.Add(leanOrders[0]);
 
             var orderEvents = new List<OrderEvent>();
@@ -985,9 +985,48 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 Brokerage.OrdersStatusChanged -= OnOrdersStatusChanged;
             }
 
-            Assert.AreEqual(1, orderEvents.Count);
-            Assert.AreEqual(incomingTradeEvent == TradeEvent.Fill ? OrderStatus.Filled : OrderStatus.PartiallyFilled, orderEvents[0].Status);
-            Assert.AreEqual(expectedFillQuantity, orderEvents[0].FillQuantity);
+            Assert.That(orderEvents, Has.Count.EqualTo(1));
+            Assert.That(orderEvents[0].Status, Is.EqualTo(incomingTradeEvent == TradeEvent.Fill ? OrderStatus.Filled : OrderStatus.PartiallyFilled));
+            Assert.That(orderEvents[0].FillQuantity, Is.EqualTo(expectedFillQuantity));
+        }
+
+        [Test]
+        public void HandleTradeUpdateWhenOrderPartiallyFilledBeforeRestartIsReplacedReportsOnlyNewQuantity()
+        {
+            // the order comes back with 1 of 3 filled, Lean re-prices it, and the fill comes under the id of the replacing order
+            var orderId = Guid.NewGuid();
+            var replacedByOrderId = Guid.NewGuid();
+            var brokerageOrder = new TestOrder(orderId, 1m, OrderSide.Buy)
+            {
+                Quantity = 3m,
+                OrderType = OrderType.Limit,
+                LimitPrice = 1m,
+                SubmittedAtUtc = DateTime.UtcNow
+            };
+            Assert.That(AlpacaBrokerage.TryConvertToLeanOrders(brokerageOrder, out var leanOrders), Is.True);
+            var order = leanOrders[0];
+            // UpdateOrder adds the id of the replacing order before the replaced update arrives
+            order.BrokerId.Add(replacedByOrderId.ToString());
+            OrderProvider.Add(order);
+
+            var orderEvents = new List<OrderEvent>();
+            void OnOrdersStatusChanged(object _, List<OrderEvent> oes) => orderEvents.AddRange(oes);
+
+            Brokerage.OrdersStatusChanged += OnOrdersStatusChanged;
+            try
+            {
+                AlpacaBrokerage.HandleTradeUpdate(new TestTradeUpdate(TradeEvent.Replaced, Guid.NewGuid(), new TestOrder(orderId, 1m, OrderSide.Buy) { Quantity = 3m, ReplacedByOrderId = replacedByOrderId }));
+                AlpacaBrokerage.HandleTradeUpdate(new TestTradeUpdate(TradeEvent.Fill, Guid.NewGuid(), new TestOrder(replacedByOrderId, 3m, OrderSide.Buy) { Quantity = 3m }));
+            }
+            finally
+            {
+                Brokerage.OrdersStatusChanged -= OnOrdersStatusChanged;
+            }
+
+            Assert.That(orderEvents, Has.Count.EqualTo(2));
+            Assert.That(orderEvents[0].Status, Is.EqualTo(OrderStatus.UpdateSubmitted));
+            Assert.That(orderEvents[1].Status, Is.EqualTo(OrderStatus.Filled));
+            Assert.That(orderEvents[1].FillQuantity, Is.EqualTo(2m));
         }
 
         [Test]
@@ -1013,9 +1052,9 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 Brokerage.OrdersStatusChanged -= OnOrdersStatusChanged;
             }
 
-            Assert.AreEqual(1, orderEvents.Count);
-            Assert.AreEqual(OrderStatus.Filled, orderEvents[0].Status);
-            Assert.AreEqual(3m, orderEvents[0].FillQuantity);
+            Assert.That(orderEvents, Has.Count.EqualTo(1));
+            Assert.That(orderEvents[0].Status, Is.EqualTo(OrderStatus.Filled));
+            Assert.That(orderEvents[0].FillQuantity, Is.EqualTo(3m));
         }
 
         [TestCase(TradeEvent.Fill, 5, 3)]
@@ -1027,11 +1066,11 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             var buyLegId = Guid.NewGuid();
             var sellLegId = Guid.NewGuid();
             var filledQuantityBeforeRestart = 2m;
-            Assert.IsTrue(AlpacaBrokerage.TryConvertToLeanOrders(CreateBullCallSpreadOrder(orderId, buyLegId, sellLegId, filledQuantityBeforeRestart), out var leanOrders));
-            Assert.AreEqual(2, leanOrders.Count);
+            Assert.That(AlpacaBrokerage.TryConvertToLeanOrders(CreateBullCallSpreadOrder(orderId, buyLegId, sellLegId, filledQuantityBeforeRestart), out var leanOrders), Is.True);
+            Assert.That(leanOrders, Has.Count.EqualTo(2));
             foreach (var leanOrder in leanOrders)
             {
-                Assert.AreEqual(OrderStatus.PartiallyFilled, leanOrder.Status);
+                Assert.That(leanOrder.Status, Is.EqualTo(OrderStatus.PartiallyFilled));
                 OrderProvider.Add(leanOrder);
             }
 
@@ -1048,14 +1087,14 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 Brokerage.OrdersStatusChanged -= OnOrdersStatusChanged;
             }
 
-            Assert.AreEqual(2, orderEvents.Count);
+            Assert.That(orderEvents, Has.Count.EqualTo(2));
             var expectedStatus = incomingTradeEvent == TradeEvent.Fill ? OrderStatus.Filled : OrderStatus.PartiallyFilled;
             var buyLegEvent = orderEvents.Single(orderEvent => orderEvent.OrderId == leanOrders[0].Id);
-            Assert.AreEqual(expectedStatus, buyLegEvent.Status);
-            Assert.AreEqual(expectedFillQuantity, buyLegEvent.FillQuantity);
+            Assert.That(buyLegEvent.Status, Is.EqualTo(expectedStatus));
+            Assert.That(buyLegEvent.FillQuantity, Is.EqualTo(expectedFillQuantity));
             var sellLegEvent = orderEvents.Single(orderEvent => orderEvent.OrderId == leanOrders[1].Id);
-            Assert.AreEqual(expectedStatus, sellLegEvent.Status);
-            Assert.AreEqual(-expectedFillQuantity, sellLegEvent.FillQuantity);
+            Assert.That(sellLegEvent.Status, Is.EqualTo(expectedStatus));
+            Assert.That(sellLegEvent.FillQuantity, Is.EqualTo(-expectedFillQuantity));
         }
 
         /// <summary>
