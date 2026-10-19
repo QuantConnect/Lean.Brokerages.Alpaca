@@ -237,9 +237,9 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         [Test]
         public void PartialCryptoFill()
         {
-            var parameters = new MarketOrderTestParameters(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.USA));
+            var parameters = new MarketOrderTestParameters(Symbol.Create("XRPUSD", SecurityType.Crypto, Market.USA));
 
-            PlaceOrderWaitForStatus(parameters.CreateLongOrder(2), parameters.ExpectedStatus);
+            PlaceOrderWaitForStatus(parameters.CreateLongOrder(2000), parameters.ExpectedStatus);
         }
 
         [Test, TestCaseSource(nameof(EquityOrderParameters))]
@@ -988,6 +988,8 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             Assert.That(orderEvents, Has.Count.EqualTo(1));
             Assert.That(orderEvents[0].Status, Is.EqualTo(incomingTradeEvent == TradeEvent.Fill ? OrderStatus.Filled : OrderStatus.PartiallyFilled));
             Assert.That(orderEvents[0].FillQuantity, Is.EqualTo(expectedFillQuantity));
+
+            AlpacaBrokerage.HandleTradeUpdate(new TestTradeUpdate(TradeEvent.Canceled, Guid.NewGuid(), new TestOrder(orderId, cumulativeFilledQuantity, OrderSide.Buy) { Quantity = 3m }));
         }
 
         [Test]
@@ -1095,6 +1097,8 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             var sellLegEvent = orderEvents.Single(orderEvent => orderEvent.OrderId == leanOrders[1].Id);
             Assert.That(sellLegEvent.Status, Is.EqualTo(expectedStatus));
             Assert.That(sellLegEvent.FillQuantity, Is.EqualTo(-expectedFillQuantity));
+
+            AlpacaBrokerage.HandleTradeUpdate(new TestTradeUpdate(TradeEvent.Canceled, Guid.NewGuid(), CreateBullCallSpreadOrder(orderId, buyLegId, sellLegId, cumulativeFilledQuantity)));
         }
 
         /// <summary>
