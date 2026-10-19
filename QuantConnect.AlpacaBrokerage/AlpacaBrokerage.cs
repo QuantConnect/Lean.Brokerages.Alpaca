@@ -38,7 +38,6 @@ using System.Text;
 using System.Threading.Tasks;
 using QuantConnect.Configuration;
 using QuantConnect.Brokerages.CrossZero;
-using System.Collections.Concurrent;
 using System.Threading;
 using System.Runtime.CompilerServices;
 using System.Net.Http;
@@ -57,7 +56,7 @@ namespace QuantConnect.Brokerages.Alpaca
 
         private EventBasedDataQueueHandlerSubscriptionManager _subscriptionManager;
 
-        private ConcurrentDictionary<int, decimal> _orderIdToFillQuantity = new();
+        private readonly CumulativeFilledQuantities _cumulativeFilledQuantities = new();
 
         /// <summary>
         /// Holds the legs of a combo order until Lean has sent all of them, because Alpaca takes them as one order.
@@ -417,7 +416,7 @@ namespace QuantConnect.Brokerages.Alpaca
         /// <param name="brokerageOrder">The Alpaca order.</param>
         /// <param name="leanOrders">When this method returns <c>true</c>, the Lean orders; otherwise <c>null</c>.</param>
         /// <returns><c>true</c> when the order was converted; otherwise <c>false</c>.</returns>
-        private bool TryConvertToLeanOrders(IOrder brokerageOrder, out List<Order> leanOrders)
+        internal bool TryConvertToLeanOrders(IOrder brokerageOrder, out List<Order> leanOrders)
         {
             leanOrders = null;
 
@@ -497,12 +496,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     throw new NotSupportedException($"The Order type '{brokerageOrder.OrderType}' is not supported.");
             }
 
-            leanOrder.Status = Orders.OrderStatus.Submitted;
-            if (brokerageOrder.FilledQuantity > 0 && brokerageOrder.FilledQuantity != brokerageOrder.Quantity)
-            {
-                leanOrder.Status = Orders.OrderStatus.PartiallyFilled;
-            }
-
+            leanOrder.Status = _cumulativeFilledQuantities.GetOrderStatus(brokerageOrder);
             leanOrder.BrokerId.Add(brokerageOrder.OrderId.ToString());
             _duplicationExecutionOrderIdByBrokerageOrderId[brokerageOrder.OrderId] = [];
 
@@ -553,12 +547,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     leanOrder = new ComboLimitOrder(leanSymbol, quantity, groupOrderManager.LimitPrice, brokerageOrder.SubmittedAtUtc.Value, groupOrderManager, properties: orderProperties);
                 }
 
-                leanOrder.Status = Orders.OrderStatus.Submitted;
-                if (leg.FilledQuantity > 0 && leg.FilledQuantity != leg.Quantity)
-                {
-                    leanOrder.Status = Orders.OrderStatus.PartiallyFilled;
-                }
-
+                leanOrder.Status = _cumulativeFilledQuantities.GetOrderStatus(leg);
                 leanOrder.BrokerId.Add(brokerageOrder.OrderId.ToString());
                 leanOrders.Add(leanOrder);
             }
@@ -938,6 +927,7 @@ namespace QuantConnect.Brokerages.Alpaca
                                     }
                                 }
                                 _duplicationExecutionOrderIdByBrokerageOrderId[replacedBrokerageOrderId] = [];
+                                _cumulativeFilledQuantities.Replace(obj.Order);
                             }
 
                             if (!_tradeEventReason.TryGetValue(obj.Event, out var message))
@@ -985,18 +975,10 @@ namespace QuantConnect.Brokerages.Alpaca
                     }
 
                     // alpaca sends the accumulative filled quantity but we need the partial amount for our event
-                    _orderIdToFillQuantity.TryGetValue(leanOrder.Id, out var previouslyFilledAmount);
-                    var accumulativeFilledQuantity = _orderIdToFillQuantity[leanOrder.Id] =
-                        leg.OrderSide == OrderSide.Buy ? leg.FilledQuantity : decimal.Negate(leg.FilledQuantity);
+                    var (fillQuantity, fillPrice) = _cumulativeFilledQuantities.GetFill(leg, newLeanOrderStatus);
 
-                    if (newLeanOrderStatus.IsClosed())
-                    {
-                        // cleanup
-                        _orderIdToFillQuantity.TryRemove(leanOrder.Id, out _);
-                    }
-
-                    // A leg of the combo that did not trade this time, or a replayed update, brings nothing new.
-                    if (isMultiLegOrder && newLeanOrderStatus == Orders.OrderStatus.PartiallyFilled && accumulativeFilledQuantity == previouslyFilledAmount)
+                    // A replayed update, or a leg of the combo that did not trade this time, brings nothing new.
+                    if (newLeanOrderStatus == Orders.OrderStatus.PartiallyFilled && fillQuantity == 0)
                     {
                         continue;
                     }
@@ -1011,8 +993,8 @@ namespace QuantConnect.Brokerages.Alpaca
                     orderEvents.Add(new OrderEvent(leanOrder, obj.TimestampUtc ?? DateTime.UtcNow, fee)
                     {
                         Status = newLeanOrderStatus,
-                        FillPrice = isMultiLegOrder ? GetComboLegFillPrice(leg, leanOrder) : obj.Price ?? 0m,
-                        FillQuantity = accumulativeFilledQuantity - previouslyFilledAmount,
+                        FillPrice = isMultiLegOrder ? fillPrice : obj.Price ?? 0m,
+                        FillQuantity = fillQuantity,
                     });
                 }
 
@@ -1085,28 +1067,6 @@ namespace QuantConnect.Brokerages.Alpaca
             }
 
             return false;
-        }
-
-        /// <summary>
-        /// Gets the price of the contracts a combo leg filled since Lean last booked it. The leg carries the average price
-        /// of everything it filled, so the price of the new quantity is what is left once the money Lean already booked
-        /// is taken out of it. With no new quantity, Alpaca's average stays.
-        /// </summary>
-        /// <param name="leg">The Alpaca leg with its total filled quantity and average fill price.</param>
-        /// <param name="leanOrder">The Lean order of the leg.</param>
-        /// <returns>The fill price of the new quantity.</returns>
-        private decimal GetComboLegFillPrice(IOrder leg, Order leanOrder)
-        {
-            // The ticket keeps a signed quantity, the Alpaca leg counts up from zero.
-            var orderTicket = _orderProvider.GetOrderTicket(leanOrder.Id);
-            var reportedQuantity = Math.Abs(orderTicket?.QuantityFilled ?? 0m);
-            var newQuantity = leg.FilledQuantity - reportedQuantity;
-            if (newQuantity <= 0)
-            {
-                return leg.AverageFillPrice.Value;
-            }
-
-            return (leg.FilledQuantity * leg.AverageFillPrice.Value - reportedQuantity * (orderTicket?.AverageFillPrice ?? 0m)) / newQuantity;
         }
 
         /// <summary>
