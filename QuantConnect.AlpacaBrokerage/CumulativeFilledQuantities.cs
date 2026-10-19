@@ -51,11 +51,17 @@ namespace QuantConnect.Brokerages.Alpaca
         /// </summary>
         /// <param name="brokerageOrder">The Alpaca order of the trade update, or a leg of a multi-leg order.</param>
         /// <param name="newLeanOrderStatus">The Lean status of the trade update.</param>
-        /// <returns>The quantity, zero when nothing new filled, and its price.</returns>
+        /// <returns>The quantity, zero when nothing new filled or the report is older than the stored one, and its price.</returns>
         public (decimal Quantity, decimal Price) GetFill(IOrder brokerageOrder, Orders.OrderStatus newLeanOrderStatus)
         {
             _filledByBrokerageOrderId.TryGetValue(brokerageOrder.OrderId, out var previous);
             var (filledQuantity, averageFillPrice) = GetFilled(brokerageOrder);
+            if (Math.Abs(filledQuantity) < Math.Abs(previous.Quantity))
+            {
+                // an older report than the stored one, the stream fell behind the account read
+                return (0, averageFillPrice);
+            }
+
             if (newLeanOrderStatus.IsClosed())
             {
                 _filledByBrokerageOrderId.TryRemove(brokerageOrder.OrderId, out _);
@@ -86,7 +92,10 @@ namespace QuantConnect.Brokerages.Alpaca
             {
                 foreach (var leg in brokerageOrder.Legs)
                 {
-                    Replace(leg.OrderId, leg.ReplacedByOrderId.Value);
+                    if (leg.ReplacedByOrderId.HasValue)
+                    {
+                        Replace(leg.OrderId, leg.ReplacedByOrderId.Value);
+                    }
                 }
             }
             else

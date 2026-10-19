@@ -1296,6 +1296,84 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             Assert.That(sellLegEvents[1].FillPrice, Is.EqualTo(6m));
         }
 
+        [Test]
+        public void HandleTradeUpdateWhenOrderReadBackNewerThanTheStreamSkipsTheOlderUpdate()
+        {
+            // the account read showed 2 filled, then a stream update from before that read arrives with 1
+            var orderId = Guid.NewGuid();
+            Assert.That(AlpacaBrokerage.TryConvertToLeanOrders(CreateLimitOrder(orderId, 2m), out var leanOrders), Is.True);
+            OrderProvider.Add(leanOrders[0]);
+
+            var orderEvents = new List<OrderEvent>();
+            void OnOrdersStatusChanged(object _, List<OrderEvent> oes)
+            {
+                orderEvents.AddRange(oes);
+            }
+
+            Brokerage.OrdersStatusChanged += OnOrdersStatusChanged;
+            try
+            {
+                AlpacaBrokerage.HandleTradeUpdate(new TestTradeUpdate(TradeEvent.PartialFill, Guid.NewGuid(), new TestOrder(orderId, 1m, OrderSide.Buy) { Quantity = 3m }));
+                AlpacaBrokerage.HandleTradeUpdate(new TestTradeUpdate(TradeEvent.Fill, Guid.NewGuid(), new TestOrder(orderId, 3m, OrderSide.Buy) { Quantity = 3m }));
+            }
+            finally
+            {
+                Brokerage.OrdersStatusChanged -= OnOrdersStatusChanged;
+            }
+
+            Assert.That(orderEvents, Has.Count.EqualTo(1));
+            Assert.That(orderEvents[0].Status, Is.EqualTo(OrderStatus.Filled));
+            Assert.That(orderEvents[0].FillQuantity, Is.EqualTo(1m));
+        }
+
+        [Test]
+        public void HandleTradeUpdateWhenComboOrderReplacedWithoutLegIdsStillReportsUpdateSubmitted()
+        {
+            // a replaced update whose legs carry no replacing id must still reach Lean
+            var orderId = Guid.NewGuid();
+            var buyLegId = Guid.NewGuid();
+            var sellLegId = Guid.NewGuid();
+            var replacedByOrderId = Guid.NewGuid();
+            Assert.That(AlpacaBrokerage.TryConvertToLeanOrders(CreateBullCallSpreadOrder(orderId, buyLegId, sellLegId, 2m), out var leanOrders), Is.True);
+            foreach (var leanOrder in leanOrders)
+            {
+                leanOrder.BrokerId.Add(replacedByOrderId.ToString());
+                OrderProvider.Add(leanOrder);
+            }
+
+            var replacedOrder = new TestOrder(orderId, 2m)
+            {
+                OrderClass = OrderClass.MultiLegOptions,
+                ReplacedByOrderId = replacedByOrderId,
+                Legs =
+                [
+                    new TestOrder(buyLegId, 2m, OrderSide.Buy, AssetClass.UsOption) { Symbol = "AAPL261218C00310000" },
+                    new TestOrder(sellLegId, 2m, OrderSide.Sell, AssetClass.UsOption) { Symbol = "AAPL261218C00320000" }
+                ]
+            };
+
+            var orderEvents = new List<OrderEvent>();
+            void OnOrdersStatusChanged(object _, List<OrderEvent> oes)
+            {
+                orderEvents.AddRange(oes);
+            }
+
+            Brokerage.OrdersStatusChanged += OnOrdersStatusChanged;
+            try
+            {
+                AlpacaBrokerage.HandleTradeUpdate(new TestTradeUpdate(TradeEvent.Replaced, Guid.NewGuid(), replacedOrder));
+            }
+            finally
+            {
+                Brokerage.OrdersStatusChanged -= OnOrdersStatusChanged;
+            }
+
+            Assert.That(orderEvents, Has.Count.EqualTo(2));
+            Assert.That(orderEvents.Select(orderEvent => orderEvent.Status), Is.All.EqualTo(OrderStatus.UpdateSubmitted));
+
+            AlpacaBrokerage.HandleTradeUpdate(new TestTradeUpdate(TradeEvent.Canceled, Guid.NewGuid(), CreateBullCallSpreadOrder(replacedByOrderId, buyLegId, sellLegId, 2m)));
+        }
+
         /// <summary>
         /// A limit order for 3 AAPL as Alpaca reports it back, with the quantity it already filled.
         /// </summary>
