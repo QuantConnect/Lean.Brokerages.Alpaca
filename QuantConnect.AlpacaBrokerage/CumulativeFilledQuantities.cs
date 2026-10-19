@@ -38,7 +38,8 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             if (brokerageOrder.FilledQuantity > 0 && brokerageOrder.FilledQuantity != brokerageOrder.Quantity)
             {
-                _fillQuantityByBrokerageOrderId[brokerageOrder.OrderId] = GetSignedFilledQuantity(brokerageOrder);
+                var filledQuantity = GetSignedFilledQuantity(brokerageOrder);
+                _fillQuantityByBrokerageOrderId.AddOrUpdate(brokerageOrder.OrderId, filledQuantity, (_, known) => Math.Abs(known) > Math.Abs(filledQuantity) ? known : filledQuantity);
                 return Orders.OrderStatus.PartiallyFilled;
             }
 
