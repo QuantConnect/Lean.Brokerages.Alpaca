@@ -57,9 +57,7 @@ namespace QuantConnect.Brokerages.Alpaca
 
         private EventBasedDataQueueHandlerSubscriptionManager _subscriptionManager;
 
-        private ConcurrentDictionary<int, decimal> _orderIdToFillQuantity = new();
-
-        private readonly PartiallyFilledOpenOrders _partiallyFilledOpenOrders = new();
+        private readonly CumulativeFilledQuantities _cumulativeFilledQuantities = new();
 
         /// <summary>
         /// Holds the legs of a combo order until Lean has sent all of them, because Alpaca takes them as one order.
@@ -499,7 +497,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     throw new NotSupportedException($"The Order type '{brokerageOrder.OrderType}' is not supported.");
             }
 
-            leanOrder.Status = _partiallyFilledOpenOrders.GetOrderStatus(brokerageOrder);
+            leanOrder.Status = _cumulativeFilledQuantities.GetOrderStatus(brokerageOrder);
             leanOrder.BrokerId.Add(brokerageOrder.OrderId.ToString());
             _duplicationExecutionOrderIdByBrokerageOrderId[brokerageOrder.OrderId] = [];
 
@@ -550,7 +548,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     leanOrder = new ComboLimitOrder(leanSymbol, quantity, groupOrderManager.LimitPrice, brokerageOrder.SubmittedAtUtc.Value, groupOrderManager, properties: orderProperties);
                 }
 
-                leanOrder.Status = _partiallyFilledOpenOrders.GetOrderStatus(leg);
+                leanOrder.Status = _cumulativeFilledQuantities.GetOrderStatus(leg);
                 leanOrder.BrokerId.Add(brokerageOrder.OrderId.ToString());
                 leanOrders.Add(leanOrder);
             }
@@ -930,7 +928,7 @@ namespace QuantConnect.Brokerages.Alpaca
                                     }
                                 }
                                 _duplicationExecutionOrderIdByBrokerageOrderId[replacedBrokerageOrderId] = [];
-                                _partiallyFilledOpenOrders.Replace(obj.Order);
+                                _cumulativeFilledQuantities.Replace(obj.Order);
                             }
 
                             if (!_tradeEventReason.TryGetValue(obj.Event, out var message))
@@ -978,22 +976,10 @@ namespace QuantConnect.Brokerages.Alpaca
                     }
 
                     // alpaca sends the accumulative filled quantity but we need the partial amount for our event
-                    if (!_orderIdToFillQuantity.TryGetValue(leanOrder.Id, out var previouslyFilledAmount))
-                    {
-                        // a partially filled order from GetOpenOrders has no filled quantity in Lean, the tracker kept it
-                        previouslyFilledAmount = _partiallyFilledOpenOrders.GetValueOrDefault(leg.OrderId);
-                    }
-                    var accumulativeFilledQuantity = _orderIdToFillQuantity[leanOrder.Id] =
-                        leg.OrderSide == OrderSide.Buy ? leg.FilledQuantity : decimal.Negate(leg.FilledQuantity);
-
-                    if (newLeanOrderStatus.IsClosed())
-                    {
-                        // cleanup
-                        _orderIdToFillQuantity.TryRemove(leanOrder.Id, out _);
-                    }
+                    var fillQuantity = _cumulativeFilledQuantities.GetFillQuantity(leg, newLeanOrderStatus);
 
                     // A leg of the combo that did not trade this time, or a replayed update, brings nothing new.
-                    if (isMultiLegOrder && newLeanOrderStatus == Orders.OrderStatus.PartiallyFilled && accumulativeFilledQuantity == previouslyFilledAmount)
+                    if (isMultiLegOrder && newLeanOrderStatus == Orders.OrderStatus.PartiallyFilled && fillQuantity == 0)
                     {
                         continue;
                     }
@@ -1009,7 +995,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     {
                         Status = newLeanOrderStatus,
                         FillPrice = isMultiLegOrder ? GetComboLegFillPrice(leg, leanOrder) : obj.Price ?? 0m,
-                        FillQuantity = accumulativeFilledQuantity - previouslyFilledAmount,
+                        FillQuantity = fillQuantity,
                     });
                 }
 
