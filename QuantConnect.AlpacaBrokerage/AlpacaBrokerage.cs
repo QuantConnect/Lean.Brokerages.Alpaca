@@ -976,7 +976,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     }
 
                     // alpaca sends the accumulative filled quantity but we need the partial amount for our event
-                    var fillQuantity = _cumulativeFilledQuantities.GetFillQuantity(leg, newLeanOrderStatus);
+                    var (fillQuantity, fillPrice) = _cumulativeFilledQuantities.GetFill(leg, newLeanOrderStatus);
 
                     // A replayed update, or a leg of the combo that did not trade this time, brings nothing new.
                     if (newLeanOrderStatus == Orders.OrderStatus.PartiallyFilled && fillQuantity == 0)
@@ -994,7 +994,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     orderEvents.Add(new OrderEvent(leanOrder, obj.TimestampUtc ?? DateTime.UtcNow, fee)
                     {
                         Status = newLeanOrderStatus,
-                        FillPrice = isMultiLegOrder ? GetComboLegFillPrice(leg, leanOrder) : obj.Price ?? 0m,
+                        FillPrice = isMultiLegOrder ? fillPrice : obj.Price ?? 0m,
                         FillQuantity = fillQuantity,
                     });
                 }
@@ -1068,28 +1068,6 @@ namespace QuantConnect.Brokerages.Alpaca
             }
 
             return false;
-        }
-
-        /// <summary>
-        /// Gets the price of the contracts a combo leg filled since Lean last booked it. The leg carries the average price
-        /// of everything it filled, so the price of the new quantity is what is left once the money Lean already booked
-        /// is taken out of it. With no new quantity, Alpaca's average stays.
-        /// </summary>
-        /// <param name="leg">The Alpaca leg with its total filled quantity and average fill price.</param>
-        /// <param name="leanOrder">The Lean order of the leg.</param>
-        /// <returns>The fill price of the new quantity.</returns>
-        private decimal GetComboLegFillPrice(IOrder leg, Order leanOrder)
-        {
-            // The ticket keeps a signed quantity, the Alpaca leg counts up from zero.
-            var orderTicket = _orderProvider.GetOrderTicket(leanOrder.Id);
-            var reportedQuantity = Math.Abs(orderTicket?.QuantityFilled ?? 0m);
-            var newQuantity = leg.FilledQuantity - reportedQuantity;
-            if (newQuantity <= 0)
-            {
-                return leg.AverageFillPrice.Value;
-            }
-
-            return (leg.FilledQuantity * leg.AverageFillPrice.Value - reportedQuantity * (orderTicket?.AverageFillPrice ?? 0m)) / newQuantity;
         }
 
         /// <summary>
