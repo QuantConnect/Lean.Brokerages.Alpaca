@@ -38,7 +38,6 @@ using System.Text;
 using System.Threading.Tasks;
 using QuantConnect.Configuration;
 using QuantConnect.Brokerages.CrossZero;
-using System.Collections.Concurrent;
 using System.Threading;
 using System.Runtime.CompilerServices;
 using System.Net.Http;
