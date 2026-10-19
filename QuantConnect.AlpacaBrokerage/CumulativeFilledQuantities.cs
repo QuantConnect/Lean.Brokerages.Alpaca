@@ -25,7 +25,7 @@ namespace QuantConnect.Brokerages.Alpaca
     /// order. Alpaca reports the cumulative quantity, Lean books the quantity filled since the last update. An order read back from
     /// the account starts with what Alpaca filled before Lean started, which Lean has no field for.
     /// </summary>
-    public class CumulativeFilledQuantities
+    internal class CumulativeFilledQuantities
     {
         private readonly ConcurrentDictionary<Guid, decimal> _fillQuantityByBrokerageOrderId = [];
 

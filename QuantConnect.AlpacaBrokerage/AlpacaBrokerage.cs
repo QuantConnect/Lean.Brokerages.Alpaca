@@ -978,8 +978,8 @@ namespace QuantConnect.Brokerages.Alpaca
                     // alpaca sends the accumulative filled quantity but we need the partial amount for our event
                     var fillQuantity = _cumulativeFilledQuantities.GetFillQuantity(leg, newLeanOrderStatus);
 
-                    // A leg of the combo that did not trade this time, or a replayed update, brings nothing new.
-                    if (isMultiLegOrder && newLeanOrderStatus == Orders.OrderStatus.PartiallyFilled && fillQuantity == 0)
+                    // A replayed update, or a leg of the combo that did not trade this time, brings nothing new.
+                    if (newLeanOrderStatus == Orders.OrderStatus.PartiallyFilled && fillQuantity == 0)
                     {
                         continue;
                     }
