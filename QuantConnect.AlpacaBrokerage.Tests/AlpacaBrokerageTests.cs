@@ -1374,6 +1374,57 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             AlpacaBrokerage.HandleTradeUpdate(new TestTradeUpdate(TradeEvent.Canceled, Guid.NewGuid(), CreateBullCallSpreadOrder(replacedByOrderId, buyLegId, sellLegId, 2m)));
         }
 
+        [Test]
+        public void TryConvertToLeanOrdersSkipsANotionalOrderAndKeepsTheOthers()
+        {
+            // Alpaca reports an order submitted by notional value with no quantity, next to a usual order for 3 AAPL
+            var notionalOrder = new TestOrder(Guid.NewGuid(), OrderSide: OrderSide.Buy, AssetClass: AssetClass.Crypto)
+            {
+                Symbol = "BTC/USD",
+                Quantity = null,
+                Notional = 500m,
+                OrderType = OrderType.Market,
+                SubmittedAtUtc = DateTime.UtcNow
+            };
+            var quantityOrderId = Guid.NewGuid();
+            var quantityOrder = CreateLimitOrder(quantityOrderId, 0m);
+
+            var messages = new List<BrokerageMessageEvent>();
+            void OnMessage(object _, BrokerageMessageEvent message)
+            {
+                messages.Add(message);
+            }
+
+            Brokerage.Message += OnMessage;
+            var leanOrders = new List<Order>();
+            try
+            {
+                // twice, as two reads of the open orders would
+                for (var i = 0; i < 2; i++)
+                {
+                    foreach (var brokerageOrder in new[] { notionalOrder, quantityOrder })
+                    {
+                        if (AlpacaBrokerage.TryConvertToLeanOrders(brokerageOrder, out var convertedOrders))
+                        {
+                            leanOrders.AddRange(convertedOrders);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                Brokerage.Message -= OnMessage;
+            }
+
+            Assert.That(leanOrders, Has.Count.EqualTo(2));
+            Assert.That(leanOrders.Select(leanOrder => leanOrder.BrokerId.Single()), Is.All.EqualTo(quantityOrderId.ToString()));
+            Assert.That(leanOrders.Select(leanOrder => leanOrder.Quantity), Is.All.EqualTo(3m));
+            // one warning, the connection may send messages of its own meanwhile
+            var notionalOrderMessages = messages.Where(message => message.Message.Contains(notionalOrder.OrderId.ToString())).ToList();
+            Assert.That(notionalOrderMessages, Has.Count.EqualTo(1));
+            Assert.That(notionalOrderMessages[0].Type, Is.EqualTo(BrokerageMessageType.Warning));
+        }
+
         /// <summary>
         /// A limit order for 3 AAPL as Alpaca reports it back, with the quantity it already filled.
         /// </summary>
