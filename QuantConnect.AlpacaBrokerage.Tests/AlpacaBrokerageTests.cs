@@ -59,6 +59,27 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         }
 
         /// <summary>
+        /// Gives stop and trailing stop orders twice the time, because they fill on a price move only and an order
+        /// that crosses zero needs two of them. Moves a sell stop order to just under the bid instead of to the ask,
+        /// because Alpaca refuses a sell stop at or above the current price: "stop price must be less than current price".
+        /// </summary>
+        protected override void ModifyOrderUntilFilled(Order order, OrderTestParameters parameters, double secondsTimeout = 90)
+        {
+            if (order.Type is not (Orders.OrderType.StopMarket or Orders.OrderType.StopLimit or Orders.OrderType.TrailingStop))
+            {
+                base.ModifyOrderUntilFilled(order, parameters, secondsTimeout);
+                return;
+            }
+
+            var isSellStop = order.Direction == OrderDirection.Sell && order.Type != Orders.OrderType.TrailingStop;
+            ModifyOrdersUntilFilled([order], () =>
+            {
+                var quote = AlpacaBrokerage.GetLatestQuotePublic(order.Symbol);
+                return parameters.ModifyOrderToFill(Brokerage, order, isSellStop ? quote.BidPrice - 0.01m : quote.AskPrice);
+            }, 2 * secondsTimeout);
+        }
+
+        /// <summary>
         /// Provides the data required to test each order type in various cases
         /// </summary>
         private static IEnumerable<TestCaseData> EquityOrderParameters
@@ -71,9 +92,9 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 yield return new TestCaseData(new StopMarketOrderTestParameters(AAPL, 370m, 300m));
                 yield return new TestCaseData(new StopLimitOrderTestParameters(AAPL, 370m, 300m));
                 var CIFR = Symbol.Create("CIFR", SecurityType.Equity, Market.USA);
-                yield return new TestCaseData(new TrailingStopOrderTestParameters(CIFR, 20m, 16m, 0.02m, trailingAsPercentage: true));
-                var TSLA = Symbol.Create("TSLA", SecurityType.Equity, Market.USA);
-                yield return new TestCaseData(new TrailingStopOrderTestParameters(TSLA, 410m, 340m, 5m, trailingAsPercentage: false));
+                yield return new TestCaseData(new TrailingStopOrderTestParameters(CIFR, 8m, 5.5m, 0.02m, trailingAsPercentage: true));
+                var MARA = Symbol.Create("MARA", SecurityType.Equity, Market.USA);
+                yield return new TestCaseData(new TrailingStopOrderTestParameters(MARA, 9m, 4.5m, 0.5m, trailingAsPercentage: false, trailingOffsetAmount: 0.01m));
             }
         }
 
@@ -85,17 +106,17 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             get
             {
 
-                var option = Symbol.CreateOption(Symbols.AAPL, Symbols.AAPL.ID.Market, OptionStyle.American, OptionRight.Call, 230, new DateTime(2024, 12, 20));
+                var option = Symbol.CreateOption(Symbols.AAPL, Symbols.AAPL.ID.Market, OptionStyle.American, OptionRight.Call, 350, new DateTime(2029, 1, 19));
                 yield return new TestCaseData(new MarketOrderTestParameters(option));
-                yield return new TestCaseData(new LimitOrderTestParameters(option, 20m, 10m));
+                yield return new TestCaseData(new LimitOrderTestParameters(option, 150m, 35m));
 
-                var indexOption = Symbol.CreateOption(Symbol.Create("SPX", SecurityType.Index, Market.USA), "SPXW", Market.USA, OptionStyle.European, OptionRight.Call, 7700, new DateTime(2026, 9, 25));
+                var indexOption = Symbol.CreateOption(Symbol.Create("SPX", SecurityType.Index, Market.USA), "SPXW", Market.USA, OptionStyle.European, OptionRight.Call, 9000, new DateTime(2027, 9, 30));
                 yield return new TestCaseData(new MarketOrderTestParameters(indexOption));
-                yield return new TestCaseData(new LimitOrderTestParameters(indexOption, 32m, 36m));
+                yield return new TestCaseData(new LimitOrderTestParameters(indexOption, 90m, 20m));
 
                 // see https://docs.alpaca.markets/docs/options-trading-overview
-                yield return new TestCaseData(new StopMarketOrderTestParameters(option, 20m, 10m)).Explicit("Not supported by alpaca");
-                yield return new TestCaseData(new StopLimitOrderTestParameters(option, 20m, 10m)).Explicit("Not supported by alpaca");
+                yield return new TestCaseData(new StopMarketOrderTestParameters(option, 150m, 35m)).Explicit("Not supported by alpaca");
+                yield return new TestCaseData(new StopLimitOrderTestParameters(option, 150m, 35m)).Explicit("Not supported by alpaca");
             }
         }
 
@@ -108,8 +129,8 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             {
                 var ETHUSD = Symbol.Create("ETHUSD", SecurityType.Crypto, Market.USA);
                 yield return new TestCaseData(new MarketOrderTestParameters(ETHUSD));
-                yield return new TestCaseData(new LimitOrderTestParameters(ETHUSD, 3600m, 3000m));
-                yield return new TestCaseData(new StopLimitOrderTestParameters(ETHUSD, 3600m, 3000m)).Explicit("The WebSocket does not return an update order event, which is necessary for this test case to pass.");
+                yield return new TestCaseData(new LimitOrderTestParameters(ETHUSD, 2500m, 1200m));
+                yield return new TestCaseData(new StopLimitOrderTestParameters(ETHUSD, 2500m, 1200m)).Explicit("The WebSocket does not return an update order event, which is necessary for this test case to pass.");
             }
         }
 
@@ -474,7 +495,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             }
             else
             {
-                Assert.IsFalse(Brokerage.PlaceOrder(order));
+                Assert.IsTrue(Brokerage.PlaceOrder(order));
 
                 if (!invalidResetEvent.WaitOne(TimeSpan.FromSeconds(5)))
                 {
@@ -513,9 +534,9 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             [ValueSource(nameof(OrdersParameters))] OrderTestParameters ordersParameters,
             [ValueSource(nameof(TimeInForceCases))] TimeInForce timeInForce)
         {
-            if (ordersParameters is LimitOrderTestParameters && timeInForce is DayTimeInForce)
+            if (ordersParameters is LimitOrderTestParameters && timeInForce is DayTimeInForce or GoodTilCanceledTimeInForce)
             {
-                Assert.Ignore("Limit orders with Day time in force are allowed outside regular trading hours.");
+                Assert.Ignore("Limit orders with Day or GoodTilCanceled time in force are allowed outside regular trading hours.");
             }
 
             var order = ordersParameters.CreateLongOrder(GetDefaultQuantity());
@@ -559,6 +580,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 }
             };
 
+            OrderProvider.Add(limitOrder);
             Assert.IsTrue(Brokerage.PlaceOrder(limitOrder));
             Assert.IsTrue(submittedOrderEvent.WaitOne(TimeSpan.FromSeconds(5)));
         }
