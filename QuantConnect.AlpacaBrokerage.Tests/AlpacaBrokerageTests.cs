@@ -22,6 +22,7 @@ using QuantConnect.Securities;
 using QuantConnect.Securities.Option;
 using QuantConnect.Tests;
 using QuantConnect.Tests.Brokerages;
+using QuantConnect.Util;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -39,6 +40,12 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
     [TestFixture]
     public partial class AlpacaBrokerageTests : BrokerageTests
     {
+        /// <summary>
+        /// Keeps the tests under the pace Alpaca allows: it accepts 10 logins to the order stream per minute
+        /// for one key and answers the next one with "unauthorized". Each test connects once.
+        /// </summary>
+        private static readonly RateGate _orderStreamLoginRateGate = new(9, Time.OneMinute);
+
         private TestAlpacaBrokerage AlpacaBrokerage => Brokerage as TestAlpacaBrokerage;
 
         protected override Symbol Symbol { get; } = Symbols.AAPL;
@@ -50,6 +57,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         {
             var (apiKey, apiKeySecret, isPaperTrading, accessToken) = AlpacaBrokerageTestHelpers.GetConfigParameters();
 
+            _orderStreamLoginRateGate.WaitToProceed();
             return new TestAlpacaBrokerage(apiKey, apiKeySecret, isPaperTrading, orderProvider, securityProvider, accessToken);
         }
         protected override bool IsAsync() => false;
