@@ -112,10 +112,10 @@ namespace QuantConnect.Brokerages.Alpaca
         private readonly HashSet<AlpacaMarket.TimeInForce> _unsupportedTimeInForce = [];
 
         /// <summary>
-        /// Tracks the Alpaca orders with an unsupported order class, so their warning is sent once per order
-        /// instead of every time the open orders are read.
+        /// Tracks the unsupported Alpaca orders, such as those of an unsupported order class or without a quantity,
+        /// so their warning is sent once per order instead of every time the open orders are read.
         /// </summary>
-        private readonly HashSet<Guid> _unsupportedOrderClassOrderIds = [];
+        private readonly HashSet<Guid> _unsupportedOrderIds = [];
 
         /// <summary>
         /// Returns true if we're currently connected to the broker
@@ -420,6 +420,15 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             leanOrders = null;
 
+            if (!brokerageOrder.Quantity.HasValue)
+            {
+                if (_unsupportedOrderIds.Add(brokerageOrder.OrderId))
+                {
+                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "NotSupportedOrderType", $"The {brokerageOrder.Symbol} order {brokerageOrder.OrderId} of notional value {brokerageOrder.Notional} has no quantity, it is not supported."));
+                }
+                return false;
+            }
+
             var orderProperties = new AlpacaOrderProperties();
             if (!orderProperties.TryGetLeanTimeInForceByAlpacaTimeInForce(brokerageOrder.TimeInForce))
             {
@@ -441,7 +450,7 @@ namespace QuantConnect.Brokerages.Alpaca
                     leanOrders = CreateComboLeanOrders(brokerageOrder, orderProperties);
                     return true;
                 default:
-                    if (_unsupportedOrderClassOrderIds.Add(brokerageOrder.OrderId))
+                    if (_unsupportedOrderIds.Add(brokerageOrder.OrderId))
                     {
                         OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "NotSupportedOrderType", $"The {brokerageOrder.OrderClass} order {brokerageOrder.OrderId} is not supported. Only simple, bracket, oco, oto and multi-leg option orders are supported."));
                     }
