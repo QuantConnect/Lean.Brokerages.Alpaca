@@ -420,7 +420,6 @@ namespace QuantConnect.Brokerages.Alpaca
         {
             leanOrders = null;
 
-            // Alpaca leaves the quantity out of an order submitted by notional value, and a Lean order needs one
             if (!brokerageOrder.Quantity.HasValue)
             {
                 if (_unsupportedOrderIds.Add(brokerageOrder.OrderId))
