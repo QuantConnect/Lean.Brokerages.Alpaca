@@ -70,6 +70,9 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         /// Gives stop and trailing stop orders twice the time, because they fill on a price move only and an order
         /// that crosses zero needs two of them. Moves a sell stop order to just under the bid instead of to the ask,
         /// because Alpaca refuses a sell stop at or above the current price: "stop price must be less than current price".
+        /// Sets the limit of a stop limit order past its stop, so the order fills once the stop triggers. With the limit
+        /// at the stop, the second part of an order that crosses zero rests when the price moves on, and nothing
+        /// changes an order that is partially filled.
         /// </summary>
         protected override void ModifyOrderUntilFilled(Order order, OrderTestParameters parameters, double secondsTimeout = 90)
         {
@@ -83,7 +86,20 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             ModifyOrdersUntilFilled([order], () =>
             {
                 var quote = AlpacaBrokerage.GetLatestQuotePublic(order.Symbol);
-                return parameters.ModifyOrderToFill(Brokerage, order, isSellStop ? quote.BidPrice - 0.01m : quote.AskPrice);
+                var price = isSellStop ? quote.BidPrice - 0.01m : quote.AskPrice;
+                if (order is not StopLimitOrder stopLimitOrder)
+                {
+                    return parameters.ModifyOrderToFill(Brokerage, order, price);
+                }
+
+                if (stopLimitOrder.StopPrice == price)
+                {
+                    return false;
+                }
+
+                var limitPrice = Math.Round(order.Direction == OrderDirection.Sell ? price * 0.99m : price * 1.01m, 2);
+                order.ApplyUpdateOrderRequest(new UpdateOrderRequest(DateTime.UtcNow, order.Id, new UpdateOrderFields { StopPrice = price, LimitPrice = limitPrice }));
+                return true;
             }, 2 * secondsTimeout);
         }
 
@@ -132,17 +148,17 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             get
             {
 
-                var option = Symbol.CreateOption(Symbols.AAPL, Symbols.AAPL.ID.Market, OptionStyle.American, OptionRight.Call, 350, new DateTime(2029, 1, 19));
+                var option = Symbol.CreateOption(Symbols.AAPL, Symbols.AAPL.ID.Market, OptionStyle.American, OptionRight.Call, 600, new DateTime(2027, 12, 17));
                 yield return new TestCaseData(new MarketOrderTestParameters(option));
-                yield return new TestCaseData(new LimitOrderTestParameters(option, 150m, 35m));
+                yield return new TestCaseData(new LimitOrderTestParameters(option, 5m, 0.2m));
 
-                var indexOption = Symbol.CreateOption(Symbol.Create("SPX", SecurityType.Index, Market.USA), "SPXW", Market.USA, OptionStyle.European, OptionRight.Call, 9000, new DateTime(2027, 9, 30));
+                var indexOption = Symbol.CreateOption(Symbol.Create("SPX", SecurityType.Index, Market.USA), "SPXW", Market.USA, OptionStyle.European, OptionRight.Call, 9500, new DateTime(2027, 3, 31));
                 yield return new TestCaseData(new MarketOrderTestParameters(indexOption));
-                yield return new TestCaseData(new LimitOrderTestParameters(indexOption, 90m, 20m));
+                yield return new TestCaseData(new LimitOrderTestParameters(indexOption, 5m, 0.2m));
 
                 // see https://docs.alpaca.markets/docs/options-trading-overview
-                yield return new TestCaseData(new StopMarketOrderTestParameters(option, 150m, 35m)).Explicit("Not supported by alpaca");
-                yield return new TestCaseData(new StopLimitOrderTestParameters(option, 150m, 35m)).Explicit("Not supported by alpaca");
+                yield return new TestCaseData(new StopMarketOrderTestParameters(option, 5m, 0.2m)).Explicit("Not supported by alpaca");
+                yield return new TestCaseData(new StopLimitOrderTestParameters(option, 5m, 0.2m)).Explicit("Not supported by alpaca");
             }
         }
 
