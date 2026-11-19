@@ -70,6 +70,9 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         /// Gives stop and trailing stop orders twice the time, because they fill on a price move only and an order
         /// that crosses zero needs two of them. Moves a sell stop order to just under the bid instead of to the ask,
         /// because Alpaca refuses a sell stop at or above the current price: "stop price must be less than current price".
+        /// Sets the limit of a stop limit order past its stop, so the order fills once the stop triggers. With the limit
+        /// at the stop, the second part of an order that crosses zero rests when the price moves on, and nothing
+        /// changes an order that is partially filled.
         /// </summary>
         protected override void ModifyOrderUntilFilled(Order order, OrderTestParameters parameters, double secondsTimeout = 90)
         {
@@ -83,7 +86,20 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             ModifyOrdersUntilFilled([order], () =>
             {
                 var quote = AlpacaBrokerage.GetLatestQuotePublic(order.Symbol);
-                return parameters.ModifyOrderToFill(Brokerage, order, isSellStop ? quote.BidPrice - 0.01m : quote.AskPrice);
+                var price = isSellStop ? quote.BidPrice - 0.01m : quote.AskPrice;
+                if (order is not StopLimitOrder stopLimitOrder)
+                {
+                    return parameters.ModifyOrderToFill(Brokerage, order, price);
+                }
+
+                if (stopLimitOrder.StopPrice == price)
+                {
+                    return false;
+                }
+
+                var limitPrice = Math.Round(order.Direction == OrderDirection.Sell ? price * 0.99m : price * 1.01m, 2);
+                order.ApplyUpdateOrderRequest(new UpdateOrderRequest(DateTime.UtcNow, order.Id, new UpdateOrderFields { StopPrice = price, LimitPrice = limitPrice }));
+                return true;
             }, 2 * secondsTimeout);
         }
 
