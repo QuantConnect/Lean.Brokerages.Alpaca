@@ -135,7 +135,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         {
             get
             {
-                var ETHUSD = Symbol.Create("ETHUSD", SecurityType.Crypto, Market.USA);
+                var ETHUSD = Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Coinbase);
                 yield return new TestCaseData(new MarketOrderTestParameters(ETHUSD));
                 yield return new TestCaseData(new LimitOrderTestParameters(ETHUSD, 2500m, 1200m));
                 yield return new TestCaseData(new StopLimitOrderTestParameters(ETHUSD, 2500m, 1200m)).Explicit("The WebSocket does not return an update order event, which is necessary for this test case to pass.");
