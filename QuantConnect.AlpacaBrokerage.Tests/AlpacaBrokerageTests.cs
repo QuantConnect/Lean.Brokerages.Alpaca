@@ -88,6 +88,24 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
         }
 
         /// <summary>
+        /// Cancels the orders a test left open and waits for Alpaca to confirm each cancel. The base teardown closes
+        /// the holdings right after it asks to cancel, while Alpaca still reserves the quantity for the open order
+        /// and refuses the closing order: "insufficient qty available for order".
+        /// </summary>
+        [TearDown]
+        public void CancelOpenOrdersAndWait()
+        {
+            foreach (var order in OrderProvider.GetOpenOrders(order => order.BrokerId.Count > 0))
+            {
+                OrderCancelledResetEvent.Reset();
+                if (Brokerage.CancelOrder(order))
+                {
+                    OrderCancelledResetEvent.WaitOne(TimeSpan.FromSeconds(20));
+                }
+            }
+        }
+
+        /// <summary>
         /// Provides the data required to test each order type in various cases
         /// </summary>
         private static IEnumerable<TestCaseData> EquityOrderParameters
