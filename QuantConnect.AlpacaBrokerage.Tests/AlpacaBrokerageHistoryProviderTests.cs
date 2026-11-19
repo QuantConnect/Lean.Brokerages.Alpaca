@@ -24,19 +24,22 @@ using QuantConnect.Tests;
 using QuantConnect.Interfaces;
 using QuantConnect.Securities;
 using System.Collections.Generic;
+using static QuantConnect.Brokerages.Alpaca.Tests.AlpacaBrokerageAdditionalTests;
 
 namespace QuantConnect.Brokerages.Alpaca.Tests
 {
     [TestFixture]
     public class AlpacaBrokerageHistoryProviderTests
     {
-        private AlpacaBrokerage _alpacaBrokerage;
+        private TestAlpacaBrokerage _alpacaBrokerage;
+
+        private Symbol _nearestAtTheMoneyCall;
 
         [OneTimeSetUp]
         public void OneTimeSetUp()
         {
             var (apiKey, apiKeySecret, isPaperTrading, accessToken) = AlpacaBrokerageTestHelpers.GetConfigParameters();
-            _alpacaBrokerage = new AlpacaBrokerage(apiKey, apiKeySecret, accessToken, isPaperTrading, new Mock<IAlgorithm>().Object);
+            _alpacaBrokerage = new TestAlpacaBrokerage(apiKey, apiKeySecret, isPaperTrading, new Mock<IAlgorithm>().Object, accessToken);
         }
 
         private static IEnumerable<TestCaseData> TestParameters
@@ -145,7 +148,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             {
                 SecurityType.Equity => Symbols.AAPL,
                 SecurityType.Crypto => Symbols.BTCUSD,
-                SecurityType.Option => Symbol.CreateOption(Symbols.AAPL, Market.USA, SecurityType.Option.DefaultOptionStyle(), OptionRight.Call, 215m, new DateTime(2025, 03, 21)),
+                SecurityType.Option => GetNearestAtTheMoneyCall(),
                 _ => throw new NotImplementedException("")
             };
             var utcNow = DateTime.UtcNow;
@@ -172,10 +175,12 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 switch (securityType)
                 {
                     case SecurityType.Equity:
-                        Assert.IsTrue(differenceBetweenLastBaseDataAndUtcRequested < 1);
+                        // the last closed bar starts up to one bar before the 15 minute limit
+                        Assert.IsTrue(differenceBetweenLastBaseDataAndUtcRequested < 1 + resolutionInTimeSpan.TotalSeconds,
+                            $"Difference Between Last Base Data and Utc Requested: {differenceBetweenLastBaseDataAndUtcRequested} seconds");
                         break;
-                    case SecurityType.Option: // less volatility, acceptable value 30 seconds
-                        Assert.IsTrue(differenceBetweenLastBaseDataAndUtcRequested <= 30,
+                    case SecurityType.Option: // an option contract can go minutes without a trade
+                        Assert.IsTrue(differenceBetweenLastBaseDataAndUtcRequested <= 300,
                             $"Difference Between Last Base Data and Utc Requested: {differenceBetweenLastBaseDataAndUtcRequested} seconds");
                         break;
                 }
@@ -190,7 +195,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             var symbol = securityType switch
             {
                 SecurityType.Equity => Symbols.AAPL,
-                SecurityType.Option => Symbol.CreateOption(Symbols.AAPL, Market.USA, SecurityType.Option.DefaultOptionStyle(), OptionRight.Call, 212.5m, new DateTime(2025, 03, 21)),
+                SecurityType.Option => GetNearestAtTheMoneyCall(),
                 _ => throw new NotImplementedException("")
             };
 
@@ -217,7 +222,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             };
 
             var AAPL = Symbols.AAPL;
-            var AAPL_Option = Symbol.CreateOption(Symbols.AAPL, Market.USA, SecurityType.Option.DefaultOptionStyle(), OptionRight.Call, 212.5m, new DateTime(2025, 03, 21));
+            var AAPL_Option = GetNearestAtTheMoneyCall();
 
             var utcNow = DateTime.UtcNow;
             var startDate = utcNow.AddMinutes(-20);
@@ -242,6 +247,37 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             Assert.That(actualExceptionMessages, Has.Some.Matches<string>(msg =>
                 msg.Contains("OPRA agreement is not signed for free subscriptions.")
                 || msg.Contains("Real-time SIP data is restricted for free subscriptions.")));
+        }
+
+        /// <summary>
+        /// Gets the AAPL call nearest to the money of the first expiry after today. It trades all day,
+        /// while a fixed contract has no recent data once it expires.
+        /// </summary>
+        private Symbol GetNearestAtTheMoneyCall()
+        {
+            if (_nearestAtTheMoneyCall != null)
+            {
+                return _nearestAtTheMoneyCall;
+            }
+
+            var underlyingPrice = _alpacaBrokerage.GetLatestQuotePublic(Symbols.AAPL).AskPrice;
+            var today = DateTime.UtcNow.ConvertFromUtc(TimeZones.NewYork).Date;
+            foreach (var contract in _alpacaBrokerage.LookupSymbols(Symbol.CreateCanonicalOption(Symbols.AAPL), false))
+            {
+                if (contract.ID.OptionRight != OptionRight.Call || contract.ID.Date <= today)
+                {
+                    continue;
+                }
+
+                if (_nearestAtTheMoneyCall == null || contract.ID.Date < _nearestAtTheMoneyCall.ID.Date
+                    || contract.ID.Date == _nearestAtTheMoneyCall.ID.Date
+                    && Math.Abs(contract.ID.StrikePrice - underlyingPrice) < Math.Abs(_nearestAtTheMoneyCall.ID.StrikePrice - underlyingPrice))
+                {
+                    _nearestAtTheMoneyCall = contract;
+                }
+            }
+
+            return _nearestAtTheMoneyCall;
         }
 
         internal static HistoryRequest CreateHistoryRequest(Symbol symbol, Resolution resolution, TickType tickType, DateTime startDateTime,
