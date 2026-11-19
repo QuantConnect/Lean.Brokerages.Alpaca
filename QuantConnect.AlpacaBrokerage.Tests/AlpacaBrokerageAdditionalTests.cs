@@ -87,7 +87,7 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
                 TestGlobals.Initialize();
                 yield return Symbols.AAPL;
                 yield return Symbols.BTCUSD;
-                yield return Symbol.CreateOption(Symbols.AAPL, Symbols.AAPL.ID.Market, OptionStyle.American, OptionRight.Call, 350, new DateTime(2029, 1, 19));
+                yield return Symbol.CreateOption(Symbols.AAPL, Symbols.AAPL.ID.Market, OptionStyle.American, OptionRight.Call, 600, new DateTime(2027, 12, 17));
             }
         }
 

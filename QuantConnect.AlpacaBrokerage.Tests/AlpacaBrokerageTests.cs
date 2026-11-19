@@ -132,17 +132,17 @@ namespace QuantConnect.Brokerages.Alpaca.Tests
             get
             {
 
-                var option = Symbol.CreateOption(Symbols.AAPL, Symbols.AAPL.ID.Market, OptionStyle.American, OptionRight.Call, 350, new DateTime(2029, 1, 19));
+                var option = Symbol.CreateOption(Symbols.AAPL, Symbols.AAPL.ID.Market, OptionStyle.American, OptionRight.Call, 600, new DateTime(2027, 12, 17));
                 yield return new TestCaseData(new MarketOrderTestParameters(option));
-                yield return new TestCaseData(new LimitOrderTestParameters(option, 150m, 35m));
+                yield return new TestCaseData(new LimitOrderTestParameters(option, 5m, 0.2m));
 
-                var indexOption = Symbol.CreateOption(Symbol.Create("SPX", SecurityType.Index, Market.USA), "SPXW", Market.USA, OptionStyle.European, OptionRight.Call, 9000, new DateTime(2027, 9, 30));
+                var indexOption = Symbol.CreateOption(Symbol.Create("SPX", SecurityType.Index, Market.USA), "SPXW", Market.USA, OptionStyle.European, OptionRight.Call, 9500, new DateTime(2027, 3, 31));
                 yield return new TestCaseData(new MarketOrderTestParameters(indexOption));
-                yield return new TestCaseData(new LimitOrderTestParameters(indexOption, 90m, 20m));
+                yield return new TestCaseData(new LimitOrderTestParameters(indexOption, 5m, 0.2m));
 
                 // see https://docs.alpaca.markets/docs/options-trading-overview
-                yield return new TestCaseData(new StopMarketOrderTestParameters(option, 150m, 35m)).Explicit("Not supported by alpaca");
-                yield return new TestCaseData(new StopLimitOrderTestParameters(option, 150m, 35m)).Explicit("Not supported by alpaca");
+                yield return new TestCaseData(new StopMarketOrderTestParameters(option, 5m, 0.2m)).Explicit("Not supported by alpaca");
+                yield return new TestCaseData(new StopLimitOrderTestParameters(option, 5m, 0.2m)).Explicit("Not supported by alpaca");
             }
         }
 
